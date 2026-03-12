@@ -1,3 +1,4 @@
+from argparse import BooleanOptionalAction
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -5,17 +6,30 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
+from App_Sales.models import DiningTable, QROrder, QROrderItem
+from App_Sales.services import get_effective_unit_price
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
 class Command(BaseCommand):
-    help = 'Seed dữ liệu tenant/store/user/catalog mẫu (idempotent).'
+    help = 'Seed dữ liệu tenant/store/user/catalog/table/qr mẫu (idempotent, compact-plus).'
 
     def add_arguments(self, parser):
         parser.add_argument('--tenant-slug', default='demo')
         parser.add_argument('--tenant-name', default='Demo FNB')
         parser.add_argument('--default-password', default='123456')
         parser.add_argument('--reset-passwords', action='store_true')
+        parser.add_argument(
+            '--seed-qr-pending',
+            action=BooleanOptionalAction,
+            default=True,
+            help='Seed thêm đơn QR pending để demo tab online (mặc định bật).',
+        )
+        parser.add_argument(
+            '--skip-qr-pending',
+            action='store_true',
+            help='Alias cũ: tắt seed QR pending (tương đương --no-seed-qr-pending).',
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -23,6 +37,7 @@ class Command(BaseCommand):
         tenant_name = options['tenant_name']
         default_password = options['default_password']
         reset_passwords = options['reset_passwords']
+        seed_qr_pending = options['seed_qr_pending'] and not options['skip_qr_pending']
 
         User = get_user_model()
 
@@ -36,6 +51,7 @@ class Command(BaseCommand):
             {'name': 'CN Thủ Đức', 'address': '45 Võ Văn Ngân, TP. Thủ Đức, TP.HCM', 'is_default': False},
             {'name': 'CN Gò Vấp', 'address': '120 Quang Trung, Q. Gò Vấp, TP.HCM', 'is_default': False},
         ]
+
         store_map = {}
         for row in stores_seed:
             store, _ = Store.objects.get_or_create(
@@ -70,6 +86,8 @@ class Command(BaseCommand):
         staff_rows = [
             (f'{tenant_slug}_nhanvien_1', ['CN Trung Tâm', 'CN Thủ Đức'], 'CN Trung Tâm'),
             (f'{tenant_slug}_nhanvien_2', ['CN Thủ Đức', 'CN Gò Vấp'], 'CN Thủ Đức'),
+            (f'{tenant_slug}_nhanvien_3', ['CN Trung Tâm', 'CN Gò Vấp'], 'CN Gò Vấp'),
+            (f'{tenant_slug}_nhanvien_4', ['CN Trung Tâm'], 'CN Trung Tâm'),
         ]
         staff_users = []
         for username, _, _ in staff_rows:
@@ -87,11 +105,20 @@ class Command(BaseCommand):
                 user.save(update_fields=['password'])
             staff_users.append(user)
 
-        self._sync_access(manager, [r['name'] for r in stores_seed], 'CN Trung Tâm', store_map)
+        self._sync_access(manager, [row['name'] for row in stores_seed], 'CN Trung Tâm', store_map)
         for idx, staff in enumerate(staff_users):
             self._sync_access(staff, staff_rows[idx][1], staff_rows[idx][2], store_map)
 
-        categories_seed = ['Đồ ăn', 'Nước uống', 'Combo']
+        categories_seed = [
+            'Đồ ăn',
+            'Nước uống',
+            'Combo',
+            'Trà sữa',
+            'Cà phê',
+            'Tráng miệng',
+            'Đồ chay',
+            'Ăn vặt',
+        ]
         category_map = {}
         for cat_name in categories_seed:
             category, _ = Category.objects.get_or_create(tenant=tenant, name=cat_name, defaults={'is_active': True})
@@ -99,6 +126,7 @@ class Command(BaseCommand):
             category.is_active = True
             category.save(update_fields=['description', 'is_active', 'updated_at'])
             category_map[cat_name] = category
+
             for store in store_map.values():
                 StoreCategory.objects.update_or_create(
                     store=store,
@@ -106,78 +134,143 @@ class Command(BaseCommand):
                     defaults={'is_visible': True},
                 )
 
-        products_seed = [
-            {
-                'name': 'Cà phê sữa đá',
-                'category': 'Nước uống',
-                'image_url': 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80',
-                'stores': ['CN Trung Tâm', 'CN Thủ Đức', 'CN Gò Vấp'],
-                'units': [('M', Decimal('29000')), ('L', Decimal('35000'))],
-            },
-            {
-                'name': 'Trà đào cam sả',
-                'category': 'Nước uống',
-                'image_url': 'https://images.unsplash.com/photo-1499638673689-79a0b5115d87?auto=format&fit=crop&w=600&q=80',
-                'stores': ['CN Trung Tâm', 'CN Thủ Đức'],
-                'units': [('M', Decimal('45000')), ('L', Decimal('55000'))],
-            },
-            {
-                'name': 'Bánh mì thịt nướng',
-                'category': 'Đồ ăn',
-                'image_url': 'https://images.unsplash.com/photo-1509722747041-616f39b57569?auto=format&fit=crop&w=600&q=80',
-                'stores': ['CN Trung Tâm', 'CN Gò Vấp'],
-                'units': [('Phần', Decimal('25000'))],
-            },
-            {
-                'name': 'Combo sáng',
-                'category': 'Combo',
-                'image_url': 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=600&q=80',
-                'stores': ['CN Trung Tâm', 'CN Thủ Đức', 'CN Gò Vấp'],
-                'units': [('Combo', Decimal('65000'))],
-            },
-        ]
+        product_templates = {
+            'Đồ ăn': ['Cơm gà', 'Bún bò', 'Mì xào', 'Phở bò', 'Gà rán', 'Bánh mì', 'Cơm tấm', 'Xôi mặn'],
+            'Nước uống': ['Nước cam', 'Nước chanh', 'Soda', 'Trà đào', 'Sinh tố dâu', 'Nước ép thơm', 'Bạc hà đá', 'Nước dừa'],
+            'Combo': ['Combo sáng', 'Combo trưa', 'Combo tối', 'Combo gia đình', 'Combo văn phòng', 'Combo tiết kiệm', 'Combo đôi', 'Combo party'],
+            'Trà sữa': ['Trà sữa truyền thống', 'Trà sữa trân châu', 'Trà sữa khoai môn', 'Trà sữa matcha', 'Trà sữa socola', 'Trà sữa dâu', 'Trà sữa ô long', 'Trà sữa kem cheese'],
+            'Cà phê': ['Espresso', 'Americano', 'Latte', 'Cappuccino', 'Cà phê đen', 'Cà phê sữa', 'Cold brew', 'Mocha'],
+            'Tráng miệng': ['Bánh flan', 'Tiramisu', 'Panna cotta', 'Bánh mousse', 'Rau câu', 'Bánh su kem', 'Sữa chua', 'Kem ly'],
+            'Đồ chay': ['Cơm chay', 'Bún chay', 'Mì chay', 'Gỏi cuốn chay', 'Lẩu chay', 'Đậu hũ sốt', 'Nấm kho', 'Cà ri chay'],
+            'Ăn vặt': ['Khoai tây chiên', 'Cá viên chiên', 'Bắp xào', 'Phô mai que', 'Há cảo', 'Nem chua rán', 'Bánh tráng trộn', 'Xúc xích'],
+        }
 
-        for row in products_seed:
-            product, _ = Product.objects.get_or_create(
-                tenant=tenant,
-                name=row['name'],
-                defaults={
-                    'category': category_map[row['category']],
-                    'short_description': row['name'],
-                    'description': f'Sản phẩm {row["name"]}',
-                    'image_url': row['image_url'],
-                    'is_active': True,
-                },
-            )
-            product.category = category_map[row['category']]
-            product.short_description = row['name']
-            product.description = f'Sản phẩm {row["name"]}'
-            product.image_url = row['image_url']
-            product.is_active = True
-            product.save()
-
-            for idx, (unit_name, unit_price) in enumerate(row['units'], start=1):
-                ProductUnit.objects.update_or_create(
-                    product=product,
-                    name=unit_name,
+        product_counter = 0
+        product_ids = []
+        for category_name, names in product_templates.items():
+            category = category_map[category_name]
+            for idx, base_name in enumerate(names, start=1):
+                product_counter += 1
+                product_name = f'{base_name} {idx:02d}'
+                product, _ = Product.objects.get_or_create(
+                    tenant=tenant,
+                    name=product_name,
                     defaults={
-                        'price': unit_price,
+                        'category': category,
+                        'short_description': f'{base_name} chuẩn vị',
+                        'description': f'Sản phẩm {product_name}',
+                        'image_url': f'https://placehold.co/600x600/png?text={product_name.replace(" ", "+")}',
+                        'is_active': True,
+                    },
+                )
+                product.category = category
+                product.short_description = f'{base_name} chuẩn vị'
+                product.description = f'Sản phẩm {product_name}'
+                product.image_url = f'https://placehold.co/600x600/png?text={product_name.replace(" ", "+")}'
+                product.is_active = True
+                product.save()
+                product_ids.append(product.id)
+
+                units_seed = [
+                    ('M', Decimal(str(25000 + (product_counter % 7) * 4000))),
+                    ('L', Decimal(str(32000 + (product_counter % 7) * 4000))),
+                ]
+                if category_name in {'Đồ ăn', 'Combo', 'Đồ chay', 'Ăn vặt'}:
+                    units_seed = [
+                        ('Phần', Decimal(str(35000 + (product_counter % 8) * 5000))),
+                    ]
+
+                for unit_order, (unit_name, unit_price) in enumerate(units_seed, start=1):
+                    ProductUnit.objects.update_or_create(
+                        product=product,
+                        name=unit_name,
+                        defaults={
+                            'price': unit_price,
+                            'display_order': unit_order,
+                            'is_active': True,
+                        },
+                    )
+
+                store_names = list(store_map.keys())
+                active_store_count = 1 + (product_counter % 3)
+                assigned_stores = set(store_names[:active_store_count])
+                if product_counter % 2 == 0:
+                    assigned_stores.add('CN Gò Vấp')
+
+                for store in store_map.values():
+                    StoreProduct.objects.update_or_create(
+                        store=store,
+                        product=product,
+                        defaults={'is_available': store.name in assigned_stores},
+                    )
+
+        for store in store_map.values():
+            for idx in range(1, 13):
+                code = f'{store.slug[:3].upper()}-{idx:02d}'
+                DiningTable.objects.update_or_create(
+                    tenant=tenant,
+                    store=store,
+                    code=code,
+                    defaults={
+                        'name': f'Bàn {idx:02d}',
                         'display_order': idx,
                         'is_active': True,
                     },
                 )
 
-            for store in store_map.values():
-                StoreProduct.objects.update_or_create(
-                    store=store,
-                    product=product,
-                    defaults={'is_available': store.name in row['stores']},
-                )
+        if seed_qr_pending:
+            QROrder.objects.filter(tenant=tenant, status=QROrder.Status.PENDING, customer_note__startswith='[seed]').delete()
+            self._seed_pending_qr_orders(tenant=tenant, store_map=store_map)
 
         self.stdout.write(self.style.SUCCESS('Seed dữ liệu thành công.'))
         self.stdout.write(f'Tenant: {tenant.public_slug} ({tenant.name})')
         self.stdout.write(f'Manager: {manager.username}')
         self.stdout.write(f'Staff: {", ".join(u.username for u in staff_users)}')
+        self.stdout.write(f'Tổng sản phẩm seed: {len(product_ids)}')
+        self.stdout.write('Bàn mỗi cửa hàng: 12')
+
+    def _seed_pending_qr_orders(self, *, tenant, store_map):
+        stores = list(store_map.values())
+        for store_index, store in enumerate(stores, start=1):
+            tables = list(DiningTable.objects.filter(store=store, is_active=True).order_by('display_order')[:2])
+            if not tables:
+                continue
+
+            for idx, table in enumerate(tables, start=1):
+                qr_order = QROrder.objects.create(
+                    tenant=tenant,
+                    store=store,
+                    table=table,
+                    status=QROrder.Status.PENDING,
+                    customer_note=f'[seed] Đơn demo {store_index}-{idx}',
+                )
+
+                units = list(
+                    ProductUnit.objects.filter(
+                        product__tenant=tenant,
+                        product__is_active=True,
+                        is_active=True,
+                        product__store_links__store=store,
+                        product__store_links__is_available=True,
+                    )
+                    .select_related('product')
+                    .order_by('id')[:3]
+                )
+
+                for unit_idx, unit in enumerate(units, start=1):
+                    quantity = 1 + (unit_idx % 2)
+                    price = get_effective_unit_price(unit=unit, store_id=store.id)
+                    QROrderItem.objects.create(
+                        qr_order=qr_order,
+                        product=unit.product,
+                        unit=unit,
+                        snapshot_product_name=unit.product.name,
+                        snapshot_unit_name=unit.name,
+                        unit_price_snapshot=price,
+                        quantity=quantity,
+                        note='Ít đá' if unit_idx == 1 else '',
+                        line_total=Decimal('0'),
+                    )
 
     def _sync_access(self, user, store_names, default_store_name, store_map):
         allowed_ids = [store_map[name].id for name in store_names]

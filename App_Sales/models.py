@@ -1,9 +1,15 @@
+import secrets
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from App_Core.models import TimeStampedModel
+
+
+def generate_qr_token():
+    return secrets.token_urlsafe(24)
 
 
 class Order(TimeStampedModel):
@@ -42,6 +48,152 @@ class Order(TimeStampedModel):
 
     def __str__(self):
         return self.order_code
+
+
+class DiningTable(TimeStampedModel):
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='dining_tables')
+    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='dining_tables')
+    code = models.CharField(max_length=40)
+    name = models.CharField(max_length=120)
+    qr_token = models.CharField(max_length=64, unique=True, default=generate_qr_token, editable=False)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['store', 'code'], name='uq_dining_table_store_code'),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'store', 'is_active']),
+            models.Index(fields=['store', 'display_order']),
+        ]
+        ordering = ['display_order', 'id']
+
+    def clean(self):
+        if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
+            raise ValidationError('Store và tenant của bàn phải khớp nhau.')
+
+    def save(self, *args, **kwargs):
+        self.code = (self.code or '').strip().upper()
+        if not self.qr_token:
+            self.qr_token = generate_qr_token()
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.store.name} - {self.name}'
+
+
+class QROrder(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='qr_orders')
+    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='qr_orders')
+    table = models.ForeignKey(DiningTable, on_delete=models.CASCADE, related_name='qr_orders')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    customer_note = models.CharField(max_length=255, blank=True)
+    created_by_ip = models.GenericIPAddressField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_qr_orders',
+    )
+    rejected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rejected_qr_orders',
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'store', 'status', 'created_at']),
+            models.Index(fields=['table', 'status', 'created_at']),
+        ]
+        ordering = ['-created_at']
+
+    def clean(self):
+        if self.table_id and self.store_id and self.table.store_id != self.store_id:
+            raise ValidationError('Table phải thuộc store của đơn QR.')
+        if self.table_id and self.tenant_id and self.table.tenant_id != self.tenant_id:
+            raise ValidationError('Table phải cùng tenant với đơn QR.')
+        if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
+            raise ValidationError('Store phải cùng tenant với đơn QR.')
+
+    def __str__(self):
+        return f'QR-{self.id or "new"}-{self.status}'
+
+
+class QROrderItem(TimeStampedModel):
+    qr_order = models.ForeignKey(QROrder, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey('App_Catalog.Product', on_delete=models.SET_NULL, null=True, blank=True)
+    unit = models.ForeignKey('App_Catalog.ProductUnit', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_product_name = models.CharField(max_length=180)
+    snapshot_unit_name = models.CharField(max_length=120)
+    unit_price_snapshot = models.DecimalField(max_digits=14, decimal_places=2)
+    quantity = models.PositiveIntegerField()
+    note = models.CharField(max_length=255, blank=True)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['qr_order', 'snapshot_product_name']),
+        ]
+
+    def clean(self):
+        if self.quantity <= 0:
+            raise ValidationError('Số lượng phải lớn hơn 0.')
+
+    def save(self, *args, **kwargs):
+        self.line_total = self.unit_price_snapshot * self.quantity
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class TableCartItem(TimeStampedModel):
+    class Source(models.TextChoices):
+        STAFF = 'STAFF', 'Staff'
+        QR = 'QR', 'QR'
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='table_cart_items')
+    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='table_cart_items')
+    table = models.ForeignKey(DiningTable, on_delete=models.CASCADE, related_name='cart_items')
+    product = models.ForeignKey('App_Catalog.Product', on_delete=models.SET_NULL, null=True, blank=True)
+    unit = models.ForeignKey('App_Catalog.ProductUnit', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_product_name = models.CharField(max_length=180)
+    snapshot_unit_name = models.CharField(max_length=120)
+    unit_price_snapshot = models.DecimalField(max_digits=14, decimal_places=2)
+    quantity = models.PositiveIntegerField(default=1)
+    note = models.CharField(max_length=255, blank=True)
+    source = models.CharField(max_length=12, choices=Source.choices, default=Source.STAFF)
+    qr_order = models.ForeignKey(QROrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='cart_items')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'store', 'table', 'created_at']),
+            models.Index(fields=['table', 'source', 'created_at']),
+        ]
+
+    def clean(self):
+        if self.quantity <= 0:
+            raise ValidationError('Số lượng phải lớn hơn 0.')
+        if self.table_id and self.store_id and self.table.store_id != self.store_id:
+            raise ValidationError('Table phải thuộc store của cart item.')
+        if self.table_id and self.tenant_id and self.table.tenant_id != self.tenant_id:
+            raise ValidationError('Table phải cùng tenant với cart item.')
+        if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
+            raise ValidationError('Store phải cùng tenant với cart item.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class OrderItem(TimeStampedModel):

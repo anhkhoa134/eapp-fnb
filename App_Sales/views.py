@@ -3,16 +3,153 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
-from django.shortcuts import render
-from django.views.decorators.http import require_GET, require_POST
+from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from App_Accounts.permissions import staff_or_manager_required
 from App_Catalog.models import Product, ProductUnit
-from App_Sales.models import Order, OrderItem
+from App_Sales.models import DiningTable, Order, OrderItem, QROrder, TableCartItem
 from App_Sales.services import get_accessible_store_or_default, get_effective_unit_price
 from App_Tenant.services import get_user_accessible_stores
+
+
+def _json_error(detail, status=400):
+    return JsonResponse({'detail': detail}, status=status)
+
+
+def _parse_json_request(request):
+    try:
+        return json.loads(request.body.decode('utf-8'))
+    except json.JSONDecodeError:
+        return None
+
+
+def _parse_decimal(raw_value, *, default='0', field='value'):
+    try:
+        return Decimal(str(raw_value if raw_value is not None else default))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError(f'{field} không hợp lệ.')
+
+
+def _serialize_table_cart_item(item: TableCartItem):
+    return {
+        'id': item.id,
+        'cart_id': f'table-{item.id}',
+        'table_item_id': item.id,
+        'product_id': item.product_id,
+        'unit_id': item.unit_id,
+        'name': item.snapshot_product_name,
+        'size': item.snapshot_unit_name,
+        'price': float(item.unit_price_snapshot),
+        'qty': item.quantity,
+        'note': item.note,
+        'source': item.source,
+        'line_total': float(item.unit_price_snapshot * item.quantity),
+    }
+
+
+def _table_cart_summary(table: DiningTable):
+    summary = TableCartItem.objects.filter(table=table).aggregate(
+        item_count=Coalesce(Sum('quantity'), 0),
+        total_amount=Coalesce(
+            Sum(
+                ExpressionWrapper(
+                    F('quantity') * F('unit_price_snapshot'),
+                    output_field=DecimalField(max_digits=14, decimal_places=2),
+                )
+            ),
+            Decimal('0'),
+        ),
+    )
+    return {
+        'item_count': int(summary['item_count'] or 0),
+        'total_amount': float(summary['total_amount'] or Decimal('0')),
+    }
+
+
+def _get_accessible_table_or_403(user, table_id):
+    table = get_object_or_404(
+        DiningTable.objects.select_related('store', 'tenant').filter(tenant=user.tenant, is_active=True),
+        id=table_id,
+    )
+    if not get_user_accessible_stores(user).filter(id=table.store_id).exists():
+        return None
+    return table
+
+
+def _resolve_product_unit_for_store(*, tenant, store, product_id, unit_id):
+    try:
+        unit = ProductUnit.objects.select_related('product').get(
+            id=unit_id,
+            product_id=product_id,
+            product__tenant=tenant,
+            product__is_active=True,
+            is_active=True,
+            product__store_links__store=store,
+            product__store_links__is_available=True,
+        )
+    except ProductUnit.DoesNotExist:
+        return None
+
+    if unit.product.category_id:
+        visible = unit.product.category.store_links.filter(store=store, is_visible=True).exists()
+        if not visible:
+            return None
+    return unit
+
+
+def _upsert_table_cart_item(
+    *,
+    tenant,
+    store,
+    table,
+    unit,
+    quantity,
+    note='',
+    source=TableCartItem.Source.STAFF,
+    qr_order=None,
+):
+    note = (note or '').strip()[:255]
+    quantity = int(quantity)
+    if quantity <= 0:
+        raise ValueError('Số lượng phải lớn hơn 0.')
+
+    unit_price = get_effective_unit_price(unit=unit, store_id=store.id)
+    existing = TableCartItem.objects.filter(
+        tenant=tenant,
+        store=store,
+        table=table,
+        unit=unit,
+        note=note,
+        source=source,
+    ).first()
+
+    if existing:
+        existing.quantity += quantity
+        if qr_order and not existing.qr_order_id:
+            existing.qr_order = qr_order
+        existing.unit_price_snapshot = unit_price
+        existing.save(update_fields=['quantity', 'qr_order', 'unit_price_snapshot', 'updated_at'])
+        return existing
+
+    return TableCartItem.objects.create(
+        tenant=tenant,
+        store=store,
+        table=table,
+        product=unit.product,
+        unit=unit,
+        snapshot_product_name=unit.product.name,
+        snapshot_unit_name=unit.name,
+        unit_price_snapshot=unit_price,
+        quantity=quantity,
+        note=note,
+        source=source,
+        qr_order=qr_order,
+    )
 
 
 @login_required
@@ -37,12 +174,11 @@ def pos_page(request):
 def api_products(request):
     user = request.user
     if not user.tenant_id:
-        return JsonResponse({'detail': 'User chưa được gán tenant.'}, status=400)
+        return _json_error('User chưa được gán tenant.', 400)
 
-    store_id = request.GET.get('store_id')
-    store = get_accessible_store_or_default(user, store_id)
+    store = get_accessible_store_or_default(user, request.GET.get('store_id'))
     if not store:
-        return JsonResponse({'detail': 'Store không hợp lệ hoặc không có quyền truy cập.'}, status=403)
+        return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
 
     queryset = (
         Product.objects.filter(
@@ -106,10 +242,7 @@ def api_products(request):
 
     return JsonResponse(
         {
-            'store': {
-                'id': store.id,
-                'name': store.name,
-            },
+            'store': {'id': store.id, 'name': store.name},
             'categories': categories,
             'products': products,
         }
@@ -122,37 +255,36 @@ def api_products(request):
 def api_checkout(request):
     user = request.user
     if not user.tenant_id:
-        return JsonResponse({'detail': 'User chưa được gán tenant.'}, status=400)
+        return _json_error('User chưa được gán tenant.', 400)
 
-    try:
-        payload = json.loads(request.body.decode('utf-8'))
-    except json.JSONDecodeError:
-        return JsonResponse({'detail': 'Payload JSON không hợp lệ.'}, status=400)
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
 
     store = get_accessible_store_or_default(user, payload.get('store_id'))
     if not store:
-        return JsonResponse({'detail': 'Store không hợp lệ hoặc không có quyền truy cập.'}, status=403)
+        return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
 
     items = payload.get('items') or []
     if not items:
-        return JsonResponse({'detail': 'Giỏ hàng trống.'}, status=400)
+        return _json_error('Giỏ hàng trống.', 400)
 
     payment_method = payload.get('payment_method') or Order.PaymentMethod.CASH
     if payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
-        return JsonResponse({'detail': 'Phương thức thanh toán không hợp lệ.'}, status=400)
+        return _json_error('Phương thức thanh toán không hợp lệ.', 400)
 
     try:
-        tax_rate = Decimal(str(payload.get('tax_rate', '0')))
-    except (InvalidOperation, TypeError, ValueError):
-        return JsonResponse({'detail': 'tax_rate không hợp lệ.'}, status=400)
+        tax_rate = _parse_decimal(payload.get('tax_rate', '0'), field='tax_rate')
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
 
     if tax_rate < 0:
-        return JsonResponse({'detail': 'tax_rate không được âm.'}, status=400)
+        return _json_error('tax_rate không được âm.', 400)
 
     try:
-        customer_paid = Decimal(str(payload.get('customer_paid', '0')))
-    except (InvalidOperation, TypeError, ValueError):
-        return JsonResponse({'detail': 'customer_paid không hợp lệ.'}, status=400)
+        customer_paid = _parse_decimal(payload.get('customer_paid', '0'), field='customer_paid')
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
 
     with transaction.atomic():
         prepared_items = []
@@ -164,27 +296,20 @@ def api_checkout(request):
             try:
                 quantity = int(item.get('quantity', 0))
             except (TypeError, ValueError):
-                return JsonResponse({'detail': 'Số lượng không hợp lệ.'}, status=400)
-            note = (item.get('note') or '').strip()
+                return _json_error('Số lượng không hợp lệ.', 400)
+            note = (item.get('note') or '').strip()[:255]
 
             if quantity <= 0:
-                return JsonResponse({'detail': 'Số lượng phải lớn hơn 0.'}, status=400)
+                return _json_error('Số lượng phải lớn hơn 0.', 400)
 
-            try:
-                unit = ProductUnit.objects.select_related('product').get(
-                    id=unit_id,
-                    product_id=product_id,
-                    product__tenant=user.tenant,
-                    product__is_active=True,
-                    is_active=True,
-                    product__store_links__store=store,
-                    product__store_links__is_available=True,
-                )
-            except ProductUnit.DoesNotExist:
-                return JsonResponse(
-                    {'detail': f'Sản phẩm hoặc đơn vị không hợp lệ: {product_id}/{unit_id}'},
-                    status=400,
-                )
+            unit = _resolve_product_unit_for_store(
+                tenant=user.tenant,
+                store=store,
+                product_id=product_id,
+                unit_id=unit_id,
+            )
+            if not unit:
+                return _json_error(f'Sản phẩm hoặc đơn vị không hợp lệ: {product_id}/{unit_id}', 400)
 
             unit_price = get_effective_unit_price(unit=unit, store_id=store.id)
             line_total = unit_price * quantity
@@ -202,8 +327,12 @@ def api_checkout(request):
 
         tax_amount = subtotal * tax_rate
         total_amount = subtotal + tax_amount
-        if customer_paid < total_amount:
-            return JsonResponse({'detail': 'Khách đưa chưa đủ tiền.'}, status=400)
+
+        if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
+            return _json_error('Khách đưa chưa đủ tiền.', 400)
+
+        if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
+            customer_paid = total_amount
 
         change_amount = customer_paid - total_amount
 
@@ -230,7 +359,7 @@ def api_checkout(request):
                     snapshot_unit_name=item['unit'].name,
                     unit_price=item['unit_price'],
                     quantity=item['quantity'],
-                    note=item['note'][:255],
+                    note=item['note'],
                     line_total=item['line_total'],
                 )
                 for item in prepared_items
@@ -249,3 +378,411 @@ def api_checkout(request):
         },
         status=201,
     )
+
+
+@login_required
+@staff_or_manager_required
+@require_GET
+def api_tables(request):
+    user = request.user
+    store = get_accessible_store_or_default(user, request.GET.get('store_id'))
+    if not store:
+        return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
+
+    tables_qs = DiningTable.objects.filter(tenant=user.tenant, store=store, is_active=True).order_by('display_order', 'id')
+
+    cart_aggs = {
+        row['table_id']: {
+            'item_count': int(row['item_count'] or 0),
+            'total_amount': row['total_amount'] or Decimal('0'),
+        }
+        for row in TableCartItem.objects.filter(table__in=tables_qs)
+        .values('table_id')
+        .annotate(
+            item_count=Coalesce(Sum('quantity'), 0),
+            total_amount=Coalesce(
+                Sum(
+                    ExpressionWrapper(
+                        F('quantity') * F('unit_price_snapshot'),
+                        output_field=DecimalField(max_digits=14, decimal_places=2),
+                    )
+                ),
+                Decimal('0'),
+            ),
+        )
+    }
+
+    pending_aggs = {
+        row['table_id']: int(row['pending_count'])
+        for row in QROrder.objects.filter(table__in=tables_qs, status=QROrder.Status.PENDING)
+        .values('table_id')
+        .annotate(pending_count=Count('id'))
+    }
+
+    tables = []
+    for table in tables_qs:
+        cart_info = cart_aggs.get(table.id, {'item_count': 0, 'total_amount': Decimal('0')})
+        pending_count = pending_aggs.get(table.id, 0)
+        item_count = int(cart_info['item_count'])
+        total_amount = Decimal(cart_info['total_amount'])
+
+        if pending_count > 0:
+            status = 'pending'
+        elif item_count > 0:
+            status = 'occupied'
+        else:
+            status = 'empty'
+
+        tables.append(
+            {
+                'id': table.id,
+                'code': table.code,
+                'name': table.name,
+                'status': status,
+                'pending_count': pending_count,
+                'item_count': item_count,
+                'total_amount': float(total_amount),
+            }
+        )
+
+    return JsonResponse({'store': {'id': store.id, 'name': store.name}, 'tables': tables})
+
+
+@login_required
+@staff_or_manager_required
+@require_GET
+def api_table_cart(request, table_id):
+    user = request.user
+    table = _get_accessible_table_or_403(user, table_id)
+    if not table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    items = list(
+        TableCartItem.objects.filter(table=table).select_related('product', 'unit').order_by('created_at', 'id')
+    )
+    summary = _table_cart_summary(table)
+
+    return JsonResponse(
+        {
+            'table': {'id': table.id, 'name': table.name, 'code': table.code},
+            'items': [_serialize_table_cart_item(item) for item in items],
+            'summary': summary,
+        }
+    )
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_table_cart_add(request, table_id):
+    user = request.user
+    table = _get_accessible_table_or_403(user, table_id)
+    if not table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    product_id = payload.get('product_id')
+    unit_id = payload.get('unit_id')
+    try:
+        quantity = int(payload.get('quantity', 0))
+    except (TypeError, ValueError):
+        return _json_error('Số lượng không hợp lệ.', 400)
+
+    note = (payload.get('note') or '').strip()[:255]
+    if quantity <= 0:
+        return _json_error('Số lượng phải lớn hơn 0.', 400)
+
+    unit = _resolve_product_unit_for_store(
+        tenant=user.tenant,
+        store=table.store,
+        product_id=product_id,
+        unit_id=unit_id,
+    )
+    if not unit:
+        return _json_error('Sản phẩm hoặc đơn vị không hợp lệ.', 400)
+
+    with transaction.atomic():
+        item = _upsert_table_cart_item(
+            tenant=user.tenant,
+            store=table.store,
+            table=table,
+            unit=unit,
+            quantity=quantity,
+            note=note,
+            source=TableCartItem.Source.STAFF,
+        )
+
+    return JsonResponse(
+        {
+            'item': _serialize_table_cart_item(item),
+            'summary': _table_cart_summary(table),
+        },
+        status=201,
+    )
+
+
+@login_required
+@staff_or_manager_required
+@require_http_methods(['PATCH', 'DELETE'])
+def api_table_cart_item(request, table_id, item_id):
+    user = request.user
+    table = _get_accessible_table_or_403(user, table_id)
+    if not table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    item = get_object_or_404(TableCartItem.objects.select_related('table'), id=item_id, table=table)
+
+    if request.method == 'DELETE':
+        item.delete()
+        return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    note = payload.get('note')
+    quantity = payload.get('quantity')
+
+    if note is not None:
+        item.note = str(note).strip()[:255]
+
+    if quantity is not None:
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            return _json_error('Số lượng không hợp lệ.', 400)
+
+        if quantity <= 0:
+            item.delete()
+            return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
+        item.quantity = quantity
+
+    item.save(update_fields=['note', 'quantity', 'updated_at'])
+    return JsonResponse({'item': _serialize_table_cart_item(item), 'summary': _table_cart_summary(table)})
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_table_checkout(request, table_id):
+    user = request.user
+    table = _get_accessible_table_or_403(user, table_id)
+    if not table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    payment_method = payload.get('payment_method') or Order.PaymentMethod.CASH
+    if payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+        return _json_error('Phương thức thanh toán không hợp lệ.', 400)
+
+    try:
+        tax_rate = _parse_decimal(payload.get('tax_rate', '0'), field='tax_rate')
+        customer_paid = _parse_decimal(payload.get('customer_paid', '0'), field='customer_paid')
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+
+    if tax_rate < 0:
+        return _json_error('tax_rate không được âm.', 400)
+
+    with transaction.atomic():
+        cart_items = list(TableCartItem.objects.filter(table=table).select_related('product', 'unit'))
+        if not cart_items:
+            return _json_error('Bàn này chưa có món để thanh toán.', 400)
+
+        subtotal = Decimal('0')
+        for item in cart_items:
+            subtotal += item.unit_price_snapshot * item.quantity
+
+        tax_amount = subtotal * tax_rate
+        total_amount = subtotal + tax_amount
+
+        if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
+            return _json_error('Khách đưa chưa đủ tiền.', 400)
+
+        if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
+            customer_paid = total_amount
+
+        change_amount = customer_paid - total_amount
+
+        order = Order.objects.create(
+            tenant=user.tenant,
+            store=table.store,
+            cashier=user,
+            payment_method=payment_method,
+            subtotal=subtotal,
+            tax_rate=tax_rate,
+            tax_amount=tax_amount,
+            total_amount=total_amount,
+            customer_paid=customer_paid,
+            change_amount=change_amount,
+        )
+
+        OrderItem.objects.bulk_create(
+            [
+                OrderItem(
+                    order=order,
+                    product=item.product,
+                    unit=item.unit,
+                    snapshot_product_name=item.snapshot_product_name,
+                    snapshot_unit_name=item.snapshot_unit_name,
+                    unit_price=item.unit_price_snapshot,
+                    quantity=item.quantity,
+                    note=item.note,
+                    line_total=item.unit_price_snapshot * item.quantity,
+                )
+                for item in cart_items
+            ]
+        )
+
+        TableCartItem.objects.filter(table=table).delete()
+
+    return JsonResponse(
+        {
+            'detail': 'Thanh toán bàn thành công.',
+            'order_id': order.id,
+            'order_code': order.order_code,
+            'total_amount': float(total_amount),
+            'change_amount': float(change_amount),
+            'table_status': 'empty',
+        },
+        status=201,
+    )
+
+
+@login_required
+@staff_or_manager_required
+@require_GET
+def api_qr_orders(request):
+    user = request.user
+    store = get_accessible_store_or_default(user, request.GET.get('store_id'))
+    if not store:
+        return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
+
+    status = (request.GET.get('status') or 'pending').strip().upper()
+    status_map = {
+        'PENDING': QROrder.Status.PENDING,
+        'APPROVED': QROrder.Status.APPROVED,
+        'REJECTED': QROrder.Status.REJECTED,
+    }
+    selected_status = status_map.get(status, QROrder.Status.PENDING)
+
+    orders = (
+        QROrder.objects.filter(tenant=user.tenant, store=store, status=selected_status)
+        .select_related('table')
+        .prefetch_related('items')
+        .order_by('-created_at')
+    )
+
+    payload = []
+    for order in orders:
+        items_payload = []
+        total = Decimal('0')
+        for item in order.items.all():
+            line_total = item.unit_price_snapshot * item.quantity
+            total += line_total
+            items_payload.append(
+                {
+                    'product_id': item.product_id,
+                    'unit_id': item.unit_id,
+                    'name': item.snapshot_product_name,
+                    'size': item.snapshot_unit_name,
+                    'price': float(item.unit_price_snapshot),
+                    'qty': item.quantity,
+                    'note': item.note,
+                    'line_total': float(line_total),
+                }
+            )
+
+        payload.append(
+            {
+                'id': order.id,
+                'status': order.status,
+                'table_id': order.table_id,
+                'table_name': order.table.name,
+                'customer_note': order.customer_note,
+                'created_at': order.created_at.isoformat(),
+                'time': timezone.localtime(order.created_at).strftime('%H:%M'),
+                'total': float(total),
+                'items': items_payload,
+            }
+        )
+
+    return JsonResponse({'store': {'id': store.id, 'name': store.name}, 'orders': payload})
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_qr_order_approve(request, order_id):
+    user = request.user
+
+    with transaction.atomic():
+        order = get_object_or_404(
+            QROrder.objects.select_for_update().select_related('table', 'store').prefetch_related('items'),
+            id=order_id,
+            tenant=user.tenant,
+        )
+
+        if not get_user_accessible_stores(user).filter(id=order.store_id).exists():
+            return _json_error('Không có quyền duyệt đơn QR của cửa hàng này.', 403)
+
+        if order.status == QROrder.Status.APPROVED:
+            return JsonResponse({'detail': 'Đơn đã được duyệt trước đó.', 'status': order.status})
+        if order.status == QROrder.Status.REJECTED:
+            return _json_error('Đơn đã bị từ chối nên không thể duyệt.', 400)
+
+        for qr_item in order.items.all():
+            if not qr_item.unit_id or not qr_item.product_id:
+                continue
+            _upsert_table_cart_item(
+                tenant=order.tenant,
+                store=order.store,
+                table=order.table,
+                unit=qr_item.unit,
+                quantity=qr_item.quantity,
+                note=qr_item.note,
+                source=TableCartItem.Source.QR,
+                qr_order=order,
+            )
+
+        order.status = QROrder.Status.APPROVED
+        order.approved_by = user
+        order.resolved_at = timezone.now()
+        order.save(update_fields=['status', 'approved_by', 'resolved_at', 'updated_at'])
+
+    return JsonResponse({'detail': 'Đã duyệt đơn QR.', 'status': order.status, 'table_id': order.table_id})
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_qr_order_reject(request, order_id):
+    user = request.user
+
+    with transaction.atomic():
+        order = get_object_or_404(
+            QROrder.objects.select_for_update().select_related('store'),
+            id=order_id,
+            tenant=user.tenant,
+        )
+
+        if not get_user_accessible_stores(user).filter(id=order.store_id).exists():
+            return _json_error('Không có quyền từ chối đơn QR của cửa hàng này.', 403)
+
+        if order.status == QROrder.Status.REJECTED:
+            return JsonResponse({'detail': 'Đơn đã bị từ chối trước đó.', 'status': order.status})
+        if order.status == QROrder.Status.APPROVED:
+            return _json_error('Đơn đã được duyệt nên không thể từ chối.', 400)
+
+        order.status = QROrder.Status.REJECTED
+        order.rejected_by = user
+        order.resolved_at = timezone.now()
+        order.save(update_fields=['status', 'rejected_by', 'resolved_at', 'updated_at'])
+
+    return JsonResponse({'detail': 'Đã từ chối đơn QR.', 'status': order.status})
