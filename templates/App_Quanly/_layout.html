@@ -1,0 +1,25 @@
+{% extends 'App_Core/base.html' %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-12 col-lg-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3">Quản lý tenant</h6>
+                <div class="list-group list-group-flush">
+                    <a class="list-group-item list-group-item-action {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}">Dashboard</a>
+                    <a class="list-group-item list-group-item-action {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}">Danh mục</a>
+                    <a class="list-group-item list-group-item-action {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}">Sản phẩm</a>
+                    {% if user.tenant %}
+                    <a class="list-group-item list-group-item-action" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener">Public catalog</a>
+                    {% endif %}
+                    <a class="list-group-item list-group-item-action" href="{% url 'App_Sales:pos' %}">Về POS</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-9">
+        {% block quanly_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

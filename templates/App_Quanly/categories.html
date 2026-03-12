@@ -1,0 +1,47 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Tạo danh mục</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button class="btn btn-primary" type="submit">Lưu danh mục</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Danh sách danh mục</h2>
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead><tr><th>Tên</th><th>Trạng thái</th><th></th></tr></thead>
+                        <tbody>
+                            {% for item in categories %}
+                            <tr>
+                                <td>{{ item.name }}</td>
+                                <td>{% if item.is_active %}<span class="badge bg-success">Hoạt động</span>{% else %}<span class="badge bg-secondary">Tắt</span>{% endif %}</td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:category_edit' item.id %}">Sửa</a>
+                                    <form class="d-inline" method="post" action="{% url 'App_Quanly:category_delete' item.id %}">
+                                        {% csrf_token %}
+                                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa danh mục này?')">Xóa</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="text-center text-muted">Chưa có danh mục.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <h1 class="h5 fw-bold mb-3">Dashboard doanh thu</h1>
+        <form class="row g-2" method="get">
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Cửa hàng</label>
+                <select name="store" class="form-select">
+                    <option value="">Tất cả cửa hàng</option>
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store == store.id %}selected{% endif %}>{{ store.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Từ ngày</label>
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Đến ngày</label>
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2 d-grid align-items-end">
+                <button class="btn btn-primary">Lọc</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Tổng doanh thu</div><div class="h4 fw-bold text-danger mb-0">{{ total_revenue|floatformat:0 }} đ</div></div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Tổng đơn</div><div class="h4 fw-bold mb-0">{{ total_orders }}</div></div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Giá trị đơn TB</div><div class="h4 fw-bold mb-0">{{ avg_order_value|floatformat:0 }} đ</div></div></div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h2 class="h6 fw-bold">Đơn gần nhất</h2>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Mã đơn</th>
+                        <th>Cửa hàng</th>
+                        <th>Thu ngân</th>
+                        <th>Tổng tiền</th>
+                        <th>Thời gian</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>{{ order.order_code }}</td>
+                        <td>{{ order.store.name }}</td>
+                        <td>{{ order.cashier.username }}</td>
+                        <td>{{ order.total_amount|floatformat:0 }} đ</td>
+                        <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+from django.urls import path
+
+from App_Quanly import views
+
+app_name = 'App_Quanly'
+
+urlpatterns = [
+    path('', views.dashboard, name='dashboard'),
+    path('categories/', views.category_list_create, name='categories'),
+    path('categories/<int:pk>/edit/', views.category_edit, name='category_edit'),
+    path('categories/<int:pk>/delete/', views.category_delete, name='category_delete'),
+    path('products/', views.product_list_create, name='products'),
+    path('products/<int:pk>/edit/', views.product_edit, name='product_edit'),
+    path('products/<int:pk>/delete/', views.product_delete, name='product_delete'),
+    path('products/<int:product_pk>/units/add/', views.unit_add, name='unit_add'),
+    path('units/<int:pk>/edit/', views.unit_edit, name='unit_edit'),
+    path('units/<int:pk>/delete/', views.unit_delete, name='unit_delete'),
+]

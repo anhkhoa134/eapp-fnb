@@ -1,0 +1,75 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Tạo sản phẩm</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button class="btn btn-primary" type="submit">Lưu sản phẩm</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Danh sách sản phẩm</h2>
+                {% for product in products %}
+                <div class="border rounded p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <div class="fw-semibold">{{ product.name }}</div>
+                            <div class="small text-muted">{{ product.category.name|default:'Không danh mục' }}</div>
+                        </div>
+                        <div class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:product_edit' product.id %}">Sửa</a>
+                            <form class="d-inline" method="post" action="{% url 'App_Quanly:product_delete' product.id %}">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa sản phẩm này?')">Xóa</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="table-responsive mb-2">
+                        <table class="table table-sm align-middle mb-1">
+                            <thead><tr><th>Đơn vị</th><th>Giá</th><th>SKU</th><th></th></tr></thead>
+                            <tbody>
+                                {% for unit in product.units.all %}
+                                <tr>
+                                    <td>{{ unit.name }}</td>
+                                    <td>{{ unit.price|floatformat:0 }} đ</td>
+                                    <td>{{ unit.sku|default:'-' }}</td>
+                                    <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Quanly:unit_edit' unit.id %}">Sửa</a>
+                                        <form class="d-inline" method="post" action="{% url 'App_Quanly:unit_delete' unit.id %}">
+                                            {% csrf_token %}
+                                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa đơn vị này?')">Xóa</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-muted">Chưa có đơn vị.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <form method="post" action="{% url 'App_Quanly:unit_add' product.id %}" class="row g-2">
+                        {% csrf_token %}
+                        <div class="col-md-3"><input class="form-control" name="name" placeholder="Tên đơn vị" required></div>
+                        <div class="col-md-3"><input class="form-control" name="price" type="number" step="0.01" placeholder="Giá" required></div>
+                        <div class="col-md-2"><input class="form-control" name="sku" placeholder="SKU"></div>
+                        <div class="col-md-2"><input class="form-control" name="display_order" type="number" value="0"></div>
+                        <div class="col-md-2 d-grid"><button class="btn btn-sm btn-primary">Thêm đơn vị</button></div>
+                    </form>
+                </div>
+                {% empty %}
+                <div class="text-muted">Chưa có sản phẩm.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
