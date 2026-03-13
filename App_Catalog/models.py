@@ -140,6 +140,9 @@ class ProductTopping(TimeStampedModel):
         ordering = ['display_order', 'id']
 
     def clean(self):
+        # Let field-level validation surface required errors first.
+        if not self.product_id or not self.topping_id:
+            return
         if self.product.tenant_id != self.topping.tenant_id:
             raise ValidationError('Product và topping phải cùng tenant.')
         if self.price < Decimal('0'):

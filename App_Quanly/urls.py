@@ -6,6 +6,7 @@ app_name = 'App_Quanly'
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('orders/', views.order_history, name='orders'),
     path('categories/', views.category_list_create, name='categories'),
     path('categories/<int:pk>/edit/', views.category_edit, name='category_edit'),
     path('categories/<int:pk>/delete/', views.category_delete, name='category_delete'),

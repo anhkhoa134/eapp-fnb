@@ -5,6 +5,7 @@ from django.contrib.auth.views import LoginView
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 from App_Accounts.forms import POSAuthenticationForm, POSPasswordChangeForm
 
@@ -18,6 +19,8 @@ class POSLoginView(LoginView):
         return reverse_lazy('App_Sales:pos')
 
 
+@require_POST
+@login_required
 def pos_logout(request):
     logout(request)
     return redirect('App_Accounts:login')

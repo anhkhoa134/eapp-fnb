@@ -230,6 +230,9 @@
                     <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}">
                         <i class="bi bi-speedometer2"></i> Dashboard
                     </a>
+                    <a class="admin-nav-link {% if '/quanly/orders/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:orders' %}">
+                        <i class="bi bi-receipt-cutoff"></i> Lịch sử đơn
+                    </a>
                     <a class="admin-nav-link {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}">
                         <i class="bi bi-grid-3x3-gap"></i> Danh mục
                     </a>
@@ -263,7 +266,7 @@
         <div class="admin-hero">
             <div>
                 <h1>Trung tâm quản lý</h1>
-                <div class="sub">Quản lý danh mục, sản phẩm, topping và báo cáo doanh thu theo cửa hàng.</div>
+                <div class="sub">Quản lý danh mục, sản phẩm, topping, lịch sử đơn và báo cáo doanh thu theo cửa hàng.</div>
             </div>
             <span class="badge rounded-pill text-bg-light border px-3 py-2">
                 <i class="bi bi-shield-check me-1"></i> Manager Portal

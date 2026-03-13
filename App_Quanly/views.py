@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Count, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,7 +22,7 @@ from App_Quanly.forms import (
     StaffPasswordResetForm,
     ToppingForm,
 )
-from App_Sales.models import Order
+from App_Sales.models import Order, OrderItem
 from App_Tenant.models import Store, UserStoreAccess
 
 
@@ -105,6 +105,93 @@ def dashboard(request):
         'recent_orders': recent_orders,
     }
     return render(request, 'App_Quanly/dashboard.html', context)
+
+
+@manager_required
+def order_history(request):
+    tenant = _tenant_or_404(request.user)
+    stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+    cashiers = (
+        User.objects.filter(tenant=tenant, orders__isnull=False)
+        .distinct()
+        .order_by('username')
+    )
+
+    orders = Order.objects.filter(tenant=tenant).select_related('store', 'cashier')
+
+    selected_store = (request.GET.get('store') or '').strip()
+    selected_payment = (request.GET.get('payment_method') or '').strip()
+    selected_status = (request.GET.get('status') or '').strip()
+    selected_cashier = (request.GET.get('cashier') or '').strip()
+    selected_q = (request.GET.get('q') or '').strip()
+    date_from = (request.GET.get('date_from') or '').strip()
+    date_to = (request.GET.get('date_to') or '').strip()
+
+    if selected_store.isdigit():
+        orders = orders.filter(store_id=int(selected_store))
+    if selected_payment in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+        orders = orders.filter(payment_method=selected_payment)
+    if selected_status in {Order.Status.COMPLETED, Order.Status.CANCELLED}:
+        orders = orders.filter(status=selected_status)
+    if selected_cashier.isdigit():
+        orders = orders.filter(cashier_id=int(selected_cashier))
+    if selected_q:
+        orders = orders.filter(
+            Q(order_code__icontains=selected_q)
+            | Q(cashier__username__icontains=selected_q)
+            | Q(store__name__icontains=selected_q)
+        )
+
+    try:
+        start_dt, end_dt = _parse_date_bounds(date_from, date_to)
+    except ValueError:
+        messages.error(request, 'Bộ lọc ngày không hợp lệ.')
+        start_dt, end_dt = None, None
+    if start_dt:
+        orders = orders.filter(created_at__gte=start_dt)
+    if end_dt:
+        orders = orders.filter(created_at__lte=end_dt)
+
+    summary = orders.aggregate(
+        total_orders=Coalesce(Count('id'), 0),
+        total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
+    )
+
+    orders = orders.prefetch_related(
+        Prefetch(
+            'items',
+            queryset=OrderItem.objects.prefetch_related('toppings').order_by('id'),
+        )
+    ).order_by('-created_at')
+
+    paginator = Paginator(orders, 20)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
+
+    return render(
+        request,
+        'App_Quanly/order_history.html',
+        {
+            'stores': stores,
+            'cashiers': cashiers,
+            'page_obj': page_obj,
+            'orders': page_obj.object_list,
+            'total_orders': summary['total_orders'] or 0,
+            'total_revenue': summary['total_revenue'] or Decimal('0'),
+            'selected_store': selected_store,
+            'selected_payment': selected_payment,
+            'selected_status': selected_status,
+            'selected_cashier': selected_cashier,
+            'selected_q': selected_q,
+            'date_from': date_from,
+            'date_to': date_to,
+            'payment_choices': Order.PaymentMethod.choices,
+            'status_choices': Order.Status.choices,
+            'query_string': query_params.urlencode(),
+        },
+    )
 
 
 @manager_required
@@ -318,7 +405,7 @@ def topping_delete(request, pk):
 
 @manager_required
 def product_topping_list_create(request):
-    return topping_list_create(request)
+    return redirect('App_Quanly:toppings')
 
 
 @manager_required

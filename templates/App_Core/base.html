@@ -190,25 +190,10 @@
                     <li><hr class="dropdown-divider"></li>
 
                     {% if user.is_authenticated %}
-                    <li>
-                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
-                            <span class="account-icon-pill"><i class="bi bi-receipt-cutoff"></i></span>Đơn hàng trong ngày
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); toggleGlobalFullscreen();">
-                            <span class="account-icon-pill"><i class="bi bi-fullscreen"></i></span>Fullscreen
-                        </a>
-                    </li>
                     {% if user.is_manager %}
                     <li>
                         <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); openAccountInfoModal();">
                             <span class="account-icon-pill"><i class="bi bi-person-vcard"></i></span>Thông tin tài khoản
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
-                            <span class="account-icon-pill"><i class="bi bi-speedometer2"></i></span>Trang quản lý
                         </a>
                     </li>
                     <li>
@@ -341,19 +326,6 @@
         document.documentElement.style.setProperty('--primary-color', theme.primary);
         document.documentElement.style.setProperty('--primary-hover', theme.hover);
     };
-
-    const toggleGlobalFullscreen = async () => {
-        try {
-            if (!document.fullscreenElement) {
-                await document.documentElement.requestFullscreen();
-            } else {
-                await document.exitFullscreen();
-            }
-        } catch (error) {
-            // Ignore fullscreen errors silently to avoid breaking page usage.
-        }
-    };
-    window.toggleGlobalFullscreen = toggleGlobalFullscreen;
 
     const openLogoutConfirm = (formId = 'globalLogoutForm') => {
         const modalEl = document.getElementById('logoutConfirmModal');
