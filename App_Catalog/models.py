@@ -97,6 +97,59 @@ class ProductUnit(TimeStampedModel):
         return f'{self.product.name} - {self.name}'
 
 
+class Topping(TimeStampedModel):
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='toppings')
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=140)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='uq_topping_tenant_slug'),
+        ]
+        ordering = ['display_order', 'name', 'id']
+
+    def save(self, *args, **kwargs):
+        self.slug = _build_unique_slug(
+            Topping.objects.filter(tenant_id=self.tenant_id).exclude(pk=self.pk),
+            source_name=self.name,
+            fallback='topping',
+        )
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class ProductTopping(TimeStampedModel):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='topping_links')
+    topping = models.ForeignKey(Topping, on_delete=models.CASCADE, related_name='product_links')
+    price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['product', 'topping'], name='uq_product_topping'),
+        ]
+        indexes = [
+            models.Index(fields=['product', 'is_active']),
+            models.Index(fields=['topping', 'is_active']),
+        ]
+        ordering = ['display_order', 'id']
+
+    def clean(self):
+        if self.product.tenant_id != self.topping.tenant_id:
+            raise ValidationError('Product và topping phải cùng tenant.')
+        if self.price < Decimal('0'):
+            raise ValidationError('Giá topping phải >= 0.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class StoreCategory(TimeStampedModel):
     store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='category_links')
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='store_links')

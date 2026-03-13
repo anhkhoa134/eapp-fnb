@@ -34,3 +34,13 @@ class QuanlyPermissionTests(TestCase):
         self.client.login(username='staff_demo', password='123456')
         res = self.client.get(reverse('App_Quanly:dashboard'))
         self.assertEqual(res.status_code, 403)
+
+    def test_manager_can_access_topping_crud_pages(self):
+        self.client.login(username='manager_demo', password='123456')
+        self.assertEqual(self.client.get(reverse('App_Quanly:toppings')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('App_Quanly:product_toppings')).status_code, 200)
+
+    def test_staff_cannot_access_topping_crud_pages(self):
+        self.client.login(username='staff_demo', password='123456')
+        self.assertEqual(self.client.get(reverse('App_Quanly:toppings')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Quanly:product_toppings')).status_code, 403)

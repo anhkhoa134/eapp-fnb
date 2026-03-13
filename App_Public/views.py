@@ -10,7 +10,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from App_Catalog.models import Product, ProductUnit
-from App_Sales.models import DiningTable, QROrder, QROrderItem
+from App_Catalog.services import calc_toppings_total, resolve_product_topping_links
+from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
 from App_Sales.services import get_effective_unit_price
 from App_Tenant.models import Store, Tenant
 
@@ -136,7 +137,17 @@ def api_public_qr_orders(request):
                 return JsonResponse({'detail': f'Sản phẩm không hiển thị cho bàn này: {unit.product.name}'}, status=400)
 
         note = (raw.get('note') or '').strip()[:255]
-        unit_price = get_effective_unit_price(unit=unit, store_id=table.store_id)
+        try:
+            topping_links = resolve_product_topping_links(
+                product=unit.product,
+                topping_ids=raw.get('topping_ids'),
+            )
+        except ValueError as exc:
+            return JsonResponse({'detail': str(exc)}, status=400)
+
+        base_unit_price = get_effective_unit_price(unit=unit, store_id=table.store_id)
+        topping_total = calc_toppings_total(topping_links)
+        unit_price = base_unit_price + topping_total
         prepared_items.append(
             {
                 'product': unit.product,
@@ -144,6 +155,14 @@ def api_public_qr_orders(request):
                 'quantity': quantity,
                 'note': note,
                 'unit_price': unit_price,
+                'snapshot_toppings': [
+                    {
+                        'topping_id': link.topping_id,
+                        'name': link.topping.name,
+                        'price': link.price,
+                    }
+                    for link in topping_links
+                ],
             }
         )
 
@@ -158,7 +177,7 @@ def api_public_qr_orders(request):
         )
 
         for item in prepared_items:
-            QROrderItem.objects.create(
+            qr_item = QROrderItem.objects.create(
                 qr_order=qr_order,
                 product=item['product'],
                 unit=item['unit'],
@@ -168,6 +187,17 @@ def api_public_qr_orders(request):
                 quantity=item['quantity'],
                 note=item['note'],
                 line_total=Decimal('0'),
+            )
+            QROrderItemTopping.objects.bulk_create(
+                [
+                    QROrderItemTopping(
+                        qr_order_item=qr_item,
+                        topping_id=topping['topping_id'],
+                        snapshot_topping_name=topping['name'],
+                        snapshot_price=topping['price'],
+                    )
+                    for topping in item['snapshot_toppings']
+                ]
             )
 
     return JsonResponse(

@@ -1,6 +1,6 @@
 from django import forms
 
-from App_Catalog.models import Category, Product, ProductUnit
+from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
 from App_Tenant.models import Store
 
 
@@ -74,4 +74,28 @@ class ProductUnitForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _apply_bootstrap_classes(self)
+
+
+class ToppingForm(forms.ModelForm):
+    class Meta:
+        model = Topping
+        fields = ['name', 'display_order', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _apply_bootstrap_classes(self)
+
+
+class ProductToppingForm(forms.ModelForm):
+    class Meta:
+        model = ProductTopping
+        fields = ['product', 'topping', 'price', 'display_order', 'is_active']
+
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        if tenant:
+            self.fields['product'].queryset = Product.objects.filter(tenant=tenant, is_active=True).order_by('name')
+            self.fields['topping'].queryset = Topping.objects.filter(tenant=tenant, is_active=True).order_by('name')
         _apply_bootstrap_classes(self)

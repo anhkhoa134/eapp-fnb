@@ -506,18 +506,9 @@
                         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
                             
                             <!-- Categories (New Pill Style) -->
-                            <div class="category-filter">
+                            <div class="category-filter" id="category-filter-container">
                                 <input type="radio" class="btn-check" name="btnradio" id="cat-all" autocomplete="off" checked onclick="filterCategory('all')">
                                 <label class="btn" for="cat-all">Tất cả</label>
-
-                                <input type="radio" class="btn-check" name="btnradio" id="cat-food" autocomplete="off" onclick="filterCategory('food')">
-                                <label class="btn" for="cat-food"><i class="fa-solid fa-burger me-1"></i>Đồ ăn</label>
-
-                                <input type="radio" class="btn-check" name="btnradio" id="cat-drink" autocomplete="off" onclick="filterCategory('drink')">
-                                <label class="btn" for="cat-drink"><i class="fa-solid fa-mug-hot me-1"></i>Nước uống</label>
-
-                                <input type="radio" class="btn-check" name="btnradio" id="cat-combo" autocomplete="off" onclick="filterCategory('combo')">
-                                <label class="btn" for="cat-combo"><i class="fa-solid fa-layer-group me-1"></i>Combo</label>
                             </div>
 
                             <!-- Grid/List Toggles -->
@@ -678,13 +669,23 @@
                             </div>
 
                             <div class="mb-3">
+                                <label class="form-label text-muted">Phương thức thanh toán:</label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="paymentMethod" id="payment-cash" autocomplete="off" checked>
+                                    <label class="btn btn-outline-primary" for="payment-cash"><i class="fa-solid fa-money-bill-wave me-1"></i>Tiền mặt</label>
+                                    <input type="radio" class="btn-check" name="paymentMethod" id="payment-card" autocomplete="off">
+                                    <label class="btn btn-outline-primary" for="payment-card"><i class="fa-solid fa-credit-card me-1"></i>Thẻ/QR</label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3" id="quick-cash-wrapper">
                                 <label class="form-label text-muted">Gợi ý số tiền khách đưa:</label>
                                 <div class="d-flex flex-wrap gap-2" id="quick-cash-container">
                                     <!-- Quick cash buttons injected here -->
                                 </div>
                             </div>
 
-                            <div class="mb-3">
+                            <div class="mb-3" id="cash-input-wrapper">
                                 <label class="form-label text-muted">Khách đưa (VNĐ):</label>
                                 <div class="input-group input-group-lg">
                                     <span class="input-group-text"><i class="fa-solid fa-money-bill text-success"></i></span>
@@ -692,7 +693,7 @@
                                 </div>
                             </div>
 
-                            <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded">
+                            <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded" id="change-wrapper">
                                 <span class="fs-5 text-muted">Tiền thừa trả khách:</span>
                                 <span class="fs-4 fw-bold" id="modal-change-due">0 đ</span>
                             </div>
@@ -876,6 +877,7 @@
         const API_QR_ORDERS_BASE = '/api/pos/qr/orders/';
 
         let currentStoreId = parseInt(document.getElementById('storeSelector')?.value || '{{ default_store_id|default:0 }}', 10) || null;
+        let categories = [{ id: 'all', name: 'Tất cả' }];
         let products = [];
         let tables = [];
         let onlineOrders = [];
@@ -893,6 +895,7 @@
         let currentNoteCartId = null;
         let currentOptionProduct = null;
         let currentOptionElement = null;
+        let pendingSaveToTable = false;
 
         const themes = {
             green: { primary: '#10b981', hover: '#059669' },
@@ -903,6 +906,14 @@
         };
 
         const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+        const escapeHtml = (text) => String(text || '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+        const getCurrentTable = () => tables.find((table) => table.id === currentSelectedTableId);
+        const getSelectedPaymentMethod = () => document.getElementById('payment-card')?.checked ? 'card' : 'cash';
 
         const showToast = (message, type = 'success') => {
             const toastEl = document.getElementById('actionToast');
@@ -917,14 +928,6 @@
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
             return parts.length === 2 ? parts.pop().split(';').shift() : '';
-        };
-
-        const normalizeCategory = (categoryName) => {
-            const text = (categoryName || '').toLowerCase();
-            if (text.includes('combo')) return 'combo';
-            if (text.includes('nước') || text.includes('drink')) return 'drink';
-            if (text.includes('đồ ăn') || text.includes('food')) return 'food';
-            return 'food';
         };
 
         const fetchJson = async (url, options = {}) => {
@@ -943,8 +946,6 @@
             }
             return data;
         };
-
-        const getCurrentTable = () => tables.find((table) => table.id === currentSelectedTableId);
 
         const animateFlyToCart = (sourceImg) => {
             if (!sourceImg) return;
@@ -980,33 +981,55 @@
             setTimeout(() => flyingImg.remove(), 600);
         };
 
+        const renderCategoryFilters = () => {
+            const container = document.getElementById('category-filter-container');
+            container.innerHTML = '';
+            categories.forEach((category) => {
+                const inputId = `cat-${category.id || 'all'}`;
+                const checked = category.id === currentFilter ? 'checked' : '';
+                container.insertAdjacentHTML(
+                    'beforeend',
+                    `
+                        <input type="radio" class="btn-check" name="btnradio" id="${inputId}" autocomplete="off" ${checked} onclick="filterCategory('${escapeHtml(category.id)}')">
+                        <label class="btn" for="${inputId}">${escapeHtml(category.name)}</label>
+                    `
+                );
+            });
+        };
+
         const renderProducts = () => {
             const container = document.getElementById('product-container');
             container.innerHTML = '';
             const filtered = products.filter((p) => {
-                const okCategory = currentFilter === 'all' || p.category === currentFilter;
+                const okCategory = currentFilter === 'all' || p.categoryId === currentFilter;
                 const okSearch = !currentSearchTerm || p.name.toLowerCase().includes(currentSearchTerm.toLowerCase());
                 return okCategory && okSearch;
             });
 
             filtered.forEach((prod) => {
-                const hasOptions = prod.sizes && prod.sizes.length > 1;
-                const badgeCombo = prod.category === 'combo' ? '<span class="badge bg-warning text-dark position-absolute top-0 end-0 m-2 shadow-sm"><i class="fa-solid fa-star me-1"></i>Combo</span>' : '';
-                const badgeOptions = hasOptions ? '<span class="badge bg-white text-primary border position-absolute top-0 start-0 m-2 shadow-sm"><i class="fa-solid fa-list-ul me-1"></i>Tùy chọn</span>' : '';
-                const html = `
-                    <div class="col-6 col-md-4 col-xl-3 product-col">
-                        <div class="card product-card position-relative" onclick="handleProductClick(${prod.id}, this)">
-                            ${badgeCombo}
-                            ${badgeOptions}
-                            <img src="${prod.img}" class="card-img-top" alt="${prod.name}">
-                            <div class="card-body">
-                                <h6 class="card-title text-truncate mb-1" title="${prod.name}">${prod.name}</h6>
-                                <p class="card-text price-tag mb-0">${hasOptions ? `Từ ${formatCurrency(prod.price)}` : formatCurrency(prod.price)}</p>
+                const hasOptions = (prod.sizes && prod.sizes.length > 1) || (prod.toppings && prod.toppings.length > 0);
+                const badgeCombo = (prod.categoryName || '').toLowerCase().includes('combo')
+                    ? '<span class="badge bg-warning text-dark position-absolute top-0 end-0 m-2 shadow-sm"><i class="fa-solid fa-star me-1"></i>Combo</span>'
+                    : '';
+                const badgeOptions = hasOptions
+                    ? '<span class="badge bg-white text-primary border position-absolute top-0 start-0 m-2 shadow-sm"><i class="fa-solid fa-sliders me-1"></i>Tùy chọn</span>'
+                    : '';
+                container.insertAdjacentHTML(
+                    'beforeend',
+                    `
+                        <div class="col-6 col-md-4 col-xl-3 product-col">
+                            <div class="card product-card position-relative" onclick="handleProductClick(${prod.id}, this)">
+                                ${badgeCombo}
+                                ${badgeOptions}
+                                <img src="${escapeHtml(prod.img)}" class="card-img-top" alt="${escapeHtml(prod.name)}">
+                                <div class="card-body">
+                                    <h6 class="card-title text-truncate mb-1" title="${escapeHtml(prod.name)}">${escapeHtml(prod.name)}</h6>
+                                    <p class="card-text price-tag mb-0">${hasOptions ? `Từ ${formatCurrency(prod.price)}` : formatCurrency(prod.price)}</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                container.insertAdjacentHTML('beforeend', html);
+                    `
+                );
             });
         };
 
@@ -1033,7 +1056,7 @@
                         <div class="table-card ${stateClass} ${isActive ? 'active' : ''}" onclick="selectTable(${table.id})">
                             ${badgeHtml}
                             <div class="table-icon"><i class="fa-solid ${icon}"></i></div>
-                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: 0.5px;">${table.name}</h5>
+                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: 0.5px;">${escapeHtml(table.name)}</h5>
                             ${amountHtml}
                         </div>
                     </div>
@@ -1083,10 +1106,10 @@
                     <div class="col-12 col-md-6 col-xl-4">
                         <div class="online-order-card p-3 shadow-sm cursor-pointer" onclick="openQrOrderModal(${order.id})" style="cursor: pointer;">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-chair text-warning me-2"></i>${order.table_name}</h5>
-                                <span class="badge bg-warning text-dark"><i class="fa-regular fa-clock me-1"></i>${order.time}</span>
+                                <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-chair text-warning me-2"></i>${escapeHtml(order.table_name)}</h5>
+                                <span class="badge bg-warning text-dark"><i class="fa-regular fa-clock me-1"></i>${escapeHtml(order.time)}</span>
                             </div>
-                            <div class="text-muted small mb-3 border-bottom pb-2" style="min-height: 40px;">${itemsSummary}</div>
+                            <div class="text-muted small mb-3 border-bottom pb-2" style="min-height: 40px;">${escapeHtml(itemsSummary)}</div>
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="fw-bold text-danger">${formatCurrency(order.total)}</span>
                                 <button class="btn btn-sm btn-primary px-3 rounded-pill fw-bold">Xem chi tiết</button>
@@ -1096,6 +1119,11 @@
                 `);
             });
             updateNotificationBell();
+        };
+
+        const toppingText = (toppings) => {
+            if (!toppings || !toppings.length) return '';
+            return toppings.map((row) => `${row.name} (+${formatCurrency(row.price)})`).join(', ');
         };
 
         const renderCart = () => {
@@ -1112,21 +1140,26 @@
             cart.forEach((item) => {
                 totalQty += item.qty;
                 totalAmountDue += item.price * item.qty;
-                const noteHtml = item.note ? `<div class="text-muted fst-italic mt-1" style="font-size: 0.75rem; line-height: 1.2;"><i class="fa-solid fa-comment-dots me-1"></i>${item.note}</div>` : '';
+                const noteHtml = item.note ? `<div class="text-muted fst-italic mt-1" style="font-size: 0.75rem; line-height: 1.2;"><i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(item.note)}</div>` : '';
                 const sourceHtml = item.source === 'QR' ? '<span class="badge bg-warning text-dark ms-1">QR</span>' : '';
+                const toppingSummary = toppingText(item.toppings);
+                const toppingHtml = toppingSummary
+                    ? `<div class="text-muted mt-1" style="font-size:0.75rem; line-height:1.2;"><i class="fa-solid fa-circle-plus me-1"></i>${escapeHtml(toppingSummary)}</div>`
+                    : '';
                 container.insertAdjacentHTML('beforeend', `
                     <div class="cart-item position-relative align-items-start py-3 pe-4">
                         <button class="btn btn-sm text-danger p-1 position-absolute" style="top: 0; right: 0; z-index: 5;" onclick="removeCartItem('${item.cartId}')" title="Xóa món này">
                             <i class="fa-solid fa-xmark fs-5"></i>
                         </button>
-                        <img src="${item.img || 'https://placehold.co/200x200/png?text=Product'}" class="cart-item-img mt-1" alt="${item.name}">
+                        <img src="${escapeHtml(item.img || 'https://placehold.co/200x200/png?text=Product')}" class="cart-item-img mt-1" alt="${escapeHtml(item.name)}">
                         <div class="flex-grow-1" style="min-width: 0; padding-right: 20px;">
-                            <h6 class="mb-1 text-truncate" style="max-width: 90%;">${item.name} ${sourceHtml}</h6>
-                            <span class="badge bg-secondary mb-1">${item.size || ''}</span>
+                            <h6 class="mb-1 text-truncate" style="max-width: 90%;">${escapeHtml(item.name)} ${sourceHtml}</h6>
+                            <span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span>
                             <div class="d-flex align-items-center">
                                 <small class="text-danger fw-bold me-2">${formatCurrency(item.price)}</small>
                                 <button class="btn btn-sm text-secondary p-0" onclick="openNoteModal('${item.cartId}')" title="Ghi chú"><i class="fa-solid fa-pen-to-square"></i></button>
                             </div>
+                            ${toppingHtml}
                             ${noteHtml}
                         </div>
                         <div class="d-flex align-items-center ms-2 h-100 pt-2">
@@ -1155,7 +1188,7 @@
             document.getElementById('mobile-total').textContent = formatCurrency(totalAmountDue);
 
             if (currentSelectedTableId === null) {
-                takeawayCart = cart.map((item) => ({ ...item }));
+                takeawayCart = cart.map((item) => ({ ...item, toppings: [...(item.toppings || [])], toppingIds: [...(item.toppingIds || [])] }));
             }
         };
 
@@ -1163,6 +1196,18 @@
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId });
             const payload = await fetchJson(`${API_PRODUCTS_URL}?${params.toString()}`);
+
+            categories = [{ id: 'all', name: 'Tất cả' }];
+            (payload.categories || []).forEach((row) => {
+                const id = String(row.id || '').trim();
+                if (!id || id === 'all') return;
+                categories.push({ id, name: row.name || 'Danh mục' });
+            });
+            if (!categories.some((row) => row.id === currentFilter)) {
+                currentFilter = 'all';
+            }
+            renderCategoryFilters();
+
             products = (payload.products || []).map((item) => {
                 const mappedUnits = (item.units || []).map((unit) => ({
                     name: unit.name,
@@ -1174,10 +1219,16 @@
                     id: item.id,
                     name: item.name,
                     price: Number(item.base_price || baseUnit.price || 0),
-                    category: normalizeCategory(item.category),
+                    categoryId: String(item.category_id || ''),
+                    categoryName: item.category || 'Khác',
                     img: item.image || 'https://placehold.co/600x600/png?text=Product',
                     sizes: mappedUnits,
                     default_unit_id: baseUnit.unitId,
+                    toppings: (item.toppings || []).map((top) => ({
+                        id: Number(top.id),
+                        name: top.name,
+                        price: Number(top.price || 0),
+                    })),
                 };
             });
             renderProducts();
@@ -1199,6 +1250,8 @@
             renderOnlineOrders();
         };
 
+        const findProductImage = (productId) => products.find((row) => row.id === productId)?.img || 'https://placehold.co/200x200/png?text=Product';
+
         const loadTableCart = async (tableId) => {
             const payload = await fetchJson(`${API_TABLES_BASE}${tableId}/cart/`);
             cart = (payload.items || []).map((item) => ({
@@ -1212,7 +1265,13 @@
                 qty: item.qty,
                 note: item.note || '',
                 source: item.source || 'STAFF',
-                img: 'https://placehold.co/200x200/png?text=Product',
+                toppings: (item.toppings || []).map((top) => ({
+                    id: Number(top.id),
+                    name: top.name,
+                    price: Number(top.price || 0),
+                })),
+                toppingIds: (item.topping_ids || []).map((topId) => Number(topId)),
+                img: findProductImage(item.product_id),
             }));
             renderCart();
         };
@@ -1223,7 +1282,8 @@
         };
 
         const filterCategory = (category) => {
-            currentFilter = category;
+            currentFilter = category || 'all';
+            renderCategoryFilters();
             renderProducts();
         };
 
@@ -1238,24 +1298,60 @@
             new bootstrap.Tab(document.getElementById('tab-tables')).show();
         };
 
+        const importTakeawayCartToTable = async (tableId) => {
+            if (!takeawayCart.length) return;
+            await fetchJson(`${API_TABLES_BASE}${tableId}/cart/import-takeaway/`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    items: takeawayCart.map((item) => ({
+                        product_id: item.id,
+                        unit_id: item.unitId,
+                        quantity: item.qty,
+                        note: item.note || '',
+                        topping_ids: item.toppingIds || [],
+                    })),
+                }),
+            });
+            takeawayCart = [];
+            cart = [];
+            await Promise.all([loadTableCart(tableId), loadTablesFromApi()]);
+            showToast(`Đã lưu giỏ mang về vào ${getCurrentTable()?.name || 'bàn'}.`, 'success');
+        };
+
         const selectTable = async (tableId) => {
             const pendingOrder = onlineOrders.find((order) => order.table_id === tableId);
             if (pendingOrder) {
+                if (pendingSaveToTable) {
+                    showToast('Bàn này đang có đơn QR chờ duyệt, vui lòng chọn bàn khác.', 'warning');
+                    return;
+                }
                 openQrOrderModal(pendingOrder.id);
                 return;
             }
+
             currentSelectedTableId = tableId;
             const table = getCurrentTable();
             document.getElementById('current-order-name').textContent = table ? table.name : 'Bàn';
             document.getElementById('btn-takeaway').classList.remove('d-none');
             new bootstrap.Tab(document.getElementById('tab-menu')).show();
             await loadTableCart(tableId);
+
+            if (pendingSaveToTable && takeawayCart.length) {
+                try {
+                    await importTakeawayCartToTable(tableId);
+                } catch (error) {
+                    showToast(error.message, 'danger');
+                } finally {
+                    pendingSaveToTable = false;
+                }
+            }
             renderTables();
         };
 
         const selectTakeaway = () => {
+            pendingSaveToTable = false;
             currentSelectedTableId = null;
-            cart = takeawayCart.map((item) => ({ ...item }));
+            cart = takeawayCart.map((item) => ({ ...item, toppings: [...(item.toppings || [])], toppingIds: [...(item.toppingIds || [])] }));
             document.getElementById('current-order-name').textContent = 'Khách mang về';
             document.getElementById('btn-takeaway').classList.add('d-none');
             renderCart();
@@ -1276,12 +1372,15 @@
             const itemsContainer = document.getElementById('qr-modal-items');
             itemsContainer.innerHTML = '';
             order.items.forEach((item) => {
-                const noteHtml = item.note ? `<div class="text-muted fst-italic mt-1" style="font-size: 0.8rem;"><i class="fa-solid fa-comment-dots me-1"></i>${item.note}</div>` : '';
+                const noteHtml = item.note ? `<div class="text-muted fst-italic mt-1" style="font-size: 0.8rem;"><i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(item.note)}</div>` : '';
+                const tops = toppingText(item.toppings || []);
+                const toppingHtml = tops ? `<div class="text-muted mt-1" style="font-size:0.8rem;"><i class="fa-solid fa-circle-plus me-1"></i>${escapeHtml(tops)}</div>` : '';
                 itemsContainer.insertAdjacentHTML('beforeend', `
                     <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
                         <div>
-                            <h6 class="mb-0 text-dark" style="font-size: 0.95rem;">${item.name}</h6>
-                            <div><span class="badge bg-secondary mb-1">${item.size || ''}</span></div>
+                            <h6 class="mb-0 text-dark" style="font-size: 0.95rem;">${escapeHtml(item.name)}</h6>
+                            <div><span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span></div>
+                            ${toppingHtml}
                             ${noteHtml}
                         </div>
                         <span class="fw-bold text-dark">${formatCurrency(item.price * item.qty)}</span>
@@ -1320,49 +1419,88 @@
             }
         };
 
-        const updateOptionsPrice = () => {
-            if (!currentOptionProduct) return;
+        const getCurrentOptionSelection = () => {
+            if (!currentOptionProduct) {
+                return { selectedSize: null, selectedToppings: [] };
+            }
             const selectedSizeElement = document.querySelector('input[name="sizeOption"]:checked');
-            const selectedSize = currentOptionProduct.sizes[selectedSizeElement ? Number(selectedSizeElement.value) : 0];
-            document.getElementById('btn-confirm-options').innerHTML = `Thêm vào giỏ hàng - <span class="ms-1">${formatCurrency(selectedSize?.price || currentOptionProduct.price)}</span>`;
+            const selectedSize = currentOptionProduct.sizes[Number(selectedSizeElement?.value || 0)] || currentOptionProduct.sizes[0];
+            const selectedToppingEls = Array.from(document.querySelectorAll('input[name="toppingOption"]:checked'));
+            const selectedToppings = selectedToppingEls
+                .map((el) => Number(el.value))
+                .map((id) => currentOptionProduct.toppings.find((top) => top.id === id))
+                .filter(Boolean);
+            return { selectedSize, selectedToppings };
         };
 
-        const handleProductClick = (productId, element) => {
-            const product = products.find((p) => p.id === productId);
-            if (!product) return;
-            const hasMultipleUnit = product.sizes && product.sizes.length > 1;
-            if (!hasMultipleUnit) {
-                addToCart(product.id, product.sizes[0]?.name || '', product.price, product.default_unit_id, element);
-                return;
-            }
+        const updateOptionsPrice = () => {
+            if (!currentOptionProduct) return;
+            const { selectedSize, selectedToppings } = getCurrentOptionSelection();
+            const sizePrice = Number(selectedSize?.price || currentOptionProduct.price || 0);
+            const toppingTotal = selectedToppings.reduce((sum, top) => sum + Number(top.price || 0), 0);
+            document.getElementById('btn-confirm-options').innerHTML = `Thêm vào giỏ hàng - <span class="ms-1">${formatCurrency(sizePrice + toppingTotal)}</span>`;
+        };
+
+        const openOptionsModal = (product, element) => {
             currentOptionProduct = product;
             currentOptionElement = element;
             document.getElementById('options-modal-img').src = product.img;
             document.getElementById('options-modal-name').textContent = product.name;
             document.getElementById('options-modal-base-price').textContent = `Từ ${formatCurrency(product.price)}`;
+
             const sizesContainer = document.getElementById('options-modal-sizes');
             sizesContainer.innerHTML = '';
             product.sizes.forEach((size, index) => {
+                const sizeId = `size-${product.id}-${index}`;
                 sizesContainer.insertAdjacentHTML('beforeend', `
-                    <input type="radio" class="btn-check" name="sizeOption" id="size-${index}" value="${index}" ${index === 0 ? 'checked' : ''} onchange="updateOptionsPrice()">
-                    <label class="custom-option-label d-flex justify-content-between align-items-center w-100 mb-0" for="size-${index}">
+                    <input type="radio" class="btn-check" name="sizeOption" id="${sizeId}" value="${index}" ${index === 0 ? 'checked' : ''} onchange="updateOptionsPrice()">
+                    <label class="custom-option-label d-flex justify-content-between align-items-center w-100 mb-0" for="${sizeId}">
                         <div class="d-flex align-items-center">
                             <i class="fa-solid fa-circle-check fs-5 me-3 custom-check-icon"></i>
-                            <span class="fw-semibold text-dark">${size.name}</span>
+                            <span class="fw-semibold text-dark">${escapeHtml(size.name)}</span>
                         </div>
                         <strong class="text-dark">${formatCurrency(size.price)}</strong>
                     </label>
                 `);
             });
-            document.getElementById('options-modal-toppings-container').style.display = 'none';
+
+            const toppingsContainer = document.getElementById('options-modal-toppings');
+            const toppingsWrapper = document.getElementById('options-modal-toppings-container');
+            toppingsContainer.innerHTML = '';
+            if (product.toppings && product.toppings.length) {
+                toppingsWrapper.style.display = '';
+                product.toppings.forEach((top, index) => {
+                    const topId = `top-${product.id}-${index}`;
+                    toppingsContainer.insertAdjacentHTML('beforeend', `
+                        <input type="checkbox" class="btn-check" name="toppingOption" id="${topId}" value="${top.id}" autocomplete="off" onchange="updateOptionsPrice()">
+                        <label class="custom-option-label d-flex justify-content-between align-items-center w-100 mb-0" for="${topId}">
+                            <div class="d-flex align-items-center">
+                                <span class="checkbox-box me-3"><i class="fa-solid fa-check"></i></span>
+                                <span class="fw-semibold text-dark">${escapeHtml(top.name)}</span>
+                            </div>
+                            <strong class="text-dark">+${formatCurrency(top.price)}</strong>
+                        </label>
+                    `);
+                });
+            } else {
+                toppingsWrapper.style.display = 'none';
+            }
             updateOptionsPrice();
             if (!optionsModalInstance) optionsModalInstance = new bootstrap.Modal(document.getElementById('optionsModal'));
             optionsModalInstance.show();
         };
 
-        const addToCart = async (productId, sizeName, price, unitId, element = null) => {
+        const buildTakeawayCartId = ({ productId, unitId, toppingIds }) => {
+            const sortedToppingIds = [...(toppingIds || [])].map((id) => Number(id)).sort((a, b) => a - b);
+            return `${productId}-${unitId}-${sortedToppingIds.join('-') || 'no-top'}`;
+        };
+
+        const addToCart = async ({ productId, unitId, unitName, unitPrice, toppings = [], note = '', element = null }) => {
             const product = products.find((p) => p.id === productId);
             if (!product || !unitId) return;
+            const toppingIds = toppings.map((row) => Number(row.id));
+            const finalPrice = Number(unitPrice || 0) + toppings.reduce((sum, row) => sum + Number(row.price || 0), 0);
+
             if (currentSelectedTableId !== null) {
                 try {
                     await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/`, {
@@ -1371,7 +1509,8 @@
                             product_id: productId,
                             unit_id: unitId,
                             quantity: 1,
-                            note: '',
+                            note,
+                            topping_ids: toppingIds,
                         }),
                     });
                     await Promise.all([loadTableCart(currentSelectedTableId), loadTablesFromApi()]);
@@ -1380,8 +1519,8 @@
                     showToast(error.message, 'danger');
                 }
             } else {
-                const cartId = `${productId}-${unitId}-${sizeName || 'default'}`;
-                const existing = cart.find((item) => item.cartId === cartId);
+                const cartId = buildTakeawayCartId({ productId, unitId, toppingIds });
+                const existing = cart.find((item) => item.cartId === cartId && (item.note || '') === (note || ''));
                 if (existing) {
                     existing.qty += 1;
                 } else {
@@ -1390,12 +1529,14 @@
                         id: productId,
                         unitId,
                         name: product.name,
-                        size: sizeName || '',
-                        price,
+                        size: unitName || '',
+                        price: finalPrice,
                         qty: 1,
-                        note: '',
+                        note: note || '',
                         source: 'STAFF',
                         img: product.img,
+                        toppings: toppings.map((row) => ({ ...row })),
+                        toppingIds: [...toppingIds],
                     });
                 }
                 renderCart();
@@ -1404,11 +1545,35 @@
             if (element) animateFlyToCart(element.querySelector('.card-img-top'));
         };
 
+        const handleProductClick = async (productId, element) => {
+            const product = products.find((p) => p.id === productId);
+            if (!product) return;
+            const hasOptions = (product.sizes && product.sizes.length > 1) || (product.toppings && product.toppings.length > 0);
+            if (!hasOptions) {
+                await addToCart({
+                    productId: product.id,
+                    unitId: product.sizes[0]?.unitId || product.default_unit_id,
+                    unitName: product.sizes[0]?.name || '',
+                    unitPrice: product.price,
+                    toppings: [],
+                    element,
+                });
+                return;
+            }
+            openOptionsModal(product, element);
+        };
+
         const confirmOptions = async () => {
             if (!currentOptionProduct) return;
-            const selectedSizeElement = document.querySelector('input[name="sizeOption"]:checked');
-            const selectedSize = currentOptionProduct.sizes[Number(selectedSizeElement?.value || 0)];
-            await addToCart(currentOptionProduct.id, selectedSize?.name || '', Number(selectedSize?.price || currentOptionProduct.price), selectedSize?.unitId || currentOptionProduct.default_unit_id, currentOptionElement);
+            const { selectedSize, selectedToppings } = getCurrentOptionSelection();
+            await addToCart({
+                productId: currentOptionProduct.id,
+                unitId: selectedSize?.unitId || currentOptionProduct.default_unit_id,
+                unitName: selectedSize?.name || '',
+                unitPrice: Number(selectedSize?.price || currentOptionProduct.price || 0),
+                toppings: selectedToppings,
+                element: currentOptionElement,
+            });
             if (optionsModalInstance) optionsModalInstance.hide();
         };
 
@@ -1468,6 +1633,7 @@
                 }
             } else {
                 cart = [];
+                takeawayCart = [];
                 renderCart();
             }
             const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmClearCartModal'));
@@ -1479,7 +1645,7 @@
             const item = cart.find((x) => x.cartId === cartId);
             if (!item) return;
             currentNoteCartId = cartId;
-            document.getElementById('note-item-name').innerHTML = `Món: <strong class="text-dark">${item.name}</strong> <span class="badge bg-secondary ms-1">${item.size || ''}</span>`;
+            document.getElementById('note-item-name').innerHTML = `Món: <strong class="text-dark">${escapeHtml(item.name)}</strong> <span class="badge bg-secondary ms-1">${escapeHtml(item.size || '')}</span>`;
             document.getElementById('item-note-input').value = item.note || '';
             if (!noteModalInstance) noteModalInstance = new bootstrap.Modal(document.getElementById('noteModal'));
             noteModalInstance.show();
@@ -1524,19 +1690,37 @@
             return Array.from(new Set([total, roundUp(total, 10000), roundUp(total, 50000), roundUp(total, 100000), roundUp(total, 500000)])).sort((a, b) => a - b).slice(0, 4);
         };
 
+        const syncPaymentMethodUi = () => {
+            const method = getSelectedPaymentMethod();
+            const showCash = method === 'cash';
+            document.getElementById('quick-cash-wrapper').style.display = showCash ? '' : 'none';
+            document.getElementById('cash-input-wrapper').style.display = showCash ? '' : 'none';
+            document.getElementById('change-wrapper').style.display = showCash ? '' : 'none';
+            if (!showCash) {
+                document.getElementById('input-cash-received').value = '';
+                document.getElementById('modal-change-due').textContent = 'Không áp dụng';
+                document.getElementById('modal-change-due').className = 'fs-4 fw-bold text-muted';
+            } else {
+                calculateChange();
+            }
+        };
+
         const openPaymentModal = () => {
             if (!cart.length) return;
             if (!paymentModalInstance) paymentModalInstance = new bootstrap.Modal(document.getElementById('paymentModal'));
             const modalItemsContainer = document.getElementById('modal-cart-items');
             modalItemsContainer.innerHTML = '';
             cart.forEach((item) => {
+                const tops = toppingText(item.toppings || []);
+                const toppingHtml = tops ? `<div class="text-muted" style="font-size:0.75rem;"><i class="fa-solid fa-circle-plus me-1"></i>${escapeHtml(tops)}</div>` : '';
                 modalItemsContainer.insertAdjacentHTML('beforeend', `
                     <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
                         <div class="d-flex align-items-center">
-                            <img src="${item.img || 'https://placehold.co/200x200/png?text=Product'}" class="rounded shadow-sm me-3" style="width: 45px; height: 45px; object-fit: cover;">
+                            <img src="${escapeHtml(item.img || 'https://placehold.co/200x200/png?text=Product')}" class="rounded shadow-sm me-3" style="width: 45px; height: 45px; object-fit: cover;">
                             <div>
-                                <h6 class="mb-1 text-dark" style="font-size: 0.95rem;">${item.name}</h6>
-                                <div><span class="badge bg-secondary mb-1">${item.size || ''}</span></div>
+                                <h6 class="mb-1 text-dark" style="font-size: 0.95rem;">${escapeHtml(item.name)}</h6>
+                                <div><span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span></div>
+                                ${toppingHtml}
                                 <small class="text-primary fw-bold">${item.qty} x ${formatCurrency(item.price)}</small>
                             </div>
                         </div>
@@ -1548,12 +1732,15 @@
             document.getElementById('input-cash-received').value = '';
             document.getElementById('modal-change-due').textContent = '0 đ';
             document.getElementById('modal-change-due').className = 'fs-4 fw-bold text-muted';
+
             const btnContainer = document.getElementById('quick-cash-container');
             btnContainer.innerHTML = '';
             getSuggestedAmounts(totalAmountDue).forEach((amount, index) => {
                 const badge = index === 0 ? '<span class="badge bg-danger ms-1" style="font-size:0.6rem;">Vừa đủ</span>' : '';
                 btnContainer.insertAdjacentHTML('beforeend', `<button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="setCashReceived(${amount})">${formatCurrency(amount)} ${badge}</button>`);
             });
+
+            syncPaymentMethodUi();
             paymentModalInstance.show();
         };
 
@@ -1571,6 +1758,7 @@
         };
 
         const calculateChange = () => {
+            if (getSelectedPaymentMethod() !== 'cash') return;
             const received = getRawCashValue();
             const changeEl = document.getElementById('modal-change-due');
             if (!received && !document.getElementById('input-cash-received').value) {
@@ -1589,14 +1777,23 @@
         };
 
         const saveToTable = async () => {
-            if (!cart.length || currentSelectedTableId !== null) return;
-            showToast('Vui lòng chọn bàn trước khi lưu order.', 'warning');
+            if (currentSelectedTableId !== null) {
+                showToast('Bạn đang ở chế độ bàn, không cần lưu vào bàn.', 'warning');
+                return;
+            }
+            if (!cart.length) {
+                showToast('Giỏ mang về đang trống.', 'warning');
+                return;
+            }
+            pendingSaveToTable = true;
+            showToast('Chọn bàn để lưu giỏ mang về.', 'primary');
             openTableMap();
         };
 
         const processPayment = async () => {
-            const received = getRawCashValue();
-            if (received < totalAmountDue) {
+            const paymentMethod = getSelectedPaymentMethod();
+            const received = paymentMethod === 'cash' ? getRawCashValue() : totalAmountDue;
+            if (paymentMethod === 'cash' && received < totalAmountDue) {
                 showToast('Số tiền khách đưa chưa đủ!', 'danger');
                 return;
             }
@@ -1610,7 +1807,7 @@
                     data = await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/checkout/`, {
                         method: 'POST',
                         body: JSON.stringify({
-                            payment_method: 'cash',
+                            payment_method: paymentMethod,
                             tax_rate: 0,
                             customer_paid: received,
                         }),
@@ -1621,7 +1818,7 @@
                         method: 'POST',
                         body: JSON.stringify({
                             store_id: currentStoreId,
-                            payment_method: 'cash',
+                            payment_method: paymentMethod,
                             tax_rate: 0,
                             customer_paid: received,
                             items: cart.map((item) => ({
@@ -1629,6 +1826,7 @@
                                 unit_id: item.unitId,
                                 quantity: item.qty,
                                 note: item.note || '',
+                                topping_ids: item.toppingIds || [],
                             })),
                         }),
                     });
@@ -1659,9 +1857,12 @@
             currentSearchTerm = event.target.value || '';
             renderProducts();
         });
+        document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
+        document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
 
         document.getElementById('storeSelector')?.addEventListener('change', async (event) => {
             currentStoreId = parseInt(event.target.value || '0', 10) || null;
+            pendingSaveToTable = false;
             currentSelectedTableId = null;
             cart = [];
             takeawayCart = [];

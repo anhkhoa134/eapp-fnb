@@ -1,0 +1,57 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Gán topping cho sản phẩm</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button class="btn btn-primary" type="submit">Lưu gán topping</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Danh sách gán topping</h2>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                        <tr>
+                            <th>Sản phẩm</th>
+                            <th>Topping</th>
+                            <th>Giá</th>
+                            <th class="text-end">Thao tác</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for mapping in mappings %}
+                        <tr>
+                            <td>{{ mapping.product.name }}</td>
+                            <td>{{ mapping.topping.name }}</td>
+                            <td>{{ mapping.price|floatformat:0 }} đ</td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:product_topping_edit' mapping.id %}">Sửa</a>
+                                <form method="post" action="{% url 'App_Quanly:product_topping_delete' mapping.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa gán topping này?')">Xóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-muted">Chưa có gán topping.</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

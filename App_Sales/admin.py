@@ -1,12 +1,28 @@
 from django.contrib import admin
 
-from App_Sales.models import DiningTable, Order, OrderItem, QROrder, QROrderItem, TableCartItem
+from App_Sales.models import (
+    DiningTable,
+    Order,
+    OrderItem,
+    OrderItemTopping,
+    QROrder,
+    QROrderItem,
+    QROrderItemTopping,
+    TableCartItem,
+    TableCartItemTopping,
+)
 
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     readonly_fields = ('snapshot_product_name', 'snapshot_unit_name', 'unit_price', 'quantity', 'line_total')
+
+
+class OrderItemToppingInline(admin.TabularInline):
+    model = OrderItemTopping
+    extra = 0
+    readonly_fields = ('snapshot_topping_name', 'snapshot_price')
 
 
 @admin.register(Order)
@@ -31,6 +47,12 @@ class QROrderItemInline(admin.TabularInline):
     readonly_fields = ('snapshot_product_name', 'snapshot_unit_name', 'unit_price_snapshot', 'quantity', 'line_total')
 
 
+class QROrderItemToppingInline(admin.TabularInline):
+    model = QROrderItemTopping
+    extra = 0
+    readonly_fields = ('snapshot_topping_name', 'snapshot_price')
+
+
 @admin.register(QROrder)
 class QROrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'tenant', 'store', 'table', 'status', 'created_at')
@@ -44,3 +66,21 @@ class TableCartItemAdmin(admin.ModelAdmin):
     list_display = ('table', 'snapshot_product_name', 'snapshot_unit_name', 'quantity', 'source', 'created_at')
     list_filter = ('tenant', 'store', 'source')
     search_fields = ('table__name', 'snapshot_product_name')
+
+
+@admin.register(TableCartItemTopping)
+class TableCartItemToppingAdmin(admin.ModelAdmin):
+    list_display = ('table_cart_item', 'snapshot_topping_name', 'snapshot_price')
+    list_filter = ('table_cart_item__tenant',)
+
+
+@admin.register(QROrderItemTopping)
+class QROrderItemToppingAdmin(admin.ModelAdmin):
+    list_display = ('qr_order_item', 'snapshot_topping_name', 'snapshot_price')
+    list_filter = ('qr_order_item__qr_order__tenant',)
+
+
+@admin.register(OrderItemTopping)
+class OrderItemToppingAdmin(admin.ModelAdmin):
+    list_display = ('order_item', 'snapshot_topping_name', 'snapshot_price')
+    list_filter = ('order_item__order__tenant',)

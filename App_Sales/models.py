@@ -157,6 +157,33 @@ class QROrderItem(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class QROrderItemTopping(TimeStampedModel):
+    qr_order_item = models.ForeignKey(QROrderItem, on_delete=models.CASCADE, related_name='toppings')
+    topping = models.ForeignKey('App_Catalog.Topping', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_topping_name = models.CharField(max_length=120)
+    snapshot_price = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['qr_order_item', 'topping'], name='uq_qr_order_item_topping'),
+        ]
+        indexes = [
+            models.Index(fields=['qr_order_item', 'snapshot_topping_name']),
+        ]
+        ordering = ['id']
+
+    def clean(self):
+        if self.snapshot_price < 0:
+            raise ValidationError('Giá topping snapshot phải >= 0.')
+        if self.topping_id and self.qr_order_item_id:
+            if self.topping.tenant_id != self.qr_order_item.qr_order.tenant_id:
+                raise ValidationError('Topping phải cùng tenant với đơn QR item.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class TableCartItem(TimeStampedModel):
     class Source(models.TextChoices):
         STAFF = 'STAFF', 'Staff'
@@ -196,6 +223,33 @@ class TableCartItem(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class TableCartItemTopping(TimeStampedModel):
+    table_cart_item = models.ForeignKey(TableCartItem, on_delete=models.CASCADE, related_name='toppings')
+    topping = models.ForeignKey('App_Catalog.Topping', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_topping_name = models.CharField(max_length=120)
+    snapshot_price = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['table_cart_item', 'topping'], name='uq_table_cart_item_topping'),
+        ]
+        indexes = [
+            models.Index(fields=['table_cart_item', 'snapshot_topping_name']),
+        ]
+        ordering = ['id']
+
+    def clean(self):
+        if self.snapshot_price < 0:
+            raise ValidationError('Giá topping snapshot phải >= 0.')
+        if self.topping_id and self.table_cart_item_id:
+            if self.topping.tenant_id != self.table_cart_item.tenant_id:
+                raise ValidationError('Topping phải cùng tenant với cart item.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class OrderItem(TimeStampedModel):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('App_Catalog.Product', on_delete=models.SET_NULL, null=True, blank=True)
@@ -218,3 +272,30 @@ class OrderItem(TimeStampedModel):
 
     def __str__(self):
         return f'{self.snapshot_product_name} x{self.quantity}'
+
+
+class OrderItemTopping(TimeStampedModel):
+    order_item = models.ForeignKey(OrderItem, on_delete=models.CASCADE, related_name='toppings')
+    topping = models.ForeignKey('App_Catalog.Topping', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_topping_name = models.CharField(max_length=120)
+    snapshot_price = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['order_item', 'topping'], name='uq_order_item_topping'),
+        ]
+        indexes = [
+            models.Index(fields=['order_item', 'snapshot_topping_name']),
+        ]
+        ordering = ['id']
+
+    def clean(self):
+        if self.snapshot_price < 0:
+            raise ValidationError('Giá topping snapshot phải >= 0.')
+        if self.topping_id and self.order_item_id:
+            if self.topping.tenant_id != self.order_item.order.tenant_id:
+                raise ValidationError('Topping phải cùng tenant với order item.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

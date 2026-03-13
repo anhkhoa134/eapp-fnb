@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -11,8 +11,18 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from App_Accounts.permissions import staff_or_manager_required
-from App_Catalog.models import Product, ProductUnit
-from App_Sales.models import DiningTable, Order, OrderItem, QROrder, TableCartItem
+from App_Catalog.models import Product, ProductTopping, ProductUnit
+from App_Catalog.services import calc_toppings_total, parse_topping_ids, resolve_product_topping_links
+from App_Sales.models import (
+    DiningTable,
+    Order,
+    OrderItem,
+    OrderItemTopping,
+    QROrder,
+    QROrderItemTopping,
+    TableCartItem,
+    TableCartItemTopping,
+)
 from App_Sales.services import get_accessible_store_or_default, get_effective_unit_price
 from App_Tenant.services import get_user_accessible_stores
 
@@ -35,7 +45,19 @@ def _parse_decimal(raw_value, *, default='0', field='value'):
         raise ValueError(f'{field} không hợp lệ.')
 
 
+def _serialize_topping_rows(topping_rows):
+    return [
+        {
+            'id': row.topping_id,
+            'name': row.snapshot_topping_name,
+            'price': float(row.snapshot_price),
+        }
+        for row in topping_rows
+    ]
+
+
 def _serialize_table_cart_item(item: TableCartItem):
+    toppings = list(item.toppings.all().order_by('id'))
     return {
         'id': item.id,
         'cart_id': f'table-{item.id}',
@@ -49,6 +71,8 @@ def _serialize_table_cart_item(item: TableCartItem):
         'note': item.note,
         'source': item.source,
         'line_total': float(item.unit_price_snapshot * item.quantity),
+        'toppings': _serialize_topping_rows(toppings),
+        'topping_ids': [row.topping_id for row in toppings if row.topping_id],
     }
 
 
@@ -102,6 +126,77 @@ def _resolve_product_unit_for_store(*, tenant, store, product_id, unit_id):
     return unit
 
 
+def _resolve_topping_links_for_unit(*, unit, raw_topping_ids):
+    try:
+        topping_ids = parse_topping_ids(raw_topping_ids)
+    except ValueError as exc:
+        raise ValueError(str(exc))
+    if not topping_ids:
+        return []
+    try:
+        return resolve_product_topping_links(product=unit.product, topping_ids=topping_ids)
+    except ValueError as exc:
+        raise ValueError(str(exc))
+
+
+def _snapshot_rows_from_product_toppings(links):
+    rows = []
+    for link in sorted(links, key=lambda row: (row.display_order, row.id)):
+        rows.append(
+            {
+                'topping_id': link.topping_id,
+                'name': link.topping.name,
+                'price': link.price,
+            }
+        )
+    return rows
+
+
+def _snapshot_rows_from_qr_item_toppings(qr_item):
+    rows = []
+    for row in qr_item.toppings.all().order_by('id'):
+        rows.append(
+            {
+                'topping_id': row.topping_id,
+                'name': row.snapshot_topping_name,
+                'price': row.snapshot_price,
+            }
+        )
+    return rows
+
+
+def _topping_signature(snapshot_rows):
+    return tuple(sorted((row.get('topping_id') or 0, row['name'], str(row['price'])) for row in snapshot_rows))
+
+
+def _table_item_topping_signature(table_item):
+    return _topping_signature(
+        [
+            {
+                'topping_id': row.topping_id,
+                'name': row.snapshot_topping_name,
+                'price': row.snapshot_price,
+            }
+            for row in table_item.toppings.all().order_by('id')
+        ]
+    )
+
+
+def _replace_table_item_toppings(*, table_item, snapshot_rows):
+    table_item.toppings.all().delete()
+    TableCartItemTopping.objects.bulk_create(
+        [
+            TableCartItemTopping(
+                table_cart_item=table_item,
+                topping_id=row.get('topping_id'),
+                snapshot_topping_name=row['name'],
+                snapshot_price=row['price'],
+            )
+            for row in snapshot_rows
+        ]
+    )
+
+
 def _upsert_table_cart_item(
     *,
     tenant,
@@ -109,6 +204,8 @@ def _upsert_table_cart_item(
     table,
     unit,
     quantity,
+    base_unit_price,
+    snapshot_toppings,
     note='',
     source=TableCartItem.Source.STAFF,
     qr_order=None,
@@ -118,38 +215,54 @@ def _upsert_table_cart_item(
     if quantity <= 0:
         raise ValueError('Số lượng phải lớn hơn 0.')
 
-    unit_price = get_effective_unit_price(unit=unit, store_id=store.id)
-    existing = TableCartItem.objects.filter(
-        tenant=tenant,
-        store=store,
-        table=table,
-        unit=unit,
-        note=note,
-        source=source,
-    ).first()
+    topping_total = Decimal('0')
+    for topping_row in snapshot_toppings:
+        topping_total += topping_row['price']
+    effective_unit_price = base_unit_price + topping_total
+
+    candidates = (
+        TableCartItem.objects.filter(
+            tenant=tenant,
+            store=store,
+            table=table,
+            unit=unit,
+            note=note,
+            source=source,
+        )
+        .prefetch_related('toppings')
+        .order_by('id')
+    )
+    snapshot_signature = _topping_signature(snapshot_toppings)
+    existing = None
+    for candidate in candidates:
+        if _table_item_topping_signature(candidate) == snapshot_signature:
+            existing = candidate
+            break
 
     if existing:
         existing.quantity += quantity
         if qr_order and not existing.qr_order_id:
             existing.qr_order = qr_order
-        existing.unit_price_snapshot = unit_price
+        existing.unit_price_snapshot = effective_unit_price
         existing.save(update_fields=['quantity', 'qr_order', 'unit_price_snapshot', 'updated_at'])
         return existing
 
-    return TableCartItem.objects.create(
+    created = TableCartItem.objects.create(
         tenant=tenant,
         store=store,
         table=table,
-        product=unit.product,
         unit=unit,
+        product=unit.product,
         snapshot_product_name=unit.product.name,
         snapshot_unit_name=unit.name,
-        unit_price_snapshot=unit_price,
+        unit_price_snapshot=effective_unit_price,
         quantity=quantity,
         note=note,
         source=source,
         qr_order=qr_order,
     )
+    _replace_table_item_toppings(table_item=created, snapshot_rows=snapshot_toppings)
+    return created
 
 
 @login_required
@@ -188,7 +301,16 @@ def api_products(request):
             store_links__is_available=True,
         )
         .select_related('category')
-        .prefetch_related('units')
+        .prefetch_related(
+            Prefetch('units', queryset=ProductUnit.objects.filter(is_active=True).order_by('display_order', 'id')),
+            Prefetch(
+                'topping_links',
+                queryset=ProductTopping.objects.select_related('topping').filter(
+                    is_active=True,
+                    topping__is_active=True,
+                ).order_by('display_order', 'id'),
+            ),
+        )
         .distinct()
     )
 
@@ -215,7 +337,7 @@ def api_products(request):
             categories.append({'id': str(product.category_id), 'name': product.category.name})
 
         units_payload = []
-        for unit in product.units.filter(is_active=True).order_by('display_order', 'id'):
+        for unit in product.units.all():
             unit_price = get_effective_unit_price(unit=unit, store_id=store.id)
             units_payload.append(
                 {
@@ -228,6 +350,16 @@ def api_products(request):
         if not units_payload:
             continue
 
+        toppings_payload = []
+        for topping_link in product.topping_links.all():
+            toppings_payload.append(
+                {
+                    'id': topping_link.topping_id,
+                    'name': topping_link.topping.name,
+                    'price': float(topping_link.price),
+                }
+            )
+
         products.append(
             {
                 'id': product.id,
@@ -237,6 +369,7 @@ def api_products(request):
                 'image': product.image_url or 'https://placehold.co/600x600/png?text=Product',
                 'units': units_payload,
                 'base_price': units_payload[0]['price'],
+                'toppings': toppings_payload,
             }
         )
 
@@ -311,8 +444,18 @@ def api_checkout(request):
             if not unit:
                 return _json_error(f'Sản phẩm hoặc đơn vị không hợp lệ: {product_id}/{unit_id}', 400)
 
-            unit_price = get_effective_unit_price(unit=unit, store_id=store.id)
-            line_total = unit_price * quantity
+            try:
+                topping_links = _resolve_topping_links_for_unit(
+                    unit=unit,
+                    raw_topping_ids=item.get('topping_ids'),
+                )
+            except ValueError as exc:
+                return _json_error(str(exc), 400)
+
+            base_price = get_effective_unit_price(unit=unit, store_id=store.id)
+            topping_total = calc_toppings_total(topping_links)
+            effective_unit_price = base_price + topping_total
+            line_total = effective_unit_price * quantity
             subtotal += line_total
             prepared_items.append(
                 {
@@ -320,8 +463,9 @@ def api_checkout(request):
                     'unit': unit,
                     'quantity': quantity,
                     'note': note,
-                    'unit_price': unit_price,
+                    'unit_price': effective_unit_price,
                     'line_total': line_total,
+                    'snapshot_toppings': _snapshot_rows_from_product_toppings(topping_links),
                 }
             )
 
@@ -349,22 +493,29 @@ def api_checkout(request):
             change_amount=change_amount,
         )
 
-        OrderItem.objects.bulk_create(
-            [
-                OrderItem(
-                    order=order,
-                    product=item['product'],
-                    unit=item['unit'],
-                    snapshot_product_name=item['product'].name,
-                    snapshot_unit_name=item['unit'].name,
-                    unit_price=item['unit_price'],
-                    quantity=item['quantity'],
-                    note=item['note'],
-                    line_total=item['line_total'],
-                )
-                for item in prepared_items
-            ]
-        )
+        for item in prepared_items:
+            order_item = OrderItem.objects.create(
+                order=order,
+                product=item['product'],
+                unit=item['unit'],
+                snapshot_product_name=item['product'].name,
+                snapshot_unit_name=item['unit'].name,
+                unit_price=item['unit_price'],
+                quantity=item['quantity'],
+                note=item['note'],
+                line_total=item['line_total'],
+            )
+            OrderItemTopping.objects.bulk_create(
+                [
+                    OrderItemTopping(
+                        order_item=order_item,
+                        topping_id=row.get('topping_id'),
+                        snapshot_topping_name=row['name'],
+                        snapshot_price=row['price'],
+                    )
+                    for row in item['snapshot_toppings']
+                ]
+            )
 
     return JsonResponse(
         {
@@ -458,7 +609,10 @@ def api_table_cart(request, table_id):
         return _json_error('Không có quyền truy cập bàn này.', 403)
 
     items = list(
-        TableCartItem.objects.filter(table=table).select_related('product', 'unit').order_by('created_at', 'id')
+        TableCartItem.objects.filter(table=table)
+        .select_related('product', 'unit')
+        .prefetch_related('toppings')
+        .order_by('created_at', 'id')
     )
     summary = _table_cart_summary(table)
 
@@ -504,6 +658,16 @@ def api_table_cart_add(request, table_id):
     if not unit:
         return _json_error('Sản phẩm hoặc đơn vị không hợp lệ.', 400)
 
+    try:
+        topping_links = _resolve_topping_links_for_unit(
+            unit=unit,
+            raw_topping_ids=payload.get('topping_ids'),
+        )
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+
+    base_unit_price = get_effective_unit_price(unit=unit, store_id=table.store.id)
+
     with transaction.atomic():
         item = _upsert_table_cart_item(
             tenant=user.tenant,
@@ -511,6 +675,8 @@ def api_table_cart_add(request, table_id):
             table=table,
             unit=unit,
             quantity=quantity,
+            base_unit_price=base_unit_price,
+            snapshot_toppings=_snapshot_rows_from_product_toppings(topping_links),
             note=note,
             source=TableCartItem.Source.STAFF,
         )
@@ -526,6 +692,84 @@ def api_table_cart_add(request, table_id):
 
 @login_required
 @staff_or_manager_required
+@require_POST
+def api_table_import_takeaway(request, table_id):
+    user = request.user
+    table = _get_accessible_table_or_403(user, table_id)
+    if not table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    raw_items = payload.get('items') or []
+    if not raw_items:
+        return _json_error('Không có món để lưu vào bàn.', 400)
+
+    prepared_rows = []
+    for row in raw_items:
+        product_id = row.get('product_id')
+        unit_id = row.get('unit_id')
+        try:
+            quantity = int(row.get('quantity', 0))
+        except (TypeError, ValueError):
+            return _json_error('Số lượng không hợp lệ.', 400)
+        note = (row.get('note') or '').strip()[:255]
+        if quantity <= 0:
+            return _json_error('Số lượng phải lớn hơn 0.', 400)
+
+        unit = _resolve_product_unit_for_store(
+            tenant=user.tenant,
+            store=table.store,
+            product_id=product_id,
+            unit_id=unit_id,
+        )
+        if not unit:
+            return _json_error('Sản phẩm hoặc đơn vị không hợp lệ.', 400)
+        try:
+            topping_links = _resolve_topping_links_for_unit(
+                unit=unit,
+                raw_topping_ids=row.get('topping_ids'),
+            )
+        except ValueError as exc:
+            return _json_error(str(exc), 400)
+
+        prepared_rows.append(
+            {
+                'unit': unit,
+                'quantity': quantity,
+                'note': note,
+                'base_unit_price': get_effective_unit_price(unit=unit, store_id=table.store.id),
+                'snapshot_toppings': _snapshot_rows_from_product_toppings(topping_links),
+            }
+        )
+
+    with transaction.atomic():
+        for row in prepared_rows:
+            _upsert_table_cart_item(
+                tenant=user.tenant,
+                store=table.store,
+                table=table,
+                unit=row['unit'],
+                quantity=row['quantity'],
+                base_unit_price=row['base_unit_price'],
+                snapshot_toppings=row['snapshot_toppings'],
+                note=row['note'],
+                source=TableCartItem.Source.STAFF,
+            )
+
+    return JsonResponse(
+        {
+            'detail': 'Đã lưu giỏ mang về vào bàn.',
+            'summary': _table_cart_summary(table),
+        },
+        status=201,
+    )
+
+
+@login_required
+@staff_or_manager_required
 @require_http_methods(['PATCH', 'DELETE'])
 def api_table_cart_item(request, table_id, item_id):
     user = request.user
@@ -533,7 +777,11 @@ def api_table_cart_item(request, table_id, item_id):
     if not table:
         return _json_error('Không có quyền truy cập bàn này.', 403)
 
-    item = get_object_or_404(TableCartItem.objects.select_related('table'), id=item_id, table=table)
+    item = get_object_or_404(
+        TableCartItem.objects.select_related('table', 'unit').prefetch_related('toppings'),
+        id=item_id,
+        table=table,
+    )
 
     if request.method == 'DELETE':
         item.delete()
@@ -545,6 +793,7 @@ def api_table_cart_item(request, table_id, item_id):
 
     note = payload.get('note')
     quantity = payload.get('quantity')
+    topping_ids = payload.get('topping_ids') if 'topping_ids' in payload else None
 
     if note is not None:
         item.note = str(note).strip()[:255]
@@ -560,7 +809,28 @@ def api_table_cart_item(request, table_id, item_id):
             return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
         item.quantity = quantity
 
-    item.save(update_fields=['note', 'quantity', 'updated_at'])
+    update_fields = ['note', 'quantity', 'updated_at']
+    if topping_ids is not None:
+        if not item.unit_id:
+            return _json_error('Không thể cập nhật topping cho item không có unit.', 400)
+        try:
+            topping_links = _resolve_topping_links_for_unit(
+                unit=item.unit,
+                raw_topping_ids=topping_ids,
+            )
+        except ValueError as exc:
+            return _json_error(str(exc), 400)
+        base_unit_price = get_effective_unit_price(unit=item.unit, store_id=table.store_id)
+        item.unit_price_snapshot = base_unit_price + calc_toppings_total(topping_links)
+        update_fields.append('unit_price_snapshot')
+        item.save(update_fields=update_fields)
+        _replace_table_item_toppings(
+            table_item=item,
+            snapshot_rows=_snapshot_rows_from_product_toppings(topping_links),
+        )
+        item.refresh_from_db()
+    else:
+        item.save(update_fields=update_fields)
     return JsonResponse({'item': _serialize_table_cart_item(item), 'summary': _table_cart_summary(table)})
 
 
@@ -591,7 +861,11 @@ def api_table_checkout(request, table_id):
         return _json_error('tax_rate không được âm.', 400)
 
     with transaction.atomic():
-        cart_items = list(TableCartItem.objects.filter(table=table).select_related('product', 'unit'))
+        cart_items = list(
+            TableCartItem.objects.filter(table=table)
+            .select_related('product', 'unit')
+            .prefetch_related('toppings')
+        )
         if not cart_items:
             return _json_error('Bàn này chưa có món để thanh toán.', 400)
 
@@ -623,22 +897,29 @@ def api_table_checkout(request, table_id):
             change_amount=change_amount,
         )
 
-        OrderItem.objects.bulk_create(
-            [
-                OrderItem(
-                    order=order,
-                    product=item.product,
-                    unit=item.unit,
-                    snapshot_product_name=item.snapshot_product_name,
-                    snapshot_unit_name=item.snapshot_unit_name,
-                    unit_price=item.unit_price_snapshot,
-                    quantity=item.quantity,
-                    note=item.note,
-                    line_total=item.unit_price_snapshot * item.quantity,
-                )
-                for item in cart_items
-            ]
-        )
+        for item in cart_items:
+            order_item = OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                unit=item.unit,
+                snapshot_product_name=item.snapshot_product_name,
+                snapshot_unit_name=item.snapshot_unit_name,
+                unit_price=item.unit_price_snapshot,
+                quantity=item.quantity,
+                note=item.note,
+                line_total=item.unit_price_snapshot * item.quantity,
+            )
+            OrderItemTopping.objects.bulk_create(
+                [
+                    OrderItemTopping(
+                        order_item=order_item,
+                        topping_id=topping.topping_id,
+                        snapshot_topping_name=topping.snapshot_topping_name,
+                        snapshot_price=topping.snapshot_price,
+                    )
+                    for topping in item.toppings.all().order_by('id')
+                ]
+            )
 
         TableCartItem.objects.filter(table=table).delete()
 
@@ -675,7 +956,7 @@ def api_qr_orders(request):
     orders = (
         QROrder.objects.filter(tenant=user.tenant, store=store, status=selected_status)
         .select_related('table')
-        .prefetch_related('items')
+        .prefetch_related('items', 'items__toppings')
         .order_by('-created_at')
     )
 
@@ -686,6 +967,7 @@ def api_qr_orders(request):
         for item in order.items.all():
             line_total = item.unit_price_snapshot * item.quantity
             total += line_total
+            toppings = _serialize_topping_rows(item.toppings.all().order_by('id'))
             items_payload.append(
                 {
                     'product_id': item.product_id,
@@ -696,6 +978,7 @@ def api_qr_orders(request):
                     'qty': item.quantity,
                     'note': item.note,
                     'line_total': float(line_total),
+                    'toppings': toppings,
                 }
             )
 
@@ -724,7 +1007,7 @@ def api_qr_order_approve(request, order_id):
 
     with transaction.atomic():
         order = get_object_or_404(
-            QROrder.objects.select_for_update().select_related('table', 'store').prefetch_related('items'),
+            QROrder.objects.select_for_update().select_related('table', 'store').prefetch_related('items', 'items__toppings'),
             id=order_id,
             tenant=user.tenant,
         )
@@ -740,12 +1023,19 @@ def api_qr_order_approve(request, order_id):
         for qr_item in order.items.all():
             if not qr_item.unit_id or not qr_item.product_id:
                 continue
+            snapshot_toppings = _snapshot_rows_from_qr_item_toppings(qr_item)
+            topping_total = Decimal('0')
+            for row in snapshot_toppings:
+                topping_total += row['price']
+            base_unit_price = qr_item.unit_price_snapshot - topping_total
             _upsert_table_cart_item(
                 tenant=order.tenant,
                 store=order.store,
                 table=order.table,
                 unit=qr_item.unit,
                 quantity=qr_item.quantity,
+                base_unit_price=base_unit_price,
+                snapshot_toppings=snapshot_toppings,
                 note=qr_item.note,
                 source=TableCartItem.Source.QR,
                 qr_order=order,

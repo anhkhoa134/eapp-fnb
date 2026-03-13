@@ -6,8 +6,8 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
-from App_Sales.models import DiningTable, QROrder, QROrderItem
+from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
 from App_Sales.services import get_effective_unit_price
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
@@ -254,6 +254,56 @@ class Command(BaseCommand):
                     defaults={'is_available': store.name in assigned_stores},
                 )
 
+        topping_templates = [
+            {'name': 'Thêm sữa', 'display_order': 1},
+            {'name': 'Trân châu trắng', 'display_order': 2},
+            {'name': 'Thạch phô mai', 'display_order': 3},
+            {'name': 'Pudding trứng', 'display_order': 4},
+            {'name': 'Thêm thịt', 'display_order': 5},
+            {'name': 'Ốp la', 'display_order': 6},
+            {'name': 'Thêm quẩy', 'display_order': 7},
+            {'name': 'Trứng chần', 'display_order': 8},
+            {'name': 'Chả cua', 'display_order': 9},
+        ]
+        curated_topping_names = {row['name'] for row in topping_templates}
+        Topping.objects.filter(tenant=tenant).exclude(name__in=curated_topping_names).update(is_active=False)
+
+        topping_map = {}
+        for row in topping_templates:
+            topping, _ = Topping.objects.get_or_create(
+                tenant=tenant,
+                name=row['name'],
+                defaults={'is_active': True, 'display_order': row['display_order']},
+            )
+            topping.is_active = True
+            topping.display_order = row['display_order']
+            topping.save(update_fields=['is_active', 'display_order', 'updated_at'])
+            topping_map[row['name']] = topping
+
+        ProductTopping.objects.filter(product__tenant=tenant).update(is_active=False)
+        product_topping_seed = [
+            ('Trà Sữa Trân Châu', [('Trân châu trắng', Decimal('10000')), ('Thạch phô mai', Decimal('15000')), ('Pudding trứng', Decimal('12000'))]),
+            ('Bạc Xỉu', [('Thêm sữa', Decimal('5000'))]),
+            ('Bánh Mì Thịt Nướng', [('Thêm thịt', Decimal('10000')), ('Ốp la', Decimal('6000'))]),
+            ('Phở Bò Kobe', [('Thêm quẩy', Decimal('5000')), ('Trứng chần', Decimal('8000'))]),
+            ('Cơm Tấm Sườn Bì', [('Chả cua', Decimal('15000')), ('Ốp la', Decimal('6000'))]),
+        ]
+        for product_name, topping_rows in product_topping_seed:
+            product = Product.objects.filter(tenant=tenant, name=product_name).first()
+            if not product:
+                continue
+            for order_idx, (topping_name, topping_price) in enumerate(topping_rows, start=1):
+                topping = topping_map[topping_name]
+                ProductTopping.objects.update_or_create(
+                    product=product,
+                    topping=topping,
+                    defaults={
+                        'price': topping_price,
+                        'display_order': order_idx,
+                        'is_active': True,
+                    },
+                )
+
         for store in store_map.values():
             for idx in range(1, 13):
                 code = f'{store.slug[:3].upper()}-{idx:02d}'
@@ -310,7 +360,7 @@ class Command(BaseCommand):
                 for unit_idx, unit in enumerate(units, start=1):
                     quantity = 1 + (unit_idx % 2)
                     price = get_effective_unit_price(unit=unit, store_id=store.id)
-                    QROrderItem.objects.create(
+                    qr_item = QROrderItem.objects.create(
                         qr_order=qr_order,
                         product=unit.product,
                         unit=unit,
@@ -321,6 +371,24 @@ class Command(BaseCommand):
                         note='Ít đá' if unit_idx == 1 else '',
                         line_total=Decimal('0'),
                     )
+                    if unit_idx == 1:
+                        first_link = (
+                            ProductTopping.objects.select_related('topping')
+                            .filter(product=unit.product, is_active=True, topping__is_active=True)
+                            .order_by('display_order', 'id')
+                            .first()
+                        )
+                        if first_link:
+                            qr_item.unit_price_snapshot = qr_item.unit_price_snapshot + first_link.price
+                            qr_item.save()
+                            QROrderItemTopping.objects.update_or_create(
+                                qr_order_item=qr_item,
+                                topping=first_link.topping,
+                                defaults={
+                                    'snapshot_topping_name': first_link.topping.name,
+                                    'snapshot_price': first_link.price,
+                                },
+                            )
 
     def _sync_access(self, user, store_names, default_store_name, store_map):
         allowed_ids = [store_map[name].id for name in store_names]

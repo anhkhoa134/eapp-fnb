@@ -5,8 +5,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from App_Accounts.models import User
-from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
-from App_Sales.models import DiningTable, QROrder
+from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Sales.models import DiningTable, QROrder, QROrderItemTopping
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -58,6 +58,8 @@ class PublicQrApiTests(TestCase):
         )
         self.unit = ProductUnit.objects.create(product=self.product, name='M', price=Decimal('39000'))
         StoreProduct.objects.create(store=self.store, product=self.product, is_available=True)
+        self.topping = Topping.objects.create(tenant=self.tenant, name='Thêm thạch')
+        ProductTopping.objects.create(product=self.product, topping=self.topping, price=Decimal('8000'), is_active=True)
 
         self.table = DiningTable.objects.create(
             tenant=self.tenant,
@@ -81,6 +83,7 @@ class PublicQrApiTests(TestCase):
                     'unit_id': self.unit.id,
                     'quantity': 2,
                     'note': 'Ít đá',
+                    'topping_ids': [self.topping.id],
                 }
             ],
         }
@@ -93,7 +96,8 @@ class PublicQrApiTests(TestCase):
         self.assertEqual(order.table_id, self.table.id)
         self.assertEqual(order.items.count(), 1)
         self.assertEqual(order.items.first().quantity, 2)
-        self.assertEqual(order.items.first().line_total, Decimal('78000'))
+        self.assertEqual(order.items.first().line_total, Decimal('94000'))
+        self.assertEqual(QROrderItemTopping.objects.filter(qr_order_item=order.items.first()).count(), 1)
 
     def test_public_qr_wrong_token_returns_403(self):
         url = reverse('App_Public_API:qr_orders_create')
@@ -141,6 +145,33 @@ class PublicQrApiTests(TestCase):
                     'product_id': self.product.id,
                     'unit_id': self.unit.id,
                     'quantity': 0,
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(QROrder.objects.count(), 0)
+
+    def test_public_qr_rejects_invalid_topping_mapping(self):
+        other_topping = Topping.objects.create(tenant=self.tenant, name='Topping sản phẩm khác')
+        other_product = Product.objects.create(
+            tenant=self.tenant,
+            category=self.category,
+            name='Trà khác',
+            image_url='https://placehold.co/600x600/png?text=Tra+khac',
+        )
+        ProductTopping.objects.create(product=other_product, topping=other_topping, price=Decimal('5000'), is_active=True)
+
+        url = reverse('App_Public_API:qr_orders_create')
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                    'topping_ids': [other_topping.id],
                 }
             ],
         }

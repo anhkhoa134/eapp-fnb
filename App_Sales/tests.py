@@ -6,8 +6,17 @@ from django.test import TestCase
 from django.urls import reverse
 
 from App_Accounts.models import User
-from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
-from App_Sales.models import DiningTable, Order, QROrder, QROrderItem, TableCartItem
+from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Sales.models import (
+    DiningTable,
+    Order,
+    OrderItemTopping,
+    QROrder,
+    QROrderItem,
+    QROrderItemTopping,
+    TableCartItem,
+    TableCartItemTopping,
+)
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -36,6 +45,13 @@ class SalesApiTests(TestCase):
             image_url='https://placehold.co/600x600/png?text=Banh+mi',
         )
         self.unit = ProductUnit.objects.create(product=self.product, name='Phần', price=Decimal('25000'))
+        self.topping = Topping.objects.create(tenant=self.tenant, name='Trứng ốp la', is_active=True)
+        self.product_topping = ProductTopping.objects.create(
+            product=self.product,
+            topping=self.topping,
+            price=Decimal('6000'),
+            is_active=True,
+        )
 
         StoreProduct.objects.create(store=self.store_1, product=self.product, is_available=True)
         StoreProduct.objects.create(store=self.store_2, product=self.product, is_available=False)
@@ -72,6 +88,18 @@ class SalesApiTests(TestCase):
         self.assertEqual(payload['store']['id'], self.store_1.id)
         self.assertEqual(len(payload['products']), 1)
 
+    def test_api_products_returns_toppings_contract(self):
+        url = reverse('App_Sales_API:products')
+        res = self.client.get(url, {'store_id': self.store_1.id})
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()
+        self.assertIn('categories', payload)
+        self.assertEqual(payload['categories'][0]['name'], 'Tất cả')
+        product_payload = payload['products'][0]
+        self.assertIn('toppings', product_payload)
+        self.assertEqual(product_payload['toppings'][0]['name'], self.topping.name)
+        self.assertEqual(Decimal(str(product_payload['toppings'][0]['price'])), Decimal('6000'))
+
     def test_api_products_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:products')
         res = self.client.get(url, {'store_id': self.store_2.id})
@@ -99,6 +127,33 @@ class SalesApiTests(TestCase):
         order = Order.objects.first()
         self.assertEqual(order.total_amount, Decimal('25000'))
         self.assertEqual(order.items.count(), 1)
+
+    def test_checkout_with_toppings_creates_order_item_topping_snapshot(self):
+        url = reverse('App_Sales_API:checkout')
+        payload = {
+            'store_id': self.store_1.id,
+            'payment_method': 'cash',
+            'tax_rate': '0',
+            'customer_paid': '40000',
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                    'topping_ids': [self.topping.id],
+                    'note': 'Thêm topping',
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 201)
+        order = Order.objects.first()
+        self.assertEqual(order.total_amount, Decimal('31000'))
+        order_item = order.items.first()
+        self.assertEqual(OrderItemTopping.objects.filter(order_item=order_item).count(), 1)
+        row = OrderItemTopping.objects.get(order_item=order_item)
+        self.assertEqual(row.snapshot_topping_name, self.topping.name)
+        self.assertEqual(row.snapshot_price, Decimal('6000'))
 
     def test_checkout_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:checkout')
@@ -188,10 +243,74 @@ class SalesApiTests(TestCase):
         self.assertEqual(order.items.first().quantity, 2)
         self.assertEqual(TableCartItem.objects.filter(table=self.table_1).count(), 0)
 
+    def test_table_cart_add_with_toppings_snapshot(self):
+        add_url = reverse('App_Sales_API:table_cart_add', kwargs={'table_id': self.table_1.id})
+        add_payload = {
+            'product_id': self.product.id,
+            'unit_id': self.unit.id,
+            'quantity': 1,
+            'topping_ids': [self.topping.id],
+            'note': 'No spicy',
+        }
+        add_res = self.client.post(add_url, data=json.dumps(add_payload), content_type='application/json')
+        self.assertEqual(add_res.status_code, 201)
+        item = TableCartItem.objects.get(table=self.table_1)
+        self.assertEqual(item.unit_price_snapshot, Decimal('31000'))
+        top = TableCartItemTopping.objects.get(table_cart_item=item)
+        self.assertEqual(top.snapshot_topping_name, self.topping.name)
+        self.assertEqual(top.snapshot_price, Decimal('6000'))
+
+    def test_table_cart_patch_toppings_reprices_item(self):
+        item = TableCartItem.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=1,
+            source=TableCartItem.Source.STAFF,
+        )
+        patch_url = reverse(
+            'App_Sales_API:table_cart_item',
+            kwargs={'table_id': self.table_1.id, 'item_id': item.id},
+        )
+        patch_res = self.client.patch(
+            patch_url,
+            data=json.dumps({'topping_ids': [self.topping.id]}),
+            content_type='application/json',
+        )
+        self.assertEqual(patch_res.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.unit_price_snapshot, Decimal('31000'))
+        self.assertEqual(item.toppings.count(), 1)
+
     def test_table_cart_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:table_cart', kwargs={'table_id': self.table_store_2.id})
         res = self.client.get(url)
         self.assertEqual(res.status_code, 403)
+
+    def test_table_import_takeaway_merges_toppings_into_table_cart(self):
+        import_url = reverse('App_Sales_API:table_import_takeaway', kwargs={'table_id': self.table_1.id})
+        payload = {
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 2,
+                    'note': 'Mang về rồi chuyển bàn',
+                    'topping_ids': [self.topping.id],
+                }
+            ]
+        }
+        res = self.client.post(import_url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 201)
+        item = TableCartItem.objects.get(table=self.table_1)
+        self.assertEqual(item.quantity, 2)
+        self.assertEqual(item.unit_price_snapshot, Decimal('31000'))
+        self.assertEqual(TableCartItemTopping.objects.filter(table_cart_item=item).count(), 1)
 
     def test_qr_approve_merges_into_table_cart_and_is_idempotent(self):
         qr_order = QROrder.objects.create(
@@ -226,6 +345,38 @@ class SalesApiTests(TestCase):
         second_res = self.client.post(approve_url, data='{}', content_type='application/json')
         self.assertEqual(second_res.status_code, 200)
         self.assertEqual(TableCartItem.objects.filter(table=self.table_1, source=TableCartItem.Source.QR).count(), 1)
+
+    def test_qr_approve_keeps_item_toppings(self):
+        qr_order = QROrder.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            status=QROrder.Status.PENDING,
+            customer_note='Đơn QR có topping',
+        )
+        qr_item = QROrderItem.objects.create(
+            qr_order=qr_order,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('31000'),
+            quantity=1,
+            line_total=Decimal('0'),
+        )
+        QROrderItemTopping.objects.create(
+            qr_order_item=qr_item,
+            topping=self.topping,
+            snapshot_topping_name=self.topping.name,
+            snapshot_price=Decimal('6000'),
+        )
+
+        approve_url = reverse('App_Sales_API:qr_order_approve', kwargs={'order_id': qr_order.id})
+        first_res = self.client.post(approve_url, data='{}', content_type='application/json')
+        self.assertEqual(first_res.status_code, 200)
+        cart_item = TableCartItem.objects.get(table=self.table_1, source=TableCartItem.Source.QR)
+        self.assertEqual(cart_item.unit_price_snapshot, Decimal('31000'))
+        self.assertEqual(TableCartItemTopping.objects.filter(table_cart_item=cart_item).count(), 1)
 
     def test_qr_reject_does_not_create_table_cart_and_is_idempotent(self):
         qr_order = QROrder.objects.create(
@@ -341,6 +492,8 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.unit_a = ProductUnit.objects.create(product=self.product_a, name='M', price=Decimal('30000'))
         StoreProduct.objects.create(store=self.store_1, product=self.product_a, is_available=True)
         StoreProduct.objects.create(store=self.store_2, product=self.product_a, is_available=False)
+        self.topping_a = Topping.objects.create(tenant=self.tenant, name='Topping A')
+        ProductTopping.objects.create(product=self.product_a, topping=self.topping_a, price=Decimal('7000'), is_active=True)
 
         self.product_b = Product.objects.create(
             tenant=self.tenant,
@@ -402,10 +555,17 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertIn('id="tab-menu"', html)
         self.assertIn('id="tab-tables"', html)
         self.assertIn('id="tab-online"', html)
+        self.assertIn('id="options-modal-toppings-container"', html)
+        self.assertIn('id="payment-cash"', html)
+        self.assertIn('id="payment-card"', html)
+        self.assertIn('id="category-filter-container"', html)
 
         self.assertIn('const API_PRODUCTS_URL', html)
         self.assertIn('const API_TABLES_URL', html)
         self.assertIn('const API_QR_ORDERS_URL', html)
+        self.assertIn('const renderCategoryFilters', html)
+        self.assertIn('cart/import-takeaway/', html)
+        self.assertIn('topping_ids', html)
         self.assertIn('window.onload = bootstrapPage', html)
 
     def test_products_api_store_switch_contract(self):
@@ -419,12 +579,17 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertIn('units', store_a_payload['products'][0])
         self.assertIn('id', store_a_payload['products'][0]['units'][0])
         self.assertIn('price', store_a_payload['products'][0]['units'][0])
+        self.assertIn('categories', store_a_payload)
+        self.assertIn('toppings', store_a_payload['products'][0])
+        self.assertEqual(store_a_payload['products'][0]['toppings'][0]['id'], self.topping_a.id)
+        self.assertEqual(store_a_payload['products'][0]['toppings'][0]['price'], 7000.0)
 
         store_b_res = self.client.get(url, {'store_id': self.store_2.id})
         self.assertEqual(store_b_res.status_code, 200)
         store_b_payload = store_b_res.json()
         store_b_names = {row['name'] for row in store_b_payload['products']}
         self.assertEqual(store_b_names, {'Nước B'})
+        self.assertEqual(store_b_payload['products'][0]['toppings'], [])
 
     def test_js_contract_after_qr_approve_updates_online_and_table_cart(self):
         qr_order = self._create_pending_qr_order(

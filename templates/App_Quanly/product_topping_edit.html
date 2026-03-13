@@ -1,0 +1,15 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h2 class="h6 fw-bold">Sửa gán topping: {{ mapping.product.name }} / {{ mapping.topping.name }}</h2>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <a href="{% url 'App_Quanly:product_toppings' %}" class="btn btn-light border">Hủy</a>
+            <button class="btn btn-primary" type="submit">Cập nhật</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

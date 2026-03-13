@@ -15,4 +15,10 @@ urlpatterns = [
     path('products/<int:product_pk>/units/add/', views.unit_add, name='unit_add'),
     path('units/<int:pk>/edit/', views.unit_edit, name='unit_edit'),
     path('units/<int:pk>/delete/', views.unit_delete, name='unit_delete'),
+    path('toppings/', views.topping_list_create, name='toppings'),
+    path('toppings/<int:pk>/edit/', views.topping_edit, name='topping_edit'),
+    path('toppings/<int:pk>/delete/', views.topping_delete, name='topping_delete'),
+    path('product-toppings/', views.product_topping_list_create, name='product_toppings'),
+    path('product-toppings/<int:pk>/edit/', views.product_topping_edit, name='product_topping_edit'),
+    path('product-toppings/<int:pk>/delete/', views.product_topping_delete, name='product_topping_delete'),
 ]
