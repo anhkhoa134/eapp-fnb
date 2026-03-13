@@ -436,6 +436,53 @@ class SalesApiTests(TestCase):
         qr_order.refresh_from_db()
         self.assertEqual(qr_order.status, QROrder.Status.PENDING)
 
+    def test_orders_today_page_staff_only_sees_accessible_store_orders(self):
+        allow_order = Order.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            cashier=self.staff,
+            payment_method=Order.PaymentMethod.CASH,
+            subtotal=Decimal('25000'),
+            tax_rate=Decimal('0'),
+            tax_amount=Decimal('0'),
+            total_amount=Decimal('25000'),
+            customer_paid=Decimal('30000'),
+            change_amount=Decimal('5000'),
+        )
+        deny_order = Order.objects.create(
+            tenant=self.tenant,
+            store=self.store_2,
+            cashier=self.staff,
+            payment_method=Order.PaymentMethod.CASH,
+            subtotal=Decimal('10000'),
+            tax_rate=Decimal('0'),
+            tax_amount=Decimal('0'),
+            total_amount=Decimal('10000'),
+            customer_paid=Decimal('10000'),
+            change_amount=Decimal('0'),
+        )
+
+        url = reverse('App_Sales:orders_today')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn(allow_order.order_code, html)
+        self.assertNotIn(deny_order.order_code, html)
+
+    def test_orders_today_page_manager_can_access(self):
+        manager = User.objects.create_user(
+            username='manager_today',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.MANAGER,
+        )
+        UserStoreAccess.objects.create(user=manager, store=self.store_1, is_default=True)
+
+        self.client.logout()
+        self.client.login(username='manager_today', password='123456')
+        res = self.client.get(reverse('App_Sales:orders_today'))
+        self.assertEqual(res.status_code, 200)
+
 
 class SalesModelTests(TestCase):
     def test_dining_table_unique_code_per_store(self):
@@ -559,14 +606,19 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertIn('id="payment-cash"', html)
         self.assertIn('id="payment-card"', html)
         self.assertIn('id="category-filter-container"', html)
+        self.assertIn('id="themeSelector"', html)
+        self.assertIn('Đơn hàng trong ngày', html)
+        self.assertIn('Fullscreen', html)
+        self.assertNotIn('Xin chào,', html)
 
         self.assertIn('const API_PRODUCTS_URL', html)
         self.assertIn('const API_TABLES_URL', html)
         self.assertIn('const API_QR_ORDERS_URL', html)
         self.assertIn('const renderCategoryFilters', html)
+        self.assertIn('const toggleFullscreen', html)
         self.assertIn('cart/import-takeaway/', html)
         self.assertIn('topping_ids', html)
-        self.assertIn('window.onload = bootstrapPage', html)
+        self.assertIn('window.onload = () => {', html)
 
     def test_products_api_store_switch_contract(self):
         url = reverse('App_Sales_API:products')

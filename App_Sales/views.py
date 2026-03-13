@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
@@ -277,6 +278,57 @@ def pos_page(request):
             'stores': stores,
             'default_store_id': default_store.id if default_store else None,
             'default_store_name': default_store.name if default_store else '',
+        },
+    )
+
+
+@login_required
+@staff_or_manager_required
+@require_GET
+def orders_today_page(request):
+    user = request.user
+    stores_qs = get_user_accessible_stores(user)
+    stores = list(stores_qs)
+
+    today = timezone.localdate()
+    tz = timezone.get_current_timezone()
+    start_dt = timezone.make_aware(datetime.combine(today, time.min), tz)
+    end_dt = timezone.make_aware(datetime.combine(today, time.max), tz)
+
+    selected_store_id = (request.GET.get('store_id') or '').strip()
+    orders = (
+        Order.objects.filter(
+            tenant=user.tenant,
+            store__in=stores_qs,
+            status=Order.Status.COMPLETED,
+            created_at__gte=start_dt,
+            created_at__lte=end_dt,
+        )
+        .select_related('store', 'cashier')
+        .order_by('-created_at')
+    )
+
+    selected_store = None
+    if selected_store_id.isdigit():
+        selected_store = stores_qs.filter(id=int(selected_store_id)).first()
+        if selected_store:
+            orders = orders.filter(store=selected_store)
+
+    total_orders = orders.count()
+    total_revenue = orders.aggregate(total=Coalesce(Sum('total_amount'), Decimal('0')))['total'] or Decimal('0')
+    avg_order = (total_revenue / total_orders) if total_orders else Decimal('0')
+
+    return render(
+        request,
+        'App_Sales/orders_today.html',
+        {
+            'stores': stores,
+            'selected_store_id': selected_store.id if selected_store else '',
+            'today': today,
+            'orders': orders,
+            'total_orders': total_orders,
+            'total_revenue': total_revenue,
+            'avg_order': avg_order,
         },
     )
 

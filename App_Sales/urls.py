@@ -6,4 +6,5 @@ app_name = 'App_Sales'
 
 urlpatterns = [
     path('', views.pos_page, name='pos'),
+    path('orders/today/', views.orders_today_page, name='orders_today'),
 ]

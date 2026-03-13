@@ -1,0 +1,98 @@
+{% extends 'App_Core/base.html' %}
+
+{% block title %}Đơn hàng trong ngày{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+    <div>
+        <h1 class="h5 fw-bold mb-1">Đơn hàng trong ngày</h1>
+        <div class="text-muted small">Ngày {{ today|date:'d/m/Y' }}</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'App_Sales:pos' %}" class="btn btn-light border">Quay lại POS</a>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label mb-1">Cửa hàng</label>
+                <select class="form-select" name="store_id">
+                    <option value="">Tất cả cửa hàng có quyền</option>
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store_id|stringformat:'s' == store.id|stringformat:'s' %}selected{% endif %}>
+                        {{ store.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-auto">
+                <button class="btn btn-primary" type="submit">Lọc</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Tổng đơn</div>
+                <div class="h4 fw-bold mb-0">{{ total_orders }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Doanh thu</div>
+                <div class="h4 fw-bold text-danger mb-0">{{ total_revenue|floatformat:0 }} đ</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small">Giá trị đơn trung bình</div>
+                <div class="h4 fw-bold mb-0">{{ avg_order|floatformat:0 }} đ</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã đơn</th>
+                        <th>Cửa hàng</th>
+                        <th>Thu ngân</th>
+                        <th>Thanh toán</th>
+                        <th class="text-end">Tổng tiền</th>
+                        <th>Thời gian</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td class="fw-semibold">{{ order.order_code }}</td>
+                        <td>{{ order.store.name }}</td>
+                        <td>{{ order.cashier.username }}</td>
+                        <td class="text-uppercase">{{ order.payment_method }}</td>
+                        <td class="text-end fw-semibold">{{ order.total_amount|floatformat:0 }} đ</td>
+                        <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Chưa có đơn hàng nào trong ngày.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

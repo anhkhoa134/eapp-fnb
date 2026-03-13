@@ -460,33 +460,54 @@
                         </a>
                     </li>
 
-                    <!-- Multiple Stores Dropdown -->
-                    <li class="nav-item dropdown me-2">
-                        <label class="small text-muted mb-1 d-block">Cửa hàng</label>
-                        <select class="form-select form-select-sm" id="storeSelector" style="min-width: 190px;">
-                            {% for store in stores %}
-                            <option value="{{ store.id }}" {% if default_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </li>
-
                     <!-- Account Dropdown -->
-                    <div class="nav-item dropdown">
+                    <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
                             <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="32" height="32" alt="Avatar">
-                            <span class="d-none d-xl-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                            <span class="d-none d-xl-inline"><strong>{{ user.username }}</strong></span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm">
-                            <li><h6 class="dropdown-header">Đổi giao diện</h6></li>
-                            <li><a class="dropdown-item d-flex align-items-center" href="#" onclick="event.preventDefault(); changeTheme('green')"><span class="badge rounded-circle p-2 me-2" style="background-color: #10b981;"> </span> Xanh lá (Mint)</a></li>
-                            <li><a class="dropdown-item d-flex align-items-center" href="#" onclick="event.preventDefault(); changeTheme('blue')"><span class="badge rounded-circle p-2 me-2" style="background-color: #0284c7;"> </span> Xanh dương</a></li>
-                            <li><a class="dropdown-item d-flex align-items-center" href="#" onclick="event.preventDefault(); changeTheme('yellow')"><span class="badge rounded-circle p-2 me-2" style="background-color: #eab308;"> </span> Vàng</a></li>
-                            <li><a class="dropdown-item d-flex align-items-center" href="#" onclick="event.preventDefault(); changeTheme('orange')"><span class="badge rounded-circle p-2 me-2" style="background-color: #f97316;"> </span> Cam</a></li>
-                            <li><a class="dropdown-item d-flex align-items-center" href="#" onclick="event.preventDefault(); changeTheme('purple')"><span class="badge rounded-circle p-2 me-2" style="background-color: #9333ea;"> </span> Tím</a></li>
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm p-2" style="min-width: 280px;">
+                            <li class="px-2 pb-2">
+                                <label class="small text-muted mb-1 d-block">Cửa hàng</label>
+                                <select class="form-select form-select-sm" id="storeSelector">
+                                    {% for store in stores %}
+                                    <option value="{{ store.id }}" {% if default_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </li>
+                            <li class="px-2 pb-2">
+                                <label class="small text-muted mb-1 d-block">Màu giao diện</label>
+                                <select class="form-select form-select-sm" id="themeSelector">
+                                    <option value="green">Xanh lá (Mint)</option>
+                                    <option value="blue">Xanh dương</option>
+                                    <option value="yellow">Vàng</option>
+                                    <option value="orange">Cam</option>
+                                    <option value="purple">Tím</option>
+                                    <option value="pink">Hồng</option>
+                                </select>
+                            </li>
+                            <li><hr class="dropdown-divider my-2"></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'App_Sales:orders_today' %}">
+                                    <i class="fa-solid fa-receipt me-2"></i>Đơn hàng trong ngày
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="event.preventDefault(); toggleFullscreen();">
+                                    <i class="fa-solid fa-expand me-2"></i>Fullscreen
+                                </a>
+                            </li>
+                            {% if user.is_manager %}
+                            <li>
+                                <a class="dropdown-item" href="{% url 'App_Quanly:dashboard' %}">
+                                    <i class="fa-solid fa-chart-line me-2"></i>Trang quản lý
+                                </a>
+                            </li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="{% url 'App_Accounts:logout' %}"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a></li>
                         </ul>
-                    </div>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -896,6 +917,7 @@
         let currentOptionProduct = null;
         let currentOptionElement = null;
         let pendingSaveToTable = false;
+        let currentTheme = 'green';
 
         const themes = {
             green: { primary: '#10b981', hover: '#059669' },
@@ -903,6 +925,7 @@
             yellow: { primary: '#eab308', hover: '#ca8a04' },
             orange: { primary: '#f97316', hover: '#ea580c' },
             purple: { primary: '#9333ea', hover: '#7e22ce' },
+            pink: { primary: '#ec4899', hover: '#db2777' },
         };
 
         const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
@@ -1148,7 +1171,7 @@
                     : '';
                 container.insertAdjacentHTML('beforeend', `
                     <div class="cart-item position-relative align-items-start py-3 pe-4">
-                        <button class="btn btn-sm text-danger p-1 position-absolute" style="top: 0; right: 0; z-index: 5;" onclick="removeCartItem('${item.cartId}')" title="Xóa món này">
+                        <button class="btn btn-sm text-danger p-1 position-absolute" style="top: 0; right: -8px; z-index: 5;" onclick="removeCartItem('${item.cartId}')" title="Xóa món này">
                             <i class="fa-solid fa-xmark fs-5"></i>
                         </button>
                         <img src="${escapeHtml(item.img || 'https://placehold.co/200x200/png?text=Product')}" class="cart-item-img mt-1" alt="${escapeHtml(item.name)}">
@@ -1162,7 +1185,7 @@
                             ${toppingHtml}
                             ${noteHtml}
                         </div>
-                        <div class="d-flex align-items-center ms-2 h-100 pt-2">
+                        <div class="d-flex align-items-center ms-2 me-3 h-100 pt-2">
                             <button class="btn btn-outline-secondary qty-btn" onclick="updateQty('${item.cartId}', -1)">
                                 <i class="fa-solid fa-minus" style="font-size: 10px;"></i>
                             </button>
@@ -1290,8 +1313,23 @@
         const changeTheme = (themeName) => {
             const theme = themes[themeName];
             if (!theme) return;
+            currentTheme = themeName;
             document.documentElement.style.setProperty('--primary-color', theme.primary);
             document.documentElement.style.setProperty('--primary-hover', theme.hover);
+            const themeSelector = document.getElementById('themeSelector');
+            if (themeSelector) themeSelector.value = themeName;
+        };
+
+        const toggleFullscreen = async () => {
+            try {
+                if (!document.fullscreenElement) {
+                    await document.documentElement.requestFullscreen();
+                } else {
+                    await document.exitFullscreen();
+                }
+            } catch (error) {
+                showToast('Trình duyệt không hỗ trợ fullscreen.', 'warning');
+            }
         };
 
         const openTableMap = () => {
@@ -1859,6 +1897,9 @@
         });
         document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
+        document.getElementById('themeSelector')?.addEventListener('change', (event) => {
+            changeTheme(event.target.value);
+        });
 
         document.getElementById('storeSelector')?.addEventListener('change', async (event) => {
             currentStoreId = parseInt(event.target.value || '0', 10) || null;
@@ -1872,6 +1913,7 @@
         window.toggleView = toggleView;
         window.filterCategory = filterCategory;
         window.changeTheme = changeTheme;
+        window.toggleFullscreen = toggleFullscreen;
         window.openTableMap = openTableMap;
         window.selectTable = selectTable;
         window.selectTakeaway = selectTakeaway;
@@ -1896,7 +1938,10 @@
         window.processPayment = processPayment;
         window.saveToTable = saveToTable;
 
-        window.onload = bootstrapPage;
+        window.onload = () => {
+            changeTheme(currentTheme);
+            bootstrapPage();
+        };
     </script>
 </body>
 </html>
