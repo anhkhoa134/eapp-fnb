@@ -6,7 +6,6 @@ from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from App_Accounts.permissions import manager_required
 from App_Accounts.forms import POSAuthenticationForm, POSPasswordChangeForm
 
 
@@ -47,18 +46,5 @@ def password_change(request):
         {
             'form': form,
             'next_url': next_url,
-        },
-    )
-
-
-@manager_required
-def account_profile(request):
-    user = request.user
-    store_accesses = user.store_accesses.select_related('store').order_by('-is_default', 'store__name')
-    return render(
-        request,
-        'App_Accounts/profile.html',
-        {
-            'store_accesses': store_accesses,
         },
     )
