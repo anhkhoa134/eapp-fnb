@@ -1,4 +1,5 @@
 {% extends 'App_Core/base.html' %}
+{% load number_format %}
 
 {% block title %}Đơn hàng trong ngày | eApp FnB{% endblock %}
 {% block body_class %}orders-today-page{% endblock %}
@@ -157,19 +158,19 @@
     <div class="col-12 col-md-4">
         <div class="orders-kpi-card p-3">
             <div class="label">Tổng đơn</div>
-            <p class="value">{{ total_orders }}</p>
+            <p class="value">{{ total_orders|thousand_sep }}</p>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="orders-kpi-card p-3">
             <div class="label">Doanh thu</div>
-            <p class="value revenue">{{ total_revenue|floatformat:0 }} đ</p>
+            <p class="value revenue">{{ total_revenue|thousand_sep }} đ</p>
         </div>
     </div>
     <div class="col-12 col-md-4">
         <div class="orders-kpi-card p-3">
             <div class="label">Giá trị đơn trung bình</div>
-            <p class="value">{{ avg_order|floatformat:0 }} đ</p>
+            <p class="value">{{ avg_order|thousand_sep }} đ</p>
         </div>
     </div>
 </div>
@@ -200,7 +201,7 @@
                         <span class="payment-pill card"><i class="bi bi-credit-card-2-front"></i>Thẻ/QR</span>
                         {% endif %}
                     </td>
-                    <td class="text-end fw-semibold">{{ order.total_amount|floatformat:0 }} đ</td>
+                    <td class="text-end fw-semibold">{{ order.total_amount|thousand_sep }} đ</td>
                     <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
                 </tr>
                 {% empty %}

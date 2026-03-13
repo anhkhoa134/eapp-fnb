@@ -1,4 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
 
 {% block quanly_content %}
 <div class="card border-0 shadow-sm mb-3">
@@ -37,7 +38,7 @@
         <div class="card border-0 shadow-sm h-100 metric-card">
             <div class="card-body">
                 <div class="text-muted small">Tổng doanh thu</div>
-                <div class="h4 fw-bold text-danger mb-0">{{ total_revenue|floatformat:0 }} đ</div>
+                <div class="h4 fw-bold text-danger mb-0">{{ total_revenue|thousand_sep }} đ</div>
             </div>
         </div>
     </div>
@@ -45,7 +46,7 @@
         <div class="card border-0 shadow-sm h-100 metric-card">
             <div class="card-body">
                 <div class="text-muted small">Tổng đơn</div>
-                <div class="h4 fw-bold mb-0">{{ total_orders }}</div>
+                <div class="h4 fw-bold mb-0">{{ total_orders|thousand_sep }}</div>
             </div>
         </div>
     </div>
@@ -53,7 +54,7 @@
         <div class="card border-0 shadow-sm h-100 metric-card">
             <div class="card-body">
                 <div class="text-muted small">Giá trị đơn TB</div>
-                <div class="h4 fw-bold mb-0">{{ avg_order_value|floatformat:0 }} đ</div>
+                <div class="h4 fw-bold mb-0">{{ avg_order_value|thousand_sep }} đ</div>
             </div>
         </div>
     </div>
@@ -82,7 +83,7 @@
                         <td>{{ order.order_code }}</td>
                         <td>{{ order.store.name }}</td>
                         <td>{{ order.cashier.username }}</td>
-                        <td>{{ order.total_amount|floatformat:0 }} đ</td>
+                        <td>{{ order.total_amount|thousand_sep }} đ</td>
                         <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
                     </tr>
                     {% empty %}

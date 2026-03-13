@@ -1,4 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
 
 {% block quanly_content %}
 <div class="row g-3">
@@ -46,7 +47,7 @@
                                 {% for unit in product.units.all %}
                                 <tr>
                                     <td>{{ unit.name }}</td>
-                                    <td>{{ unit.price|floatformat:0 }} đ</td>
+                                    <td>{{ unit.price|thousand_sep }} đ</td>
                                     <td>{{ unit.sku|default:'-' }}</td>
                                     <td class="text-end">
                                         <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Quanly:unit_edit' unit.id %}">Sửa</a>

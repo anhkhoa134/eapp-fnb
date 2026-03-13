@@ -1,4 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
 
 {% block quanly_content %}
 <div class="row g-3">
@@ -39,7 +40,7 @@
                         <tr>
                             <td>{{ mapping.product.name }}</td>
                             <td>{{ mapping.topping.name }}</td>
-                            <td>{{ mapping.price|floatformat:0 }} đ</td>
+                            <td>{{ mapping.price|thousand_sep }} đ</td>
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:product_topping_edit' mapping.id %}">Sửa</a>
                                 <form method="post" action="{% url 'App_Quanly:product_topping_delete' mapping.id %}" class="d-inline">

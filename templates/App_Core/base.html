@@ -219,12 +219,9 @@
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li class="px-2 pb-2">
-                        <form method="post" action="{% url 'App_Accounts:logout' %}">
-                            {% csrf_token %}
-                            <button class="dropdown-item text-danger fw-bold rounded-3" type="submit">
-                                <span class="account-icon-pill"><i class="bi bi-box-arrow-right"></i></span>Đăng xuất
-                            </button>
-                        </form>
+                        <button class="dropdown-item text-danger fw-bold rounded-3" type="button" onclick="openLogoutConfirm('globalLogoutForm')">
+                            <span class="account-icon-pill"><i class="bi bi-box-arrow-right"></i></span>Đăng xuất
+                        </button>
                     </li>
                     {% else %}
                     <li class="px-2 pb-2">
@@ -238,6 +235,10 @@
         </div>
     </div>
 </nav>
+
+<form id="globalLogoutForm" method="post" action="{% url 'App_Accounts:logout' %}" class="d-none">
+    {% csrf_token %}
+</form>
 
 <div class="{% block container_class %}container-fluid py-3{% endblock %}">
     {% if messages %}
@@ -262,6 +263,23 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="commonModalBody"></div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body p-4 text-center">
+                <div class="bg-warning-subtle rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 56px; height: 56px;">
+                    <i class="bi bi-exclamation-triangle text-warning fs-3"></i>
+                </div>
+                <h6 class="fw-bold mb-2">Xác nhận đăng xuất</h6>
+                <p class="text-muted small mb-4">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-light w-50 fw-semibold" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-danger w-50 fw-semibold" id="btnConfirmLogoutGlobal">Đăng xuất</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -296,9 +314,27 @@
     };
     window.toggleGlobalFullscreen = toggleGlobalFullscreen;
 
+    const openLogoutConfirm = (formId = 'globalLogoutForm') => {
+        const modalEl = document.getElementById('logoutConfirmModal');
+        if (!modalEl) return;
+        modalEl.dataset.formId = formId;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    };
+    window.openLogoutConfirm = openLogoutConfirm;
+
     document.addEventListener('DOMContentLoaded', () => {
         const savedTheme = localStorage.getItem('eapp_ui_theme') || 'green';
         applyGlobalTheme(savedTheme);
+
+        const confirmLogoutBtn = document.getElementById('btnConfirmLogoutGlobal');
+        if (confirmLogoutBtn) {
+            confirmLogoutBtn.addEventListener('click', () => {
+                const modalEl = document.getElementById('logoutConfirmModal');
+                const formId = modalEl?.dataset?.formId || 'globalLogoutForm';
+                const form = document.getElementById(formId);
+                if (form) form.submit();
+            });
+        }
     });
 </script>
 {% block extra_js %}{% endblock %}

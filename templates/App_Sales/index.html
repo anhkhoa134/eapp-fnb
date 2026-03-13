@@ -637,13 +637,20 @@
                             </li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger mx-2 mb-2" href="{% url 'App_Accounts:logout' %}"><span class="account-icon-pill"><i class="fa-solid fa-right-from-bracket"></i></span>Đăng xuất</a></li>
+                            <li class="px-2 pb-2">
+                                <button class="dropdown-item text-danger mx-2 mb-2 fw-bold rounded-3" type="button" onclick="openLogoutConfirmModal()">
+                                    <span class="account-icon-pill"><i class="fa-solid fa-right-from-bracket"></i></span>Đăng xuất
+                                </button>
+                            </li>
                         </ul>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
+    <form id="posLogoutForm" method="post" action="{% url 'App_Accounts:logout' %}" class="d-none">
+        {% csrf_token %}
+    </form>
 
     <!-- Main Layout -->
     <div class="container-fluid app-container px-0">
@@ -1005,6 +1012,25 @@
         </div>
     </div>
 
+    <!-- CONFIRM LOGOUT MODAL -->
+    <div class="modal fade" id="logoutConfirmModalPos" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-body p-4 text-center">
+                    <div class="bg-warning-subtle rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 56px; height: 56px;">
+                        <i class="fa-solid fa-triangle-exclamation text-warning fs-3"></i>
+                    </div>
+                    <h6 class="fw-bold mb-2">Xác nhận đăng xuất</h6>
+                    <p class="text-muted small mb-4">Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?</p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light w-50 fw-bold" data-bs-dismiss="modal">Hủy</button>
+                        <button type="button" class="btn btn-danger w-50 fw-bold" onclick="confirmLogout()">Đăng xuất</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification for Add to Cart -->
     <div class="toast-container position-fixed top-0 end-0 p-3">
         <div id="actionToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
@@ -1045,6 +1071,7 @@
         let noteModalInstance = null;
         let optionsModalInstance = null;
         let qrOrderModalInstance = null;
+        let logoutConfirmModalInstance = null;
         let currentNoteCartId = null;
         let currentOptionProduct = null;
         let currentOptionElement = null;
@@ -1462,6 +1489,18 @@
             } catch (error) {
                 showToast('Trình duyệt không hỗ trợ fullscreen.', 'warning');
             }
+        };
+
+        const openLogoutConfirmModal = () => {
+            if (!logoutConfirmModalInstance) {
+                logoutConfirmModalInstance = new bootstrap.Modal(document.getElementById('logoutConfirmModalPos'));
+            }
+            logoutConfirmModalInstance.show();
+        };
+
+        const confirmLogout = () => {
+            const form = document.getElementById('posLogoutForm');
+            if (form) form.submit();
         };
 
         const openTableMap = () => {
@@ -2046,6 +2085,8 @@
         window.filterCategory = filterCategory;
         window.changeTheme = changeTheme;
         window.toggleFullscreen = toggleFullscreen;
+        window.openLogoutConfirmModal = openLogoutConfirmModal;
+        window.confirmLogout = confirmLogout;
         window.openTableMap = openTableMap;
         window.selectTable = selectTable;
         window.selectTakeaway = selectTakeaway;
