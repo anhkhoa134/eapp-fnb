@@ -236,11 +236,8 @@
                     <a class="admin-nav-link {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}">
                         <i class="bi bi-cup-hot"></i> Sản phẩm
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/toppings/' in request.path and '/quanly/product-toppings/' not in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}">
+                    <a class="admin-nav-link {% if '/quanly/toppings/' in request.path or '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}">
                         <i class="bi bi-plus-circle"></i> Topping
-                    </a>
-                    <a class="admin-nav-link {% if '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:product_toppings' %}">
-                        <i class="bi bi-link-45deg"></i> Gán topping SP
                     </a>
                     <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}">
                         <i class="bi bi-people"></i> Nhân viên

@@ -254,21 +254,42 @@ def unit_delete(request, pk):
 def topping_list_create(request):
     tenant = _tenant_or_404(request.user)
     toppings = Topping.objects.filter(tenant=tenant).order_by('display_order', 'name')
-    form = ToppingForm(request.POST or None)
+    mappings = (
+        ProductTopping.objects.filter(product__tenant=tenant)
+        .select_related('product', 'topping')
+        .order_by('product__name', 'display_order', 'id')
+    )
 
-    if request.method == 'POST' and form.is_valid():
-        topping = form.save(commit=False)
-        topping.tenant = tenant
-        topping.save()
-        messages.success(request, 'Đã tạo topping.')
-        return redirect('App_Quanly:toppings')
+    topping_form = ToppingForm(prefix='topping')
+    mapping_form = ProductToppingForm(prefix='mapping', tenant=tenant)
+
+    if request.method == 'POST':
+        form_type = (request.POST.get('form_type') or '').strip()
+        if form_type == 'topping':
+            topping_form = ToppingForm(request.POST, prefix='topping')
+            if topping_form.is_valid():
+                topping = topping_form.save(commit=False)
+                topping.tenant = tenant
+                topping.save()
+                messages.success(request, 'Đã tạo topping.')
+                return redirect('App_Quanly:toppings')
+            messages.error(request, 'Không thể tạo topping, vui lòng kiểm tra dữ liệu.')
+        elif form_type == 'mapping':
+            mapping_form = ProductToppingForm(request.POST, prefix='mapping', tenant=tenant)
+            if mapping_form.is_valid():
+                mapping = mapping_form.save()
+                messages.success(request, f'Đã gán topping "{mapping.topping.name}" cho "{mapping.product.name}".')
+                return redirect('App_Quanly:toppings')
+            messages.error(request, 'Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.')
 
     return render(
         request,
         'App_Quanly/toppings.html',
         {
             'toppings': toppings,
-            'form': form,
+            'mappings': mappings,
+            'topping_form': topping_form,
+            'mapping_form': mapping_form,
         },
     )
 
@@ -297,27 +318,7 @@ def topping_delete(request, pk):
 
 @manager_required
 def product_topping_list_create(request):
-    tenant = _tenant_or_404(request.user)
-    mappings = (
-        ProductTopping.objects.filter(product__tenant=tenant)
-        .select_related('product', 'topping')
-        .order_by('product__name', 'display_order', 'id')
-    )
-    form = ProductToppingForm(request.POST or None, tenant=tenant)
-
-    if request.method == 'POST' and form.is_valid():
-        mapping = form.save()
-        messages.success(request, f'Đã gán topping "{mapping.topping.name}" cho "{mapping.product.name}".')
-        return redirect('App_Quanly:product_toppings')
-
-    return render(
-        request,
-        'App_Quanly/product_toppings.html',
-        {
-            'mappings': mappings,
-            'form': form,
-        },
-    )
+    return topping_list_create(request)
 
 
 @manager_required
@@ -328,7 +329,7 @@ def product_topping_edit(request, pk):
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Đã cập nhật gán topping sản phẩm.')
-        return redirect('App_Quanly:product_toppings')
+        return redirect('App_Quanly:toppings')
     return render(request, 'App_Quanly/product_topping_edit.html', {'form': form, 'mapping': mapping})
 
 
@@ -339,7 +340,7 @@ def product_topping_delete(request, pk):
     mapping = get_object_or_404(ProductTopping, pk=pk, product__tenant=tenant)
     mapping.delete()
     messages.success(request, 'Đã xóa gán topping khỏi sản phẩm.')
-    return redirect('App_Quanly:product_toppings')
+    return redirect('App_Quanly:toppings')
 
 
 @manager_required
