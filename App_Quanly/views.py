@@ -10,11 +10,20 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from App_Accounts.models import User
 from App_Accounts.permissions import manager_required
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
-from App_Quanly.forms import CategoryForm, ProductForm, ProductToppingForm, ProductUnitForm, ToppingForm
+from App_Quanly.forms import (
+    CategoryForm,
+    ProductForm,
+    ProductToppingForm,
+    ProductUnitForm,
+    StaffCreateForm,
+    StaffPasswordResetForm,
+    ToppingForm,
+)
 from App_Sales.models import Order
-from App_Tenant.models import Store
+from App_Tenant.models import Store, UserStoreAccess
 
 
 def _tenant_or_404(user):
@@ -331,3 +340,67 @@ def product_topping_delete(request, pk):
     mapping.delete()
     messages.success(request, 'Đã xóa gán topping khỏi sản phẩm.')
     return redirect('App_Quanly:product_toppings')
+
+
+@manager_required
+def staff_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    staffs = (
+        User.objects.filter(tenant=tenant, role=User.Role.STAFF)
+        .prefetch_related('store_accesses__store')
+        .order_by('username')
+    )
+    form = StaffCreateForm(request.POST or None, tenant=tenant)
+
+    if request.method == 'POST' and form.is_valid():
+        username = form.cleaned_data['username']
+        password = form.cleaned_data['password1']
+        selected_stores = list(form.cleaned_data['store_ids'])
+        default_store = form.cleaned_data['default_store']
+
+        staff_user = User.objects.create_user(
+            username=username,
+            password=password,
+            tenant=tenant,
+            role=User.Role.STAFF,
+            is_staff=False,
+        )
+
+        for store in selected_stores:
+            UserStoreAccess.objects.create(
+                user=staff_user,
+                store=store,
+                is_default=(store.id == default_store.id),
+            )
+        messages.success(request, f'Đã tạo nhân viên "{staff_user.username}".')
+        return redirect('App_Quanly:staffs')
+
+    return render(
+        request,
+        'App_Quanly/staffs.html',
+        {
+            'staffs': staffs,
+            'form': form,
+        },
+    )
+
+
+@manager_required
+def staff_password_reset(request, pk):
+    tenant = _tenant_or_404(request.user)
+    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
+    form = StaffPasswordResetForm(staff_user, request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, f'Đã cập nhật mật khẩu cho nhân viên "{staff_user.username}".')
+        return redirect('App_Quanly:staffs')
+
+    return render(
+        request,
+        'App_Quanly/staff_password_reset.html',
+        {
+            'staff_user': staff_user,
+            'form': form,
+        },
+    )

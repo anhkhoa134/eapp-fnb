@@ -1,0 +1,54 @@
+{% extends 'App_Core/base.html' %}
+
+{% block title %}Thông tin tài khoản | eApp FnB{% endblock %}
+{% block container_class %}container py-4{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body p-4">
+                <h1 class="h5 fw-bold mb-3">Thông tin tài khoản quản lý</h1>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="text-muted small">Tên đăng nhập</div>
+                        <div class="fw-semibold">{{ request.user.username }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Vai trò</div>
+                        <div class="fw-semibold">Quản lý</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Tenant</div>
+                        <div class="fw-semibold">{{ request.user.tenant.name|default:'-' }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Ngày tham gia</div>
+                        <div class="fw-semibold">{{ request.user.date_joined|date:'d/m/Y H:i' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold mb-3">Cửa hàng được cấp quyền</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for access in store_accesses %}
+                    <span class="badge text-bg-light border px-3 py-2">
+                        {{ access.store.name }}{% if access.is_default %} (mặc định){% endif %}
+                    </span>
+                    {% empty %}
+                    <span class="text-muted">Chưa có cửa hàng nào được gán.</span>
+                    {% endfor %}
+                </div>
+                <div class="mt-4">
+                    <a href="{% url 'App_Accounts:password_change' %}" class="btn btn-primary">
+                        <i class="bi bi-key me-1"></i>Đổi mật khẩu
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

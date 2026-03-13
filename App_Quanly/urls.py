@@ -21,4 +21,6 @@ urlpatterns = [
     path('product-toppings/', views.product_topping_list_create, name='product_toppings'),
     path('product-toppings/<int:pk>/edit/', views.product_topping_edit, name='product_topping_edit'),
     path('product-toppings/<int:pk>/delete/', views.product_topping_delete, name='product_topping_delete'),
+    path('staffs/', views.staff_list_create, name='staffs'),
+    path('staffs/<int:pk>/password/', views.staff_password_reset, name='staff_password_reset'),
 ]

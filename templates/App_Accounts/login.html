@@ -17,15 +17,10 @@
         min-height: 100vh;
     }
     .login-page .navbar {
-        background: rgba(255, 255, 255, 0.12) !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.25) !important;
-        backdrop-filter: blur(12px);
-    }
-    .login-page .navbar .navbar-brand span {
-        color: #f8fafc;
+        display: none !important;
     }
     .login-page .login-wrap {
-        min-height: calc(100vh - 66px);
+        min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -81,6 +76,9 @@
         border-right: 1px solid rgba(255, 255, 255, 0.2);
         min-height: 100%;
     }
+    .login-shell {
+        min-height: 540px;
+    }
     .login-shell .showcase-title {
         color: #f8fafc;
         font-weight: 800;
@@ -101,6 +99,31 @@
     .login-shell .form-pane {
         background: rgba(255, 255, 255, 0.08);
     }
+    .login-hint-box {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.75rem 0.85rem;
+    }
+    .login-hint-box .hint-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .login-hint-box .hint-row {
+        font-size: 0.82rem;
+        color: #334155;
+        margin-bottom: 0.2rem;
+    }
+    .login-hint-box .hint-help {
+        font-size: 0.78rem;
+        color: #64748b;
+        margin-top: 0.35rem;
+        margin-bottom: 0;
+    }
     @media (max-width: 991.98px) {
         .login-shell .showcase-pane {
             border-right: 0;
@@ -112,7 +135,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-10 col-xl-9">
+    <div class="col-12 col-lg-11 col-xl-10">
         <div class="glass-card login-shell">
             <div class="row g-0">
                 <div class="col-lg-6 p-4 p-md-5 showcase-pane">
@@ -130,6 +153,7 @@
                     <div class="feature-item"><i class="bi bi-shop me-2"></i>Đa cửa hàng - phân quyền theo nhân viên</div>
                     <div class="feature-item"><i class="bi bi-qr-code me-2"></i>POS + QR table order liền mạch</div>
                     <div class="feature-item"><i class="bi bi-graph-up-arrow me-2"></i>Dashboard realtime theo tenant</div>
+                    <p class="small text-login-sub mt-3 mb-0">© 2026 eApp POS. Tối ưu vận hành cho cửa hàng bán lẻ hiện đại.</p>
                 </div>
                 <div class="col-lg-6 p-4 p-md-5 form-pane">
                     <h3 class="h5 text-login-main fw-bold mb-2">Đăng nhập hệ thống</h3>
@@ -147,6 +171,12 @@
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Đăng nhập</button>
                     </form>
+                    <div class="login-hint-box mt-3">
+                        <div class="hint-title">Tài khoản demo</div>
+                        <div class="hint-row"><strong>Quản lý:</strong> <code>demo_quanly</code> / <code>123456</code></div>
+                        <div class="hint-row"><strong>Nhân viên:</strong> <code>demo_nhanvien_1</code> / <code>123456</code></div>
+                        <p class="hint-help mb-0">Nếu không thể đăng nhập, vui lòng liên hệ quản trị viên để được hỗ trợ.</p>
+                    </div>
                 </div>
             </div>
         </div>

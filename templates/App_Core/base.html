@@ -8,6 +8,136 @@
     <link rel="icon" type="image/x-icon" href="{% static 'images/logo/favicon-eapp.ico' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #10b981;
+            --primary-hover: #059669;
+        }
+        .text-primary { color: var(--primary-color) !important; }
+        .bg-primary { background-color: var(--primary-color) !important; }
+        .btn-primary {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            color: #fff !important;
+        }
+        .btn-primary:hover,
+        .btn-primary:focus,
+        .btn-primary:active {
+            background-color: var(--primary-hover) !important;
+            border-color: var(--primary-hover) !important;
+        }
+        .btn-outline-primary {
+            color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color) !important;
+            color: #fff !important;
+        }
+        .account-trigger {
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(255, 255, 255, 0.85);
+        }
+        .account-menu {
+            position: absolute;
+            min-width: 320px;
+            border: 1px solid rgba(148, 163, 184, 0.35) !important;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 22px 40px rgba(15, 23, 42, 0.2) !important;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+        }
+        .account-menu::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 4px;
+            background: linear-gradient(90deg, #10b981, #0ea5e9, #8b5cf6, #ec4899);
+            z-index: 2;
+        }
+        .account-head {
+            padding: 14px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.22), rgba(236, 72, 153, 0.18));
+            border-bottom: 1px solid rgba(148, 163, 184, 0.32);
+            position: relative;
+            z-index: 1;
+        }
+        .account-role-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 3px 9px;
+        }
+        .account-role-pill.manager {
+            background: rgba(14, 165, 233, 0.14);
+            color: #0369a1;
+        }
+        .account-role-pill.staff {
+            background: rgba(16, 185, 129, 0.14);
+            color: #047857;
+        }
+        .account-role-pill.public {
+            background: rgba(148, 163, 184, 0.16);
+            color: #334155;
+        }
+        .account-chip {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-radius: 999px;
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            color: #075985;
+            background: rgba(255, 255, 255, 0.68);
+            padding: 0.22rem 0.55rem;
+        }
+        .account-menu .section-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #475569;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .account-menu .form-select {
+            border-radius: 10px;
+            border-color: rgba(148, 163, 184, 0.45);
+            background-color: rgba(255, 255, 255, 0.96);
+            font-weight: 600;
+            color: #334155;
+        }
+        .account-menu .dropdown-item.account-action {
+            border-radius: 10px;
+            font-weight: 600;
+            color: #1f2937;
+            padding-top: 0.6rem;
+            padding-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .account-menu .dropdown-item.account-action:hover {
+            background-color: rgba(59, 130, 246, 0.12);
+            color: #0f172a;
+        }
+        .account-menu .dropdown-divider {
+            margin: 8px 0;
+        }
+        .account-icon-pill {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(140deg, rgba(16, 185, 129, 0.18), rgba(59, 130, 246, 0.18));
+            color: #0f172a;
+        }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light {% block body_class %}{% endblock %}">
@@ -18,16 +148,93 @@
             <span>eApp FnB</span>
         </a>
         <div class="ms-auto d-flex align-items-center gap-2">
-            {% if user.is_authenticated %}
-            <span class="small text-muted">{{ user.username }}</span>
-            {% if user.role == 'MANAGER' %}
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:dashboard' %}">Quản lý</a>
-            {% endif %}
-            <form method="post" action="{% url 'App_Accounts:logout' %}">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger" type="submit">Đăng xuất</button>
-            </form>
-            {% endif %}
+            <div class="dropdown">
+                <button class="btn account-trigger dropdown-toggle d-flex align-items-center gap-2 px-2 py-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    {% if user.is_authenticated %}
+                    <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle" width="32" height="32" alt="Avatar">
+                    <span class="fw-bold d-none d-lg-inline">{{ user.username }}</span>
+                    {% else %}
+                    <img src="https://ui-avatars.com/api/?name=Public&background=64748B&color=fff" class="rounded-circle" width="32" height="32" alt="Public">
+                    <span class="fw-bold d-none d-lg-inline">Public</span>
+                    {% endif %}
+                </button>
+
+                <ul class="dropdown-menu dropdown-menu-end account-menu p-0">
+                    <li class="account-head">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="d-flex align-items-center">
+                                {% if user.is_authenticated %}
+                                <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="38" height="38" alt="Avatar">
+                                <div>
+                                    <div class="fw-bold text-dark">{{ user.username }}</div>
+                                    <div class="small text-muted">
+                                        {% if user.is_manager %}
+                                        <span class="account-role-pill manager"><i class="bi bi-shield-check"></i>Quản lý</span>
+                                        {% else %}
+                                        <span class="account-role-pill staff"><i class="bi bi-person-badge"></i>Nhân viên</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% else %}
+                                <img src="https://ui-avatars.com/api/?name=Public&background=64748B&color=fff" class="rounded-circle me-2" width="38" height="38" alt="Public">
+                                <div>
+                                    <div class="fw-bold text-dark">Khách xem menu</div>
+                                    <div class="small text-muted"><span class="account-role-pill public"><i class="bi bi-globe2"></i>Public</span></div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <span class="account-chip">eApp FnB</span>
+                        </div>
+                    </li>
+
+                    <li><hr class="dropdown-divider"></li>
+
+                    {% if user.is_authenticated %}
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
+                            <span class="account-icon-pill"><i class="bi bi-receipt-cutoff"></i></span>Đơn hàng trong ngày
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); toggleGlobalFullscreen();">
+                            <span class="account-icon-pill"><i class="bi bi-fullscreen"></i></span>Fullscreen
+                        </a>
+                    </li>
+                    {% if user.is_manager %}
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Accounts:profile' %}">
+                            <span class="account-icon-pill"><i class="bi bi-person-vcard"></i></span>Thông tin tài khoản
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
+                            <span class="account-icon-pill"><i class="bi bi-speedometer2"></i></span>Trang quản lý
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Accounts:password_change' %}">
+                            <span class="account-icon-pill"><i class="bi bi-key"></i></span>Đổi mật khẩu
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="px-2 pb-2">
+                        <form method="post" action="{% url 'App_Accounts:logout' %}">
+                            {% csrf_token %}
+                            <button class="dropdown-item text-danger fw-bold rounded-3" type="submit">
+                                <span class="account-icon-pill"><i class="bi bi-box-arrow-right"></i></span>Đăng xuất
+                            </button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="px-2 pb-2">
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Accounts:login' %}">
+                            <span class="account-icon-pill"><i class="bi bi-box-arrow-in-right"></i></span>Đăng nhập POS
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
         </div>
     </div>
 </nav>
@@ -60,6 +267,40 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const globalThemes = {
+        green: { primary: '#10b981', hover: '#059669' },
+        blue: { primary: '#0284c7', hover: '#0369a1' },
+        yellow: { primary: '#eab308', hover: '#ca8a04' },
+        orange: { primary: '#f97316', hover: '#ea580c' },
+        purple: { primary: '#9333ea', hover: '#7e22ce' },
+        pink: { primary: '#ec4899', hover: '#db2777' },
+    };
+
+    const applyGlobalTheme = (themeName) => {
+        const theme = globalThemes[themeName] || globalThemes.green;
+        document.documentElement.style.setProperty('--primary-color', theme.primary);
+        document.documentElement.style.setProperty('--primary-hover', theme.hover);
+    };
+
+    const toggleGlobalFullscreen = async () => {
+        try {
+            if (!document.fullscreenElement) {
+                await document.documentElement.requestFullscreen();
+            } else {
+                await document.exitFullscreen();
+            }
+        } catch (error) {
+            // Ignore fullscreen errors silently to avoid breaking page usage.
+        }
+    };
+    window.toggleGlobalFullscreen = toggleGlobalFullscreen;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedTheme = localStorage.getItem('eapp_ui_theme') || 'green';
+        applyGlobalTheme(savedTheme);
+    });
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -626,6 +626,11 @@
                             </li>
                             {% if user.is_manager %}
                             <li>
+                                <a class="dropdown-item account-action mx-2" href="{% url 'App_Accounts:profile' %}">
+                                    <span class="account-icon-pill"><i class="fa-regular fa-id-card"></i></span>Thông tin tài khoản
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
                                     <span class="account-icon-pill"><i class="fa-solid fa-chart-line"></i></span>Trang quản lý
                                 </a>

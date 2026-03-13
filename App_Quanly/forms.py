@@ -1,5 +1,9 @@
 from django import forms
+from django.contrib.auth.forms import SetPasswordForm
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
+from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
 from App_Tenant.models import Store
 
@@ -98,4 +102,65 @@ class ProductToppingForm(forms.ModelForm):
         if tenant:
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant, is_active=True).order_by('name')
             self.fields['topping'].queryset = Topping.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        _apply_bootstrap_classes(self)
+
+
+class StaffCreateForm(forms.Form):
+    username = forms.CharField(label='Tên đăng nhập', max_length=150)
+    password1 = forms.CharField(label='Mật khẩu', widget=forms.PasswordInput)
+    password2 = forms.CharField(label='Xác nhận mật khẩu', widget=forms.PasswordInput)
+    store_ids = forms.ModelMultipleChoiceField(
+        queryset=Store.objects.none(),
+        required=True,
+        widget=forms.CheckboxSelectMultiple,
+        label='Cấp quyền cửa hàng',
+    )
+    default_store = forms.ModelChoiceField(
+        queryset=Store.objects.none(),
+        required=True,
+        label='Cửa hàng mặc định',
+    )
+
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        self.fields['store_ids'].queryset = stores
+        self.fields['default_store'].queryset = stores
+        _apply_bootstrap_classes(self)
+
+    def clean_username(self):
+        username = (self.cleaned_data.get('username') or '').strip()
+        if not username:
+            raise forms.ValidationError('Vui lòng nhập tên đăng nhập.')
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError('Tên đăng nhập đã tồn tại.')
+        return username
+
+    def clean(self):
+        cleaned = super().clean()
+        password1 = cleaned.get('password1') or ''
+        password2 = cleaned.get('password2') or ''
+        if password1 != password2:
+            self.add_error('password2', 'Xác nhận mật khẩu không khớp.')
+        else:
+            try:
+                validate_password(password1)
+            except ValidationError as exc:
+                self.add_error('password1', exc)
+
+        selected_stores = cleaned.get('store_ids')
+        default_store = cleaned.get('default_store')
+        if selected_stores is not None and default_store and default_store not in selected_stores:
+            self.add_error('default_store', 'Cửa hàng mặc định phải thuộc danh sách cửa hàng đã cấp quyền.')
+        return cleaned
+
+
+class StaffPasswordResetForm(SetPasswordForm):
+    field_order = ['new_password1', 'new_password2']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['new_password1'].label = 'Mật khẩu mới'
+        self.fields['new_password2'].label = 'Xác nhận mật khẩu mới'
         _apply_bootstrap_classes(self)
