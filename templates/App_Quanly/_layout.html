@@ -1,26 +1,274 @@
 {% extends 'App_Core/base.html' %}
+{% load static %}
+
+{% block body_class %}quanly-page{% endblock %}
+{% block container_class %}container-fluid py-4 px-3 px-xl-4{% endblock %}
+
+{% block extra_css %}
+<style>
+    .quanly-page {
+        background:
+            radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.2), transparent 35%),
+            radial-gradient(circle at 88% 18%, rgba(236, 72, 153, 0.16), transparent 34%),
+            radial-gradient(circle at 84% 86%, rgba(16, 185, 129, 0.2), transparent 38%),
+            linear-gradient(145deg, #ecfeff 0%, #e0f2fe 25%, #f8fafc 100%);
+        min-height: 100vh;
+    }
+    .quanly-page .navbar {
+        background: rgba(255, 255, 255, 0.7) !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25) !important;
+        backdrop-filter: blur(14px);
+    }
+    .quanly-page .glass-panel,
+    .quanly-page .card {
+        background: rgba(255, 255, 255, 0.64);
+        border: 1px solid rgba(255, 255, 255, 0.55) !important;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+        backdrop-filter: blur(18px);
+        border-radius: 18px;
+    }
+    .quanly-page .card {
+        border: 1px solid rgba(255, 255, 255, 0.55) !important;
+    }
+    .quanly-page .table {
+        --bs-table-bg: transparent;
+        --bs-table-hover-bg: rgba(15, 23, 42, 0.04);
+    }
+    .quanly-page .table thead th {
+        border-bottom-color: rgba(148, 163, 184, 0.35);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+    }
+    .quanly-page .table tbody td {
+        border-color: rgba(148, 163, 184, 0.2);
+        color: #0f172a;
+    }
+    .quanly-page .form-control,
+    .quanly-page .form-select {
+        border-radius: 12px;
+        border-color: rgba(148, 163, 184, 0.45);
+        background: rgba(255, 255, 255, 0.85);
+    }
+    .quanly-page .form-control:focus,
+    .quanly-page .form-select:focus {
+        border-color: rgba(59, 130, 246, 0.55);
+        box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.15);
+    }
+    .quanly-page form p {
+        margin-bottom: 0.9rem;
+    }
+    .quanly-page form p label {
+        display: block;
+        margin-bottom: 0.32rem;
+        font-size: 0.82rem;
+        color: #475569;
+        font-weight: 700;
+    }
+    .quanly-page form p .helptext {
+        font-size: 0.74rem;
+        color: #64748b;
+    }
+    .quanly-page form p input,
+    .quanly-page form p select,
+    .quanly-page form p textarea {
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 12px;
+        padding: 0.58rem 0.74rem;
+    }
+    .quanly-page .btn {
+        border-radius: 11px;
+        font-weight: 650;
+    }
+    .quanly-page .btn-primary {
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        border-color: transparent !important;
+        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+    }
+    .quanly-page .btn-primary:hover {
+        filter: brightness(0.96);
+    }
+    .quanly-page .btn-outline-primary {
+        border-color: rgba(37, 99, 235, 0.45);
+        color: #1d4ed8;
+    }
+    .quanly-page .btn-outline-primary:hover {
+        background: rgba(37, 99, 235, 0.1);
+        color: #1e3a8a;
+    }
+    .quanly-page .btn-outline-danger {
+        border-color: rgba(225, 29, 72, 0.35);
+        color: #be123c;
+    }
+    .quanly-page .btn-outline-danger:hover {
+        background: rgba(225, 29, 72, 0.08);
+        color: #9f1239;
+    }
+    .admin-tenant-card {
+        padding: 1rem;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(79, 70, 229, 0.9), rgba(14, 165, 233, 0.85));
+        color: #fff;
+    }
+    .admin-tenant-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 2px solid rgba(255, 255, 255, 0.65);
+    }
+    .admin-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.62rem 0.78rem;
+        border-radius: 12px;
+        color: #334155;
+        text-decoration: none;
+        font-weight: 600;
+        transition: 0.2s ease;
+    }
+    .admin-nav-link:hover {
+        background: rgba(59, 130, 246, 0.12);
+        color: #1e40af;
+    }
+    .admin-nav-link.active {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(59, 130, 246, 0.18));
+        color: #0f172a;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .admin-section-title {
+        font-size: 0.72rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    .admin-hero {
+        padding: 1rem 1.15rem;
+        margin-bottom: 0.9rem;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+    }
+    .admin-hero h1 {
+        font-size: 1.08rem;
+        margin: 0;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .admin-hero .sub {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+    .admin-card-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.85rem;
+        font-size: 0.98rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .admin-card-title i {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.22));
+        color: #0f172a;
+    }
+    .metric-card {
+        position: relative;
+        overflow: hidden;
+    }
+    .metric-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -40px -40px auto;
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.18), transparent 70%);
+    }
+    .record-block {
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.62);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row g-3">
+<div class="row g-3 quanly-shell">
     <div class="col-12 col-lg-3">
-        <div class="card border-0 shadow-sm">
+        <div class="glass-panel p-3">
             <div class="card-body">
-                <h6 class="fw-bold mb-3">Quản lý tenant</h6>
-                <div class="list-group list-group-flush">
-                    <a class="list-group-item list-group-item-action {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}">Dashboard</a>
-                    <a class="list-group-item list-group-item-action {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}">Danh mục</a>
-                    <a class="list-group-item list-group-item-action {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}">Sản phẩm</a>
-                    <a class="list-group-item list-group-item-action {% if '/quanly/toppings/' in request.path and '/quanly/product-toppings/' not in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}">Topping</a>
-                    <a class="list-group-item list-group-item-action {% if '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:product_toppings' %}">Gán topping SP</a>
+                <div class="admin-tenant-card mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <img class="admin-tenant-logo" src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB">
+                        <div>
+                            <div class="fw-bold">eApp FnB</div>
+                            <div class="small opacity-75">{{ user.tenant.name|default:'Tenant' }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-section-title">Điều hướng</div>
+                <div class="d-flex flex-column gap-1">
+                    <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                    <a class="admin-nav-link {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}">
+                        <i class="bi bi-grid-3x3-gap"></i> Danh mục
+                    </a>
+                    <a class="admin-nav-link {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}">
+                        <i class="bi bi-cup-hot"></i> Sản phẩm
+                    </a>
+                    <a class="admin-nav-link {% if '/quanly/toppings/' in request.path and '/quanly/product-toppings/' not in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}">
+                        <i class="bi bi-plus-circle"></i> Topping
+                    </a>
+                    <a class="admin-nav-link {% if '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:product_toppings' %}">
+                        <i class="bi bi-link-45deg"></i> Gán topping SP
+                    </a>
+                </div>
+
+                <hr class="my-3">
+                <div class="admin-section-title">Liên kết nhanh</div>
+                <div class="d-flex flex-column gap-1">
                     {% if user.tenant %}
-                    <a class="list-group-item list-group-item-action" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener">Public catalog</a>
+                    <a class="admin-nav-link" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener">
+                        <i class="bi bi-globe2"></i> Public catalog
+                    </a>
                     {% endif %}
-                    <a class="list-group-item list-group-item-action" href="{% url 'App_Sales:pos' %}">Về POS</a>
+                    <a class="admin-nav-link" href="{% url 'App_Sales:pos' %}">
+                        <i class="bi bi-arrow-left-circle"></i> Về POS
+                    </a>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-12 col-lg-9">
+        <div class="admin-hero">
+            <div>
+                <h1>Trung tâm quản lý</h1>
+                <div class="sub">Quản lý danh mục, sản phẩm, topping và báo cáo doanh thu theo cửa hàng.</div>
+            </div>
+            <span class="badge rounded-pill text-bg-light border px-3 py-2">
+                <i class="bi bi-shield-check me-1"></i> Manager Portal
+            </span>
+        </div>
         {% block quanly_content %}{% endblock %}
     </div>
 </div>

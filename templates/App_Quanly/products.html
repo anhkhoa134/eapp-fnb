@@ -5,7 +5,10 @@
     <div class="col-lg-5">
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h2 class="h6 fw-bold">Tạo sản phẩm</h2>
+                <h2 class="admin-card-title">
+                    <i class="bi bi-cup-hot"></i>
+                    Tạo sản phẩm
+                </h2>
                 <form method="post">
                     {% csrf_token %}
                     {{ form.as_p }}
@@ -17,9 +20,12 @@
     <div class="col-lg-7">
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h2 class="h6 fw-bold">Danh sách sản phẩm</h2>
+                <h2 class="admin-card-title">
+                    <i class="bi bi-card-list"></i>
+                    Danh sách sản phẩm
+                </h2>
                 {% for product in products %}
-                <div class="border rounded p-3 mb-3">
+                <div class="record-block p-3 mb-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
                             <div class="fw-semibold">{{ product.name }}</div>

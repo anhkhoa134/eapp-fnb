@@ -1,52 +1,180 @@
 {% extends 'App_Core/base.html' %}
 
-{% block title %}{{ tenant.name }} | Catalog{% endblock %}
+{% block title %}{{ tenant.name }} | Public Catalog{% endblock %}
+{% block body_class %}public-catalog-page{% endblock %}
+{% block container_class %}container-fluid py-4 px-3 px-xl-4{% endblock %}
+
+{% block extra_css %}
+<style>
+    .public-catalog-page {
+        background:
+            radial-gradient(circle at 12% 14%, rgba(16, 185, 129, 0.15), transparent 34%),
+            radial-gradient(circle at 90% 18%, rgba(14, 165, 233, 0.14), transparent 32%),
+            linear-gradient(160deg, #f8fafc 0%, #eef6ff 100%);
+        min-height: 100vh;
+    }
+    .public-hero {
+        border-radius: 20px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background:
+            linear-gradient(140deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.86), rgba(14, 116, 144, 0.82));
+        color: #f8fafc;
+        box-shadow: 0 16px 30px rgba(15, 23, 42, 0.22);
+    }
+    .public-hero .slug-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.74rem;
+        border: 1px solid rgba(241, 245, 249, 0.3);
+        border-radius: 999px;
+        padding: 0.3rem 0.6rem;
+        color: rgba(241, 245, 249, 0.88);
+        margin-top: 0.5rem;
+    }
+    .public-glass {
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.74);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+    .public-title {
+        font-size: 0.98rem;
+        font-weight: 800;
+        color: #0f172a;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.48rem;
+        margin-bottom: 0.8rem;
+    }
+    .public-title i {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(140deg, rgba(16, 185, 129, 0.18), rgba(14, 165, 233, 0.2));
+    }
+    .public-product-card {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        height: 100%;
+    }
+    .public-product-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 24px rgba(15, 23, 42, 0.13);
+    }
+    .public-product-card img {
+        aspect-ratio: 1 / 1;
+        width: 100%;
+        object-fit: cover;
+    }
+    .category-pill {
+        font-size: 0.72rem;
+        border-radius: 999px;
+        padding: 0.24rem 0.58rem;
+        color: #0369a1;
+        background: rgba(14, 165, 233, 0.12);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .public-pagination .page-link {
+        border-radius: 10px;
+        border-color: rgba(148, 163, 184, 0.35);
+        color: #334155;
+    }
+    .public-pagination .page-item.active .page-link {
+        background: #0ea5e9;
+        border-color: #0ea5e9;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-        <h1 class="h5 fw-bold mb-1">Catalog công khai - {{ tenant.name }}</h1>
-        <p class="text-muted small mb-3">Đường dẫn public tenant: <code>/{{ tenant.public_slug }}/</code></p>
-        <form method="get" class="row g-2">
-            <div class="col-md-4">
-                <select class="form-select" name="store">
-                    {% for store in stores %}
-                    <option value="{{ store.id }}" {% if selected_store and selected_store.id == store.id %}selected{% endif %}>{{ store.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-6"><input class="form-control" name="q" placeholder="Tìm sản phẩm" value="{{ selected_query }}"></div>
-            <div class="col-md-2 d-grid"><button class="btn btn-primary">Lọc</button></div>
-        </form>
+<div class="public-hero p-4 p-lg-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">{{ tenant.name }}</h1>
+            <p class="mb-0 text-light opacity-75">Catalog công khai cho khách hàng xem menu theo từng cửa hàng.</p>
+            <span class="slug-pill"><i class="bi bi-link-45deg"></i>/{{ tenant.public_slug }}/</span>
+        </div>
     </div>
+</div>
+
+<div class="public-glass p-3 mb-3">
+    <h2 class="public-title">
+        <i class="bi bi-funnel"></i>
+        Tìm món nhanh
+    </h2>
+    <form method="get" class="row g-2">
+        <div class="col-12 col-md-4">
+            <label class="form-label mb-1 small text-muted">Cửa hàng</label>
+            <select class="form-select" name="store">
+                {% for store in stores %}
+                <option value="{{ store.id }}" {% if selected_store and selected_store.id == store.id %}selected{% endif %}>{{ store.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12 col-md-6">
+            <label class="form-label mb-1 small text-muted">Từ khóa</label>
+            <input class="form-control" name="q" placeholder="Tìm sản phẩm..." value="{{ selected_query }}">
+        </div>
+        <div class="col-12 col-md-2 d-grid">
+            <button class="btn btn-primary">
+                <i class="bi bi-search me-1"></i>Lọc
+            </button>
+        </div>
+    </form>
 </div>
 
 <div class="row g-3">
     {% for product in products %}
     <div class="col-6 col-md-4 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-            <img src="{{ product.image_url|default:'https://placehold.co/600x600/png?text=Product' }}" class="card-img-top" alt="{{ product.name }}" style="aspect-ratio:1/1;object-fit:cover;">
-            <div class="card-body">
-                <h2 class="h6 mb-1">{{ product.name }}</h2>
-                <div class="small text-muted mb-2">{{ product.category.name|default:'Khác' }}</div>
+        <div class="public-product-card">
+            <img src="{{ product.image_url|default:'https://placehold.co/600x600/png?text=Product' }}" alt="{{ product.name }}">
+            <div class="p-3">
+                <h2 class="h6 mb-2 fw-bold text-truncate" title="{{ product.name }}">{{ product.name }}</h2>
+                <div class="mb-2">
+                    <span class="category-pill">
+                        <i class="bi bi-tag"></i>{{ product.category.name|default:'Khác' }}
+                    </span>
+                </div>
                 <div class="fw-bold text-danger">Từ {{ product.min_price|floatformat:0 }} đ</div>
             </div>
         </div>
     </div>
     {% empty %}
-    <div class="col-12"><div class="text-center text-muted py-5">Không có sản phẩm phù hợp.</div></div>
+    <div class="col-12">
+        <div class="public-glass text-center py-5 text-muted">
+            <i class="bi bi-inboxes fs-1 d-block mb-2"></i>
+            Không có sản phẩm phù hợp.
+        </div>
+    </div>
     {% endfor %}
 </div>
 
 {% if page_obj and page_obj.paginator.num_pages > 1 %}
-<nav class="mt-4">
-    <ul class="pagination">
+<nav class="mt-4 public-pagination">
+    <ul class="pagination gap-2 flex-wrap">
         {% if page_obj.has_previous %}
-        <li class="page-item"><a class="page-link" href="?store={{ selected_store.id }}&q={{ selected_query }}&page={{ page_obj.previous_page_number }}">Trước</a></li>
+        <li class="page-item">
+            <a class="page-link" href="?store={{ selected_store.id|default:'' }}&q={{ selected_query }}&page={{ page_obj.previous_page_number }}">Trước</a>
+        </li>
         {% endif %}
-        <li class="page-item disabled"><span class="page-link">Trang {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span></li>
+        <li class="page-item active">
+            <span class="page-link">Trang {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</span>
+        </li>
         {% if page_obj.has_next %}
-        <li class="page-item"><a class="page-link" href="?store={{ selected_store.id }}&q={{ selected_query }}&page={{ page_obj.next_page_number }}">Sau</a></li>
+        <li class="page-item">
+            <a class="page-link" href="?store={{ selected_store.id|default:'' }}&q={{ selected_query }}&page={{ page_obj.next_page_number }}">Sau</a>
+        </li>
         {% endif %}
     </ul>
 </nav>

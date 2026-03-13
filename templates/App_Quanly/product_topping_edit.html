@@ -3,7 +3,10 @@
 {% block quanly_content %}
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <h2 class="h6 fw-bold">Sửa gán topping: {{ mapping.product.name }} / {{ mapping.topping.name }}</h2>
+        <h2 class="admin-card-title">
+            <i class="bi bi-pencil-square"></i>
+            Sửa gán topping: {{ mapping.product.name }} / {{ mapping.topping.name }}
+        </h2>
         <form method="post">
             {% csrf_token %}
             {{ form.as_p }}

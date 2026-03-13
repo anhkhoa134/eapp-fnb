@@ -5,7 +5,10 @@
     <div class="col-lg-5">
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h2 class="h6 fw-bold">Tạo topping</h2>
+                <h2 class="admin-card-title">
+                    <i class="bi bi-plus-circle"></i>
+                    Tạo topping
+                </h2>
                 <form method="post">
                     {% csrf_token %}
                     {{ form.as_p }}
@@ -17,7 +20,10 @@
     <div class="col-lg-7">
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h2 class="h6 fw-bold">Danh sách topping</h2>
+                <h2 class="admin-card-title">
+                    <i class="bi bi-list-ul"></i>
+                    Danh sách topping
+                </h2>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle">
                         <thead>

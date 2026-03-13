@@ -3,7 +3,10 @@
 {% block quanly_content %}
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
-        <h1 class="h5 fw-bold mb-3">Dashboard doanh thu</h1>
+        <h1 class="admin-card-title">
+            <i class="bi bi-bar-chart-line"></i>
+            Dashboard doanh thu
+        </h1>
         <form class="row g-2" method="get">
             <div class="col-md-4">
                 <label class="form-label small text-muted">Cửa hàng</label>
@@ -31,19 +34,37 @@
 
 <div class="row g-3 mb-3">
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Tổng doanh thu</div><div class="h4 fw-bold text-danger mb-0">{{ total_revenue|floatformat:0 }} đ</div></div></div>
+        <div class="card border-0 shadow-sm h-100 metric-card">
+            <div class="card-body">
+                <div class="text-muted small">Tổng doanh thu</div>
+                <div class="h4 fw-bold text-danger mb-0">{{ total_revenue|floatformat:0 }} đ</div>
+            </div>
+        </div>
     </div>
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Tổng đơn</div><div class="h4 fw-bold mb-0">{{ total_orders }}</div></div></div>
+        <div class="card border-0 shadow-sm h-100 metric-card">
+            <div class="card-body">
+                <div class="text-muted small">Tổng đơn</div>
+                <div class="h4 fw-bold mb-0">{{ total_orders }}</div>
+            </div>
+        </div>
     </div>
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">Giá trị đơn TB</div><div class="h4 fw-bold mb-0">{{ avg_order_value|floatformat:0 }} đ</div></div></div>
+        <div class="card border-0 shadow-sm h-100 metric-card">
+            <div class="card-body">
+                <div class="text-muted small">Giá trị đơn TB</div>
+                <div class="h4 fw-bold mb-0">{{ avg_order_value|floatformat:0 }} đ</div>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <h2 class="h6 fw-bold">Đơn gần nhất</h2>
+        <h2 class="admin-card-title">
+            <i class="bi bi-receipt-cutoff"></i>
+            Đơn gần nhất
+        </h2>
         <div class="table-responsive">
             <table class="table align-middle">
                 <thead>
