@@ -311,3 +311,209 @@ class SalesModelTests(TestCase):
                 unit_price_snapshot=Decimal('10000'),
                 quantity=1,
             )
+
+
+class PosJsIntegrationSmokeTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='POS JS', public_slug='pos-js')
+        self.store_1 = Store.objects.create(tenant=self.tenant, name='Store A', is_default=True)
+        self.store_2 = Store.objects.create(tenant=self.tenant, name='Store B', is_default=False)
+
+        self.staff = User.objects.create_user(
+            username='pos_staff',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.STAFF,
+        )
+        UserStoreAccess.objects.create(user=self.staff, store=self.store_1, is_default=True)
+        UserStoreAccess.objects.create(user=self.staff, store=self.store_2, is_default=False)
+
+        self.category = Category.objects.create(tenant=self.tenant, name='Đồ uống')
+        StoreCategory.objects.create(store=self.store_1, category=self.category, is_visible=True)
+        StoreCategory.objects.create(store=self.store_2, category=self.category, is_visible=True)
+
+        self.product_a = Product.objects.create(
+            tenant=self.tenant,
+            category=self.category,
+            name='Nước A',
+            image_url='https://placehold.co/600x600/png?text=Nuoc+A',
+        )
+        self.unit_a = ProductUnit.objects.create(product=self.product_a, name='M', price=Decimal('30000'))
+        StoreProduct.objects.create(store=self.store_1, product=self.product_a, is_available=True)
+        StoreProduct.objects.create(store=self.store_2, product=self.product_a, is_available=False)
+
+        self.product_b = Product.objects.create(
+            tenant=self.tenant,
+            category=self.category,
+            name='Nước B',
+            image_url='https://placehold.co/600x600/png?text=Nuoc+B',
+        )
+        self.unit_b = ProductUnit.objects.create(product=self.product_b, name='L', price=Decimal('42000'))
+        StoreProduct.objects.create(store=self.store_1, product=self.product_b, is_available=False)
+        StoreProduct.objects.create(store=self.store_2, product=self.product_b, is_available=True)
+
+        self.table_a = DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            code='A-01',
+            name='Bàn A01',
+            display_order=1,
+        )
+        self.table_b = DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store_2,
+            code='B-01',
+            name='Bàn B01',
+            display_order=1,
+        )
+
+        self.client.login(username='pos_staff', password='123456')
+
+    def _create_pending_qr_order(self, *, table, product, unit, quantity=1, note=''):
+        order = QROrder.objects.create(
+            tenant=self.tenant,
+            store=table.store,
+            table=table,
+            status=QROrder.Status.PENDING,
+            customer_note='JS smoke order',
+        )
+        QROrderItem.objects.create(
+            qr_order=order,
+            product=product,
+            unit=unit,
+            snapshot_product_name=product.name,
+            snapshot_unit_name=unit.name,
+            unit_price_snapshot=unit.price,
+            quantity=quantity,
+            note=note,
+            line_total=Decimal('0'),
+        )
+        return order
+
+    def test_pos_page_contains_js_mount_points_and_api_symbols(self):
+        res = self.client.get(reverse('App_Sales:pos'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+
+        self.assertIn('id="product-container"', html)
+        self.assertIn('id="tables-container"', html)
+        self.assertIn('id="online-orders-container"', html)
+        self.assertIn('id="storeSelector"', html)
+        self.assertIn('id="tab-menu"', html)
+        self.assertIn('id="tab-tables"', html)
+        self.assertIn('id="tab-online"', html)
+
+        self.assertIn('const API_PRODUCTS_URL', html)
+        self.assertIn('const API_TABLES_URL', html)
+        self.assertIn('const API_QR_ORDERS_URL', html)
+        self.assertIn('window.onload = bootstrapPage', html)
+
+    def test_products_api_store_switch_contract(self):
+        url = reverse('App_Sales_API:products')
+
+        store_a_res = self.client.get(url, {'store_id': self.store_1.id})
+        self.assertEqual(store_a_res.status_code, 200)
+        store_a_payload = store_a_res.json()
+        store_a_names = {row['name'] for row in store_a_payload['products']}
+        self.assertEqual(store_a_names, {'Nước A'})
+        self.assertIn('units', store_a_payload['products'][0])
+        self.assertIn('id', store_a_payload['products'][0]['units'][0])
+        self.assertIn('price', store_a_payload['products'][0]['units'][0])
+
+        store_b_res = self.client.get(url, {'store_id': self.store_2.id})
+        self.assertEqual(store_b_res.status_code, 200)
+        store_b_payload = store_b_res.json()
+        store_b_names = {row['name'] for row in store_b_payload['products']}
+        self.assertEqual(store_b_names, {'Nước B'})
+
+    def test_js_contract_after_qr_approve_updates_online_and_table_cart(self):
+        qr_order = self._create_pending_qr_order(
+            table=self.table_a,
+            product=self.product_a,
+            unit=self.unit_a,
+            quantity=2,
+            note='Ít đá',
+        )
+
+        tables_url = reverse('App_Sales_API:tables')
+        qr_orders_url = reverse('App_Sales_API:qr_orders')
+        cart_url = reverse('App_Sales_API:table_cart', kwargs={'table_id': self.table_a.id})
+        approve_url = reverse('App_Sales_API:qr_order_approve', kwargs={'order_id': qr_order.id})
+
+        before_tables = self.client.get(tables_url, {'store_id': self.store_1.id}).json()['tables']
+        before_table_status = {row['id']: row['status'] for row in before_tables}[self.table_a.id]
+        self.assertEqual(before_table_status, 'pending')
+
+        before_orders = self.client.get(qr_orders_url, {'store_id': self.store_1.id, 'status': 'pending'}).json()['orders']
+        self.assertEqual(len(before_orders), 1)
+
+        approve_res = self.client.post(approve_url, data='{}', content_type='application/json')
+        self.assertEqual(approve_res.status_code, 200)
+
+        after_orders = self.client.get(qr_orders_url, {'store_id': self.store_1.id, 'status': 'pending'}).json()['orders']
+        self.assertEqual(len(after_orders), 0)
+
+        cart_payload = self.client.get(cart_url).json()
+        self.assertEqual(len(cart_payload['items']), 1)
+        self.assertEqual(cart_payload['items'][0]['source'], 'QR')
+        self.assertEqual(cart_payload['items'][0]['qty'], 2)
+
+        after_tables = self.client.get(tables_url, {'store_id': self.store_1.id}).json()['tables']
+        after_table_status = {row['id']: row['status'] for row in after_tables}[self.table_a.id]
+        self.assertEqual(after_table_status, 'occupied')
+
+    def test_js_contract_after_qr_reject_keeps_table_empty(self):
+        qr_order = self._create_pending_qr_order(
+            table=self.table_a,
+            product=self.product_a,
+            unit=self.unit_a,
+            quantity=1,
+        )
+
+        qr_orders_url = reverse('App_Sales_API:qr_orders')
+        cart_url = reverse('App_Sales_API:table_cart', kwargs={'table_id': self.table_a.id})
+        tables_url = reverse('App_Sales_API:tables')
+        reject_url = reverse('App_Sales_API:qr_order_reject', kwargs={'order_id': qr_order.id})
+
+        reject_res = self.client.post(reject_url, data='{}', content_type='application/json')
+        self.assertEqual(reject_res.status_code, 200)
+
+        pending_orders = self.client.get(qr_orders_url, {'store_id': self.store_1.id, 'status': 'pending'}).json()['orders']
+        self.assertEqual(len(pending_orders), 0)
+
+        cart_payload = self.client.get(cart_url).json()
+        self.assertEqual(cart_payload['items'], [])
+
+        table_rows = self.client.get(tables_url, {'store_id': self.store_1.id}).json()['tables']
+        table_status = {row['id']: row['status'] for row in table_rows}[self.table_a.id]
+        self.assertEqual(table_status, 'empty')
+
+    def test_js_contract_after_table_checkout_clears_cart_and_status(self):
+        add_url = reverse('App_Sales_API:table_cart_add', kwargs={'table_id': self.table_a.id})
+        add_payload = {
+            'product_id': self.product_a.id,
+            'unit_id': self.unit_a.id,
+            'quantity': 1,
+            'note': 'Không đá',
+        }
+        add_res = self.client.post(add_url, data=json.dumps(add_payload), content_type='application/json')
+        self.assertEqual(add_res.status_code, 201)
+
+        checkout_url = reverse('App_Sales_API:table_checkout', kwargs={'table_id': self.table_a.id})
+        checkout_payload = {
+            'payment_method': 'cash',
+            'tax_rate': 0,
+            'customer_paid': 50000,
+        }
+        checkout_res = self.client.post(checkout_url, data=json.dumps(checkout_payload), content_type='application/json')
+        self.assertEqual(checkout_res.status_code, 201)
+        self.assertEqual(checkout_res.json()['table_status'], 'empty')
+
+        cart_url = reverse('App_Sales_API:table_cart', kwargs={'table_id': self.table_a.id})
+        cart_payload = self.client.get(cart_url).json()
+        self.assertEqual(cart_payload['items'], [])
+
+        tables_url = reverse('App_Sales_API:tables')
+        table_rows = self.client.get(tables_url, {'store_id': self.store_1.id}).json()['tables']
+        table_status = {row['id']: row['status'] for row in table_rows}[self.table_a.id]
+        self.assertEqual(table_status, 'empty')

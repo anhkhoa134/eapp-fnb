@@ -1,3 +1,4 @@
+# python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 from argparse import BooleanOptionalAction
 from decimal import Decimal
 
@@ -134,75 +135,124 @@ class Command(BaseCommand):
                     defaults={'is_visible': True},
                 )
 
-        product_templates = {
-            'Đồ ăn': ['Cơm gà', 'Bún bò', 'Mì xào', 'Phở bò', 'Gà rán', 'Bánh mì', 'Cơm tấm', 'Xôi mặn'],
-            'Nước uống': ['Nước cam', 'Nước chanh', 'Soda', 'Trà đào', 'Sinh tố dâu', 'Nước ép thơm', 'Bạc hà đá', 'Nước dừa'],
-            'Combo': ['Combo sáng', 'Combo trưa', 'Combo tối', 'Combo gia đình', 'Combo văn phòng', 'Combo tiết kiệm', 'Combo đôi', 'Combo party'],
-            'Trà sữa': ['Trà sữa truyền thống', 'Trà sữa trân châu', 'Trà sữa khoai môn', 'Trà sữa matcha', 'Trà sữa socola', 'Trà sữa dâu', 'Trà sữa ô long', 'Trà sữa kem cheese'],
-            'Cà phê': ['Espresso', 'Americano', 'Latte', 'Cappuccino', 'Cà phê đen', 'Cà phê sữa', 'Cold brew', 'Mocha'],
-            'Tráng miệng': ['Bánh flan', 'Tiramisu', 'Panna cotta', 'Bánh mousse', 'Rau câu', 'Bánh su kem', 'Sữa chua', 'Kem ly'],
-            'Đồ chay': ['Cơm chay', 'Bún chay', 'Mì chay', 'Gỏi cuốn chay', 'Lẩu chay', 'Đậu hũ sốt', 'Nấm kho', 'Cà ri chay'],
-            'Ăn vặt': ['Khoai tây chiên', 'Cá viên chiên', 'Bắp xào', 'Phô mai que', 'Há cảo', 'Nem chua rán', 'Bánh tráng trộn', 'Xúc xích'],
-        }
+        # Seed gọn theo bộ sản phẩm mẫu có ảnh thật (Unsplash) giống mock POS.
+        product_templates = [
+            {
+                'name': 'Cà phê Sữa đá',
+                'category': 'Cà phê',
+                'image_url': 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=300&q=80',
+                'units': [('S', Decimal('29000')), ('M', Decimal('35000')), ('L', Decimal('39000'))],
+            },
+            {
+                'name': 'Trà Đào Cam Sả',
+                'category': 'Nước uống',
+                'image_url': 'https://images.unsplash.com/photo-1499638673689-79a0b5115d87?auto=format&fit=crop&w=300&q=80',
+                'units': [('M', Decimal('45000')), ('L', Decimal('55000'))],
+            },
+            {
+                'name': 'Bạc Xỉu',
+                'category': 'Cà phê',
+                'image_url': 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=300&q=80',
+                'units': [('M', Decimal('35000')), ('L', Decimal('42000'))],
+            },
+            {
+                'name': 'Trà Sữa Trân Châu',
+                'category': 'Trà sữa',
+                'image_url': 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=300&q=80',
+                'units': [('M', Decimal('50000')), ('L', Decimal('60000'))],
+            },
+            {
+                'name': 'Phở Bò Kobe',
+                'category': 'Đồ ăn',
+                'image_url': 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=300&q=80',
+                'units': [('Thường', Decimal('85000')), ('Đặc biệt', Decimal('110000'))],
+            },
+            {
+                'name': 'Bánh Mì Thịt Nướng',
+                'category': 'Đồ ăn',
+                'image_url': 'https://images.unsplash.com/photo-1509722747041-616f39b57569?auto=format&fit=crop&w=300&q=80',
+                'units': [('Thường', Decimal('25000'))],
+            },
+            {
+                'name': 'Cơm Tấm Sườn Bì',
+                'category': 'Đồ ăn',
+                'image_url': 'https://images.unsplash.com/photo-1623653387945-2fd25214f8fc?auto=format&fit=crop&w=300&q=80',
+                'units': [('Thường', Decimal('55000')), ('Đặc biệt', Decimal('75000'))],
+            },
+            {
+                'name': 'Gỏi Cuốn Tôm Thịt',
+                'category': 'Đồ ăn',
+                'image_url': 'https://images.unsplash.com/photo-1536511132770-e500deeb8e8f?auto=format&fit=crop&w=300&q=80',
+                'units': [('Phần', Decimal('30000'))],
+            },
+            {
+                'name': 'Combo Sáng Ăn Chắc',
+                'category': 'Combo',
+                'image_url': 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=300&q=80',
+                'units': [('Combo', Decimal('65000'))],
+            },
+            {
+                'name': 'Combo Trưa Vui Vẻ',
+                'category': 'Combo',
+                'image_url': 'https://images.unsplash.com/photo-1615719413546-198b25453f85?auto=format&fit=crop&w=300&q=80',
+                'units': [('Combo', Decimal('89000'))],
+            },
+        ]
+
+        curated_product_names = {row['name'] for row in product_templates}
+        Product.objects.filter(tenant=tenant).exclude(name__in=curated_product_names).update(is_active=False)
 
         product_counter = 0
         product_ids = []
-        for category_name, names in product_templates.items():
-            category = category_map[category_name]
-            for idx, base_name in enumerate(names, start=1):
-                product_counter += 1
-                product_name = f'{base_name} {idx:02d}'
-                product, _ = Product.objects.get_or_create(
-                    tenant=tenant,
-                    name=product_name,
+        for row in product_templates:
+            product_counter += 1
+            category = category_map[row['category']]
+            product_name = row['name']
+            image_url = row['image_url']
+            product, _ = Product.objects.get_or_create(
+                tenant=tenant,
+                name=product_name,
+                defaults={
+                    'category': category,
+                    'short_description': f'{product_name} chuẩn vị',
+                    'description': f'Sản phẩm {product_name}',
+                    'image_url': image_url,
+                    'is_active': True,
+                },
+            )
+            product.category = category
+            product.short_description = f'{product_name} chuẩn vị'
+            product.description = f'Sản phẩm {product_name}'
+            product.image_url = image_url
+            product.is_active = True
+            product.save()
+            product_ids.append(product.id)
+
+            unit_names = [unit_name for unit_name, _ in row['units']]
+            ProductUnit.objects.filter(product=product).exclude(name__in=unit_names).update(is_active=False)
+            for unit_order, (unit_name, unit_price) in enumerate(row['units'], start=1):
+                ProductUnit.objects.update_or_create(
+                    product=product,
+                    name=unit_name,
                     defaults={
-                        'category': category,
-                        'short_description': f'{base_name} chuẩn vị',
-                        'description': f'Sản phẩm {product_name}',
-                        'image_url': f'https://placehold.co/600x600/png?text={product_name.replace(" ", "+")}',
+                        'price': unit_price,
+                        'display_order': unit_order,
                         'is_active': True,
                     },
                 )
-                product.category = category
-                product.short_description = f'{base_name} chuẩn vị'
-                product.description = f'Sản phẩm {product_name}'
-                product.image_url = f'https://placehold.co/600x600/png?text={product_name.replace(" ", "+")}'
-                product.is_active = True
-                product.save()
-                product_ids.append(product.id)
 
-                units_seed = [
-                    ('M', Decimal(str(25000 + (product_counter % 7) * 4000))),
-                    ('L', Decimal(str(32000 + (product_counter % 7) * 4000))),
-                ]
-                if category_name in {'Đồ ăn', 'Combo', 'Đồ chay', 'Ăn vặt'}:
-                    units_seed = [
-                        ('Phần', Decimal(str(35000 + (product_counter % 8) * 5000))),
-                    ]
+            store_names = list(store_map.keys())
+            active_store_count = 1 + (product_counter % 3)
+            assigned_stores = set(store_names[:active_store_count])
+            if product_counter % 2 == 0:
+                assigned_stores.add('CN Gò Vấp')
 
-                for unit_order, (unit_name, unit_price) in enumerate(units_seed, start=1):
-                    ProductUnit.objects.update_or_create(
-                        product=product,
-                        name=unit_name,
-                        defaults={
-                            'price': unit_price,
-                            'display_order': unit_order,
-                            'is_active': True,
-                        },
-                    )
-
-                store_names = list(store_map.keys())
-                active_store_count = 1 + (product_counter % 3)
-                assigned_stores = set(store_names[:active_store_count])
-                if product_counter % 2 == 0:
-                    assigned_stores.add('CN Gò Vấp')
-
-                for store in store_map.values():
-                    StoreProduct.objects.update_or_create(
-                        store=store,
-                        product=product,
-                        defaults={'is_available': store.name in assigned_stores},
-                    )
+            for store in store_map.values():
+                StoreProduct.objects.update_or_create(
+                    store=store,
+                    product=product,
+                    defaults={'is_available': store.name in assigned_stores},
+                )
 
         for store in store_map.values():
             for idx in range(1, 13):
