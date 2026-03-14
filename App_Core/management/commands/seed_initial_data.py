@@ -182,7 +182,7 @@ class Command(BaseCommand):
             {
                 'name': 'Gỏi Cuốn Tôm Thịt',
                 'category': 'Đồ ăn',
-                'image_url': 'https://images.unsplash.com/photo-1536511132770-e500deeb8e8f?auto=format&fit=crop&w=300&q=80',
+                'image_url': 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=300&q=80',
                 'units': [('Phần', Decimal('30000'))],
             },
             {

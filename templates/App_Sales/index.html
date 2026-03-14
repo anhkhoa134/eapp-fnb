@@ -147,6 +147,40 @@
             font-weight: 600;
             color: #334155;
         }
+        .account-toggle-row {
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.88);
+            padding: 0.5rem 0.65rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+        .account-toggle-title {
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 0.86rem;
+            line-height: 1.2;
+        }
+        .account-toggle-subtitle {
+            font-size: 0.72rem;
+            color: #64748b;
+            line-height: 1.2;
+            margin-top: 2px;
+        }
+        .account-toggle-row .form-check-input {
+            cursor: pointer;
+            width: 2.2rem;
+            height: 1.2rem;
+            margin-top: 0;
+            box-shadow: none;
+            border-color: rgba(100, 116, 139, 0.5);
+        }
+        .account-toggle-row .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
         .account-menu .dropdown-item.account-action {
             border-radius: 10px;
             font-weight: 600;
@@ -613,6 +647,29 @@
                                     <option value="pink">Hồng</option>
                                 </select>
                             </li>
+                            <li class="px-3 pb-2">
+                                <div class="section-label"><i class="fa-solid fa-volume-high me-1"></i>Thông báo QR</div>
+                                <div class="d-flex flex-column gap-2">
+                                    <div class="account-toggle-row">
+                                        <div>
+                                            <div class="account-toggle-title"><i class="fa-solid fa-bell me-1 text-warning"></i>Chuông đơn mới</div>
+                                            <div class="account-toggle-subtitle">Phát tiếng chuông khi có đơn QR mới.</div>
+                                        </div>
+                                        <div class="form-check form-switch m-0">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="qrSoundToggle">
+                                        </div>
+                                    </div>
+                                    <div class="account-toggle-row">
+                                        <div>
+                                            <div class="account-toggle-title"><i class="fa-solid fa-bullhorn me-1 text-primary"></i>Giọng nói</div>
+                                            <div class="account-toggle-subtitle">Đọc thông báo bằng tiếng Việt.</div>
+                                        </div>
+                                        <div class="form-check form-switch m-0">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="qrVoiceToggle">
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
@@ -1049,6 +1106,11 @@
         const API_QR_ORDERS_URL = "{% url 'App_Sales_API:qr_orders' %}";
         const API_TABLES_BASE = '/api/pos/tables/';
         const API_QR_ORDERS_BASE = '/api/pos/qr/orders/';
+        const QR_POLL_INTERVAL_MS = 5000;
+        const QR_ALERT_COOLDOWN_MS = 2500;
+        const QR_BELL_VOLUME = 0.5;
+        const QR_SOUND_STORAGE_KEY = 'eapp_pos_qr_sound_enabled';
+        const QR_VOICE_STORAGE_KEY = 'eapp_pos_qr_voice_enabled';
 
         let currentStoreId = parseInt(document.getElementById('storeSelector')?.value || '{{ default_store_id|default:0 }}', 10) || null;
         let categories = [{ id: 'all', name: 'Tất cả' }];
@@ -1072,6 +1134,14 @@
         let currentOptionElement = null;
         let pendingSaveToTable = false;
         let currentTheme = 'green';
+        let qrPollTimer = null;
+        let qrPollInFlight = false;
+        let hasLoadedOnlineOrdersOnce = false;
+        let knownPendingQrOrderIds = new Set();
+        let lastQrAlertAt = 0;
+        let qrAudioContext = null;
+        let qrSoundEnabled = true;
+        let qrVoiceEnabled = true;
 
         const themes = {
             green: { primary: '#10b981', hover: '#059669' },
@@ -1091,14 +1161,159 @@
             .replaceAll("'", '&#39;');
         const getCurrentTable = () => tables.find((table) => table.id === currentSelectedTableId);
         const getSelectedPaymentMethod = () => document.getElementById('payment-card')?.checked ? 'card' : 'cash';
+        const getCurrentStoreName = () => {
+            const selector = document.getElementById('storeSelector');
+            if (!selector || !currentStoreId) return 'cửa hàng hiện tại';
+            const selected = selector.querySelector(`option[value="${currentStoreId}"]`);
+            return (selected?.textContent || '').trim() || 'cửa hàng hiện tại';
+        };
+        const hasMultipleStores = () => (document.getElementById('storeSelector')?.options?.length || 0) > 1;
 
         const showToast = (message, type = 'success') => {
             const toastEl = document.getElementById('actionToast');
             const toastBody = document.getElementById('toastMessage');
             toastBody.textContent = message;
-            toastEl.classList.remove('bg-success', 'bg-primary', 'bg-warning', 'bg-danger');
+            toastEl.classList.remove('bg-success', 'bg-primary', 'bg-warning', 'bg-danger', 'bg-secondary');
             toastEl.classList.add(`bg-${type}`);
             new bootstrap.Toast(toastEl, { delay: 2500 }).show();
+        };
+
+        const readStoredBoolean = (key, fallback = true) => {
+            try {
+                const raw = window.localStorage.getItem(key);
+                if (raw === null) return fallback;
+                return raw === '1' || raw === 'true';
+            } catch (error) {
+                return fallback;
+            }
+        };
+
+        const writeStoredBoolean = (key, value) => {
+            try {
+                window.localStorage.setItem(key, value ? '1' : '0');
+            } catch (error) {
+                console.warn('Cannot save setting:', key, error);
+            }
+        };
+
+        const syncQrAlertToggles = () => {
+            const soundToggle = document.getElementById('qrSoundToggle');
+            const voiceToggle = document.getElementById('qrVoiceToggle');
+            if (soundToggle) soundToggle.checked = !!qrSoundEnabled;
+            if (voiceToggle) voiceToggle.checked = !!qrVoiceEnabled;
+        };
+
+        const setQrSoundEnabled = (enabled, notify = false) => {
+            qrSoundEnabled = !!enabled;
+            writeStoredBoolean(QR_SOUND_STORAGE_KEY, qrSoundEnabled);
+            syncQrAlertToggles();
+            if (notify) {
+                showToast(qrSoundEnabled ? 'Đã bật chuông đơn QR.' : 'Đã tắt chuông đơn QR.', qrSoundEnabled ? 'success' : 'secondary');
+            }
+            if (qrSoundEnabled) {
+                unlockQrAudio();
+            }
+        };
+
+        const setQrVoiceEnabled = (enabled, notify = false) => {
+            qrVoiceEnabled = !!enabled;
+            writeStoredBoolean(QR_VOICE_STORAGE_KEY, qrVoiceEnabled);
+            syncQrAlertToggles();
+            if (!qrVoiceEnabled && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            if (notify) {
+                showToast(qrVoiceEnabled ? 'Đã bật giọng nói thông báo.' : 'Đã tắt giọng nói thông báo.', qrVoiceEnabled ? 'success' : 'secondary');
+            }
+        };
+
+        const loadQrAlertPreferences = () => {
+            qrSoundEnabled = readStoredBoolean(QR_SOUND_STORAGE_KEY, true);
+            qrVoiceEnabled = readStoredBoolean(QR_VOICE_STORAGE_KEY, true);
+            syncQrAlertToggles();
+        };
+
+        const playQrBellSound = () => {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                if (!qrAudioContext) {
+                    qrAudioContext = new AudioCtx();
+                }
+                if (qrAudioContext.state === 'suspended') {
+                    qrAudioContext.resume().catch(() => null);
+                }
+
+                const now = qrAudioContext.currentTime;
+                const tonePlan = [
+                    { freq: 880, start: 0.00, end: 0.16 },
+                    { freq: 1175, start: 0.20, end: 0.38 },
+                ];
+
+                tonePlan.forEach((tone) => {
+                    const oscillator = qrAudioContext.createOscillator();
+                    const gain = qrAudioContext.createGain();
+                    oscillator.type = 'sine';
+                    oscillator.frequency.value = tone.freq;
+                    gain.gain.setValueAtTime(0.0001, now + tone.start);
+                    gain.gain.exponentialRampToValueAtTime(QR_BELL_VOLUME, now + tone.start + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.end);
+                    oscillator.connect(gain);
+                    gain.connect(qrAudioContext.destination);
+                    oscillator.start(now + tone.start);
+                    oscillator.stop(now + tone.end + 0.02);
+                });
+            } catch (error) {
+                console.warn('Cannot play QR bell sound:', error);
+            }
+        };
+
+        const unlockQrAudio = () => {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                if (!qrAudioContext) {
+                    qrAudioContext = new AudioCtx();
+                }
+                if (qrAudioContext.state === 'suspended') {
+                    qrAudioContext.resume().catch(() => null);
+                }
+            } catch (error) {
+                console.warn('Cannot unlock QR audio:', error);
+            }
+        };
+
+        const speakQrAlert = (count, tableNames = []) => {
+            if (!('speechSynthesis' in window) || !count) return;
+            const topTables = tableNames.slice(0, 2).join(', ');
+            const remain = count - Math.min(tableNames.length, 2);
+            const tail = remain > 0 ? ` và ${remain} bàn khác` : '';
+            const tablePart = topTables ? ` từ ${topTables}${tail}` : '';
+            const utterance = new SpeechSynthesisUtterance(`Có ${count} đơn QR mới${tablePart}.`);
+            utterance.lang = 'vi-VN';
+            utterance.rate = 1;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            try {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            } catch (error) {
+                console.warn('Cannot speak QR alert:', error);
+            }
+        };
+
+        const playQrAlert = (newOrders) => {
+            if (!newOrders.length) return;
+            const now = Date.now();
+            if (now - lastQrAlertAt < QR_ALERT_COOLDOWN_MS) return;
+            lastQrAlertAt = now;
+            if (qrSoundEnabled) {
+                playQrBellSound();
+            }
+            const tableNames = newOrders.map((order) => order.table_name).filter(Boolean);
+            if (qrVoiceEnabled) {
+                speakQrAlert(newOrders.length, tableNames);
+            }
         };
 
         const getCookie = (name) => {
@@ -1265,11 +1480,16 @@
         const renderOnlineOrders = () => {
             const container = document.getElementById('online-orders-container');
             if (!onlineOrders.length) {
+                const storeName = escapeHtml(getCurrentStoreName());
+                const switchStoreHint = hasMultipleStores()
+                    ? '<p class="text-secondary small mb-0">Nếu vừa tạo đơn ở bàn cửa hàng khác, hãy đổi cửa hàng trong Account dropdown để xem đúng đơn.</p>'
+                    : '';
                 container.innerHTML = `
                     <div class="col-12 text-center py-5 mt-5">
                         <i class="fa-solid fa-box-open fa-4x text-muted opacity-25 mb-3"></i>
-                        <h5 class="text-muted fw-bold">Chưa có đơn QR nào</h5>
-                        <p class="text-secondary small">Các đơn khách tự đặt qua mã QR tại bàn sẽ xuất hiện ở đây.</p>
+                        <h5 class="text-muted fw-bold">Chưa có đơn QR chờ duyệt tại ${storeName}</h5>
+                        <p class="text-secondary small">Đơn khách gửi từ mã QR của cửa hàng này sẽ xuất hiện ở đây.</p>
+                        ${switchStoreHint}
                     </div>
                 `;
                 updateNotificationBell();
@@ -1423,8 +1643,53 @@
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId, status: 'pending' });
             const payload = await fetchJson(`${API_QR_ORDERS_URL}?${params.toString()}`);
-            onlineOrders = payload.orders || [];
+            const nextOrders = payload.orders || [];
+            if (hasLoadedOnlineOrdersOnce) {
+                const newOrders = nextOrders.filter((order) => !knownPendingQrOrderIds.has(Number(order.id)));
+                if (newOrders.length) {
+                    const topTables = newOrders.slice(0, 2).map((order) => order.table_name).filter(Boolean).join(', ');
+                    const remain = newOrders.length - 2;
+                    const tableTail = remain > 0 ? ` và ${remain} bàn khác` : '';
+                    const tablePart = topTables ? ` (${topTables}${tableTail})` : '';
+                    showToast(`Có ${newOrders.length} đơn QR mới${tablePart}.`, 'warning');
+                    playQrAlert(newOrders);
+                }
+            }
+            onlineOrders = nextOrders;
+            knownPendingQrOrderIds = new Set(nextOrders.map((order) => Number(order.id)));
+            hasLoadedOnlineOrdersOnce = true;
             renderOnlineOrders();
+        };
+
+        const resetOnlineOrdersTracking = () => {
+            hasLoadedOnlineOrdersOnce = false;
+            knownPendingQrOrderIds = new Set();
+        };
+
+        const stopQrPolling = () => {
+            if (qrPollTimer) {
+                clearInterval(qrPollTimer);
+                qrPollTimer = null;
+            }
+        };
+
+        const pollQrAndTables = async () => {
+            if (document.hidden || !currentStoreId || qrPollInFlight) return;
+            qrPollInFlight = true;
+            try {
+                await Promise.all([loadOnlineOrdersFromApi(), loadTablesFromApi()]);
+            } catch (error) {
+                console.warn('QR polling failed:', error);
+            } finally {
+                qrPollInFlight = false;
+            }
+        };
+
+        const startQrPolling = () => {
+            stopQrPolling();
+            qrPollTimer = setInterval(() => {
+                pollQrAndTables();
+            }, QR_POLL_INTERVAL_MS);
         };
 
         const findProductImage = (productId) => products.find((row) => row.id === productId)?.img || 'https://placehold.co/200x200/png?text=Product';
@@ -2052,6 +2317,7 @@
                 await loadProductsFromApi();
                 await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi()]);
                 selectTakeaway();
+                startQrPolling();
             } catch (error) {
                 showToast(error.message || 'Không tải được dữ liệu ban đầu.', 'danger');
             }
@@ -2066,6 +2332,12 @@
         document.getElementById('themeSelector')?.addEventListener('change', (event) => {
             changeTheme(event.target.value);
         });
+        document.getElementById('qrSoundToggle')?.addEventListener('change', (event) => {
+            setQrSoundEnabled(event.target.checked, true);
+        });
+        document.getElementById('qrVoiceToggle')?.addEventListener('change', (event) => {
+            setQrVoiceEnabled(event.target.checked, true);
+        });
 
         document.getElementById('storeSelector')?.addEventListener('change', async (event) => {
             currentStoreId = parseInt(event.target.value || '0', 10) || null;
@@ -2073,8 +2345,20 @@
             currentSelectedTableId = null;
             cart = [];
             takeawayCart = [];
+            resetOnlineOrdersTracking();
             await bootstrapPage();
         });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                pollQrAndTables();
+            }
+        });
+
+        window.addEventListener('beforeunload', stopQrPolling);
+        document.addEventListener('click', unlockQrAudio, { passive: true });
+        document.addEventListener('touchstart', unlockQrAudio, { passive: true });
+        document.addEventListener('keydown', unlockQrAudio);
 
         window.toggleView = toggleView;
         window.filterCategory = filterCategory;
@@ -2108,6 +2392,8 @@
 
         window.onload = () => {
             changeTheme(currentTheme);
+            loadQrAlertPreferences();
+            resetOnlineOrdersTracking();
             bootstrapPage();
         };
     </script>
