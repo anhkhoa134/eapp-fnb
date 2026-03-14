@@ -1,0 +1,851 @@
+{% extends 'App_Core/base.html' %}
+{% load static %}
+
+{% block title %}{{ tenant.name }} | Gọi món QR{% endblock %}
+{% block body_class %}qr-order-page{% endblock %}
+{% block container_class %}container-fluid px-2 px-md-3 py-3 pb-5{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qr-order-page {
+        background:
+            radial-gradient(circle at 8% 10%, rgba(16, 185, 129, 0.18), transparent 34%),
+            radial-gradient(circle at 92% 15%, rgba(14, 165, 233, 0.17), transparent 36%),
+            linear-gradient(155deg, #f8fafc 0%, #edf8ff 100%);
+        min-height: 100vh;
+    }
+    .qr-hero {
+        border-radius: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: linear-gradient(140deg, rgba(14, 165, 233, 0.95), rgba(34, 197, 94, 0.9));
+        color: #fff;
+        box-shadow: 0 14px 24px rgba(15, 23, 42, 0.16);
+    }
+    .qr-glass {
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.78);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.07);
+    }
+    .qr-title {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #0f172a;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+    .qr-title i {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(140deg, rgba(16, 185, 129, 0.16), rgba(14, 165, 233, 0.18));
+    }
+    .qr-filter-btn {
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(255, 255, 255, 0.92);
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #334155;
+        padding: 0.34rem 0.72rem;
+    }
+    .qr-filter-btn.active {
+        color: #fff;
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        border-color: transparent;
+    }
+    .qr-product-card {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: #fff;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+        height: 100%;
+    }
+    .qr-product-card img {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+    }
+    .qr-product-name {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .qr-product-category {
+        font-size: 0.72rem;
+        color: #0369a1;
+        background: rgba(14, 165, 233, 0.12);
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0.18rem 0.58rem;
+    }
+    .qr-cart-item {
+        border: 1px dashed rgba(148, 163, 184, 0.36);
+        border-radius: 12px;
+        background: rgba(248, 250, 252, 0.85);
+    }
+    .qr-qty-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(100, 116, 139, 0.45);
+        background: #fff;
+        color: #0f172a;
+    }
+    .qr-order-status-pill {
+        border-radius: 999px;
+        padding: 0.25rem 0.65rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    .qr-order-status-pill.pending {
+        background: rgba(234, 179, 8, 0.16);
+        color: #854d0e;
+    }
+    .qr-order-status-pill.approved {
+        background: rgba(16, 185, 129, 0.16);
+        color: #065f46;
+    }
+    .qr-order-status-pill.rejected,
+    .qr-order-status-pill.cancelled {
+        background: rgba(244, 63, 94, 0.14);
+        color: #9f1239;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{{ qr_bootstrap_data|json_script:"qr-bootstrap-data" }}
+
+<div class="qr-hero p-3 p-md-4 mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <h1 class="h5 fw-bold mb-1">{{ tenant.name }} - Gọi món QR</h1>
+            {% if table %}
+            <div class="small opacity-75">{{ table.store.name }} | {{ table.name }} ({{ table.code }})</div>
+            {% else %}
+            <div class="small opacity-75">Luồng gọi món cho khách tại bàn</div>
+            {% endif %}
+        </div>
+        <span class="badge text-bg-light border px-3 py-2 text-dark">
+            <i class="bi bi-phone me-1"></i>Mobile-first
+        </span>
+    </div>
+</div>
+
+{% if qr_error %}
+<div class="qr-glass p-4 text-center">
+    <i class="bi bi-exclamation-octagon fs-1 text-danger d-block mb-2"></i>
+    <h2 class="h6 fw-bold">Không thể mở bàn QR</h2>
+    <p class="text-muted mb-3">{{ qr_error }}</p>
+    <a href="{% url 'App_Public:tenant_catalog' public_slug=tenant.public_slug %}" class="btn btn-primary">
+        <i class="bi bi-card-list me-1"></i>Xem menu công khai
+    </a>
+</div>
+{% else %}
+<div class="row g-3">
+    <div class="col-12 col-lg-7">
+        <div class="qr-glass p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <h2 class="qr-title mb-0"><i class="bi bi-receipt"></i>Trạng thái đơn hiện tại</h2>
+                <small class="text-muted">Tự cập nhật mỗi 5 giây</small>
+            </div>
+            <div id="order-status-panel" class="small text-muted">Đang tải trạng thái...</div>
+        </div>
+
+        <div class="qr-glass p-3 mb-3">
+            <h2 class="qr-title mb-2"><i class="bi bi-funnel"></i>Tìm món nhanh</h2>
+            <input id="qr-search-input" class="form-control mb-2" placeholder="Tìm món theo tên...">
+            <div id="qr-category-filters" class="d-flex flex-wrap gap-2"></div>
+        </div>
+
+        <div id="qr-products" class="row g-3"></div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+        <div class="qr-glass p-3 position-sticky" style="top: 82px;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="qr-title mb-0"><i class="bi bi-cart3"></i>Giỏ tạm</h2>
+                <span id="cart-item-count" class="badge rounded-pill text-bg-light border">0 món</span>
+            </div>
+            <div id="qr-cart-items" class="d-flex flex-column gap-2 mb-3">
+                <div class="text-muted small">Chưa có món trong giỏ.</div>
+            </div>
+            <div class="mb-2">
+                <label class="form-label small text-muted mb-1">Ghi chú cho cả đơn</label>
+                <textarea id="qr-order-note" class="form-control" rows="2" placeholder="Ví dụ: vui lòng lên món trước 2 ly nước..."></textarea>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted">Tổng tạm tính</span>
+                <span id="cart-total" class="fw-bold fs-5 text-danger">0 đ</span>
+            </div>
+            <button id="btn-submit-order" class="btn btn-primary w-100 fw-bold" type="button">
+                <i class="bi bi-send me-1"></i>Gửi đơn QR
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="optionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="option-modal-name">Chọn món</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted mb-1">Kích thước</label>
+                    <div id="option-units" class="d-flex flex-column gap-2"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted mb-1">Topping</label>
+                    <div id="option-toppings" class="d-flex flex-column gap-2"></div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted mb-1">Ghi chú món</label>
+                    <textarea id="option-note" class="form-control" rows="2" placeholder="Ví dụ: ít đá, ít ngọt..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <span id="option-price-preview" class="fw-bold text-danger">0 đ</span>
+                <button type="button" class="btn btn-primary" id="btn-confirm-option">Thêm vào giỏ</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body p-4 text-center">
+                <div class="bg-warning-subtle rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:56px;height:56px;">
+                    <i class="bi bi-exclamation-triangle text-warning fs-3"></i>
+                </div>
+                <h6 class="fw-bold mb-2">Xác nhận hủy đơn</h6>
+                <p class="text-muted small mb-4">Bạn muốn hủy đơn QR đang chờ duyệt?</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-light w-50" data-bs-dismiss="modal">Không</button>
+                    <button type="button" class="btn btn-danger w-50" id="btn-confirm-cancel">Hủy đơn</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if not qr_error %}
+<script>
+(() => {
+    const data = JSON.parse(document.getElementById('qr-bootstrap-data').textContent || '{}');
+    const products = data.products || [];
+    const categories = data.categories || [{ id: 'all', name: 'Tất cả' }];
+    const tableCode = data.table_code || '';
+    const token = data.token || '';
+    const tenantSlug = data.tenant_slug || '';
+    const API_CREATE_URL = "{% url 'App_Public_API:qr_orders_create' %}";
+    const API_ORDER_BASE = '/api/public/qr/orders/';
+
+    const localStorageKey = `eapp_qr_active_order::${tenantSlug}::${tableCode}`;
+
+    let currentFilter = 'all';
+    let searchTerm = '';
+    let cart = [];
+    let activeOrder = null;
+    let editingPendingOrder = false;
+    let currentOptionProduct = null;
+    let optionModalInstance = null;
+    let cancelModalInstance = null;
+
+    const formatCurrency = (value) => `${new Intl.NumberFormat('vi-VN').format(Number(value || 0))} đ`;
+
+    const escapeHtml = (value) => {
+        const div = document.createElement('div');
+        div.textContent = value || '';
+        return div.innerHTML;
+    };
+
+    const showToast = (message, tone = 'primary') => {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-bg-${tone} border-0`;
+        toast.role = 'alert';
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${escapeHtml(message)}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        container.appendChild(toast);
+        const instance = bootstrap.Toast.getOrCreateInstance(toast, { delay: 2300 });
+        instance.show();
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    };
+
+    const requestJson = async (url, options = {}) => {
+        const response = await fetch(url, {
+            method: options.method || 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            body: options.payload ? JSON.stringify(options.payload) : undefined,
+        });
+        let data = {};
+        try {
+            data = await response.json();
+        } catch (_) {
+            data = {};
+        }
+        if (!response.ok) {
+            const error = new Error(data.detail || 'Có lỗi xảy ra khi xử lý yêu cầu.');
+            error.status = response.status;
+            throw error;
+        }
+        return data;
+    };
+
+    const saveActiveOrderId = (orderId) => {
+        if (!orderId) return;
+        localStorage.setItem(localStorageKey, String(orderId));
+    };
+
+    const clearActiveOrderId = () => {
+        localStorage.removeItem(localStorageKey);
+    };
+
+    const getActiveOrderId = () => {
+        const raw = localStorage.getItem(localStorageKey);
+        if (!raw) return null;
+        const parsed = parseInt(raw, 10);
+        return Number.isInteger(parsed) ? parsed : null;
+    };
+
+    const getProductById = (productId) => products.find((item) => item.id === productId);
+
+    const itemKey = (item) => {
+        const topIds = [...(item.topping_ids || [])].sort((a, b) => a - b).join('-');
+        return `${item.product_id}:${item.unit_id}:${topIds}:${(item.note || '').trim()}`;
+    };
+
+    const canCompose = () => {
+        if (!activeOrder) return true;
+        return activeOrder.status === 'PENDING' && editingPendingOrder;
+    };
+
+    const cartTotals = () => {
+        let qty = 0;
+        let total = 0;
+        for (const item of cart) {
+            qty += item.quantity;
+            total += item.unit_price * item.quantity;
+        }
+        return { qty, total };
+    };
+
+    const renderCategories = () => {
+        const container = document.getElementById('qr-category-filters');
+        container.innerHTML = '';
+        for (const category of categories) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `qr-filter-btn ${currentFilter === category.id ? 'active' : ''}`;
+            btn.textContent = category.name;
+            btn.onclick = () => {
+                currentFilter = category.id;
+                renderCategories();
+                renderProducts();
+            };
+            container.appendChild(btn);
+        }
+    };
+
+    const filteredProducts = () => {
+        return products.filter((product) => {
+            const byCategory = currentFilter === 'all' || product.category_id === currentFilter;
+            const bySearch = !searchTerm || product.name.toLowerCase().includes(searchTerm.toLowerCase());
+            return byCategory && bySearch;
+        });
+    };
+
+    const renderProducts = () => {
+        const container = document.getElementById('qr-products');
+        const rows = filteredProducts();
+        container.innerHTML = '';
+
+        if (!rows.length) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="qr-glass p-4 text-center text-muted">
+                        <i class="bi bi-inboxes fs-1 d-block mb-2"></i>
+                        Không có món phù hợp.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const locked = !canCompose();
+        rows.forEach((product) => {
+            container.insertAdjacentHTML('beforeend', `
+                <div class="col-6 col-md-4">
+                    <div class="qr-product-card">
+                        <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">
+                        <div class="p-2 p-md-3">
+                            <div class="qr-product-name text-truncate mb-1" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</div>
+                            <div class="mb-2"><span class="qr-product-category">${escapeHtml(product.category_name || 'Khác')}</span></div>
+                            <div class="fw-bold text-danger mb-2">Từ ${formatCurrency(product.base_price)}</div>
+                            <button type="button" class="btn btn-primary btn-sm w-100 ${locked ? 'disabled' : ''}" ${locked ? 'disabled' : ''} onclick="openOptionModal(${product.id})">
+                                <i class="bi bi-plus-circle me-1"></i>Chọn món
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `);
+        });
+    };
+
+    const renderCart = () => {
+        const container = document.getElementById('qr-cart-items');
+        const locked = !canCompose();
+        container.innerHTML = '';
+
+        if (!cart.length) {
+            container.innerHTML = '<div class="text-muted small">Chưa có món trong giỏ.</div>';
+        }
+
+        cart.forEach((item, index) => {
+            const toppingText = (item.toppings || []).map((top) => `${top.name} (+${formatCurrency(top.price)})`).join(', ');
+            const disableAttrs = locked ? 'disabled' : '';
+            container.insertAdjacentHTML('beforeend', `
+                <div class="qr-cart-item p-2">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="fw-semibold">${escapeHtml(item.name)}</div>
+                            <div><span class="badge text-bg-secondary">${escapeHtml(item.unit_name)}</span></div>
+                            ${toppingText ? `<div class="small text-muted mt-1"><i class="bi bi-plus-circle me-1"></i>${escapeHtml(toppingText)}</div>` : ''}
+                            ${item.note ? `<div class="small text-muted fst-italic mt-1"><i class="bi bi-chat-left-text me-1"></i>${escapeHtml(item.note)}</div>` : ''}
+                        </div>
+                        <button class="btn btn-sm text-danger" ${disableAttrs} onclick="removeCartItem(${index})"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mt-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="qr-qty-btn" ${disableAttrs} onclick="changeQty(${index}, -1)"><i class="bi bi-dash"></i></button>
+                            <span class="fw-semibold">${item.quantity}</span>
+                            <button class="qr-qty-btn" ${disableAttrs} onclick="changeQty(${index}, 1)"><i class="bi bi-plus"></i></button>
+                        </div>
+                        <div class="fw-bold text-danger">${formatCurrency(item.unit_price * item.quantity)}</div>
+                    </div>
+                </div>
+            `);
+        });
+
+        const totals = cartTotals();
+        document.getElementById('cart-item-count').textContent = `${totals.qty} món`;
+        document.getElementById('cart-total').textContent = formatCurrency(totals.total);
+
+        const submitBtn = document.getElementById('btn-submit-order');
+        submitBtn.disabled = !cart.length || locked;
+        submitBtn.innerHTML = editingPendingOrder
+            ? '<i class="bi bi-arrow-repeat me-1"></i>Cập nhật đơn QR'
+            : '<i class="bi bi-send me-1"></i>Gửi đơn QR';
+    };
+
+    const statusLabel = (status) => {
+        if (status === 'PENDING') return 'Chờ duyệt';
+        if (status === 'APPROVED') return 'Đã duyệt';
+        if (status === 'REJECTED') return 'Nhân viên từ chối';
+        if (status === 'CANCELLED') return 'Đã hủy';
+        return status;
+    };
+
+    const renderStatus = () => {
+        const panel = document.getElementById('order-status-panel');
+        if (!activeOrder) {
+            panel.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="text-muted">Bạn chưa gửi đơn QR nào cho bàn này.</div>
+                    <span class="badge text-bg-light border">Sẵn sàng gọi món</span>
+                </div>
+            `;
+            return;
+        }
+
+        const statusClass = activeOrder.status.toLowerCase();
+        const actionButtons = activeOrder.status === 'PENDING'
+            ? `
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button class="btn btn-sm btn-primary ${editingPendingOrder ? 'disabled' : ''}" ${editingPendingOrder ? 'disabled' : ''} onclick="editPendingOrder()">
+                        <i class="bi bi-pencil-square me-1"></i>Sửa đơn
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="openCancelOrderModal()">
+                        <i class="bi bi-x-octagon me-1"></i>Hủy đơn
+                    </button>
+                </div>
+            `
+            : `
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button class="btn btn-sm btn-primary" onclick="startNewOrder()">
+                        <i class="bi bi-plus-circle me-1"></i>Tạo đơn mới
+                    </button>
+                </div>
+            `;
+
+        panel.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div>
+                    <div class="fw-semibold">Mã đơn #${activeOrder.id}</div>
+                    <div class="small text-muted">Tạo lúc ${activeOrder.time} - Tổng ${formatCurrency(activeOrder.total)}</div>
+                    ${activeOrder.customer_note ? `<div class="small text-muted fst-italic mt-1"><i class="bi bi-chat-left-text me-1"></i>${escapeHtml(activeOrder.customer_note)}</div>` : ''}
+                </div>
+                <span class="qr-order-status-pill ${statusClass}"><i class="bi bi-dot"></i>${statusLabel(activeOrder.status)}</span>
+            </div>
+            ${actionButtons}
+        `;
+    };
+
+    const syncUi = () => {
+        renderStatus();
+        renderCategories();
+        renderProducts();
+        renderCart();
+    };
+
+    const openOptionModal = (productId) => {
+        if (!canCompose()) {
+            showToast('Đơn hiện tại đang khóa chỉnh sửa.', 'warning');
+            return;
+        }
+
+        currentOptionProduct = getProductById(productId);
+        if (!currentOptionProduct) return;
+
+        document.getElementById('option-modal-name').textContent = currentOptionProduct.name;
+        document.getElementById('option-note').value = '';
+
+        const unitsEl = document.getElementById('option-units');
+        unitsEl.innerHTML = '';
+        currentOptionProduct.units.forEach((unit, index) => {
+            const unitId = `option-unit-${currentOptionProduct.id}-${unit.id}`;
+            unitsEl.insertAdjacentHTML('beforeend', `
+                <label class="form-check border rounded-3 px-2 py-2 mb-0">
+                    <input class="form-check-input" type="radio" name="option-unit" value="${unit.id}" ${index === 0 ? 'checked' : ''} onchange="updateOptionPreview()">
+                    <span class="ms-1">${escapeHtml(unit.name)} - <strong>${formatCurrency(unit.price)}</strong></span>
+                </label>
+            `);
+        });
+
+        const toppingsEl = document.getElementById('option-toppings');
+        toppingsEl.innerHTML = '';
+        if (!currentOptionProduct.toppings.length) {
+            toppingsEl.innerHTML = '<div class="text-muted small">Món này không có topping.</div>';
+        } else {
+            currentOptionProduct.toppings.forEach((top) => {
+                toppingsEl.insertAdjacentHTML('beforeend', `
+                    <label class="form-check border rounded-3 px-2 py-2 mb-0">
+                        <input class="form-check-input" type="checkbox" name="option-topping" value="${top.id}" onchange="updateOptionPreview()">
+                        <span class="ms-1">${escapeHtml(top.name)} (+${formatCurrency(top.price)})</span>
+                    </label>
+                `);
+            });
+        }
+
+        updateOptionPreview();
+        if (!optionModalInstance) {
+            optionModalInstance = new bootstrap.Modal(document.getElementById('optionModal'));
+        }
+        optionModalInstance.show();
+    };
+
+    const currentSelection = () => {
+        const unitId = Number(document.querySelector('input[name="option-unit"]:checked')?.value || 0);
+        const selectedUnit = (currentOptionProduct?.units || []).find((unit) => unit.id === unitId) || currentOptionProduct?.units?.[0];
+
+        const toppingIds = Array.from(document.querySelectorAll('input[name="option-topping"]:checked'))
+            .map((el) => Number(el.value));
+        const selectedToppings = (currentOptionProduct?.toppings || []).filter((top) => toppingIds.includes(top.id));
+
+        return {
+            selectedUnit,
+            selectedToppings,
+            note: (document.getElementById('option-note').value || '').trim(),
+        };
+    };
+
+    const updateOptionPreview = () => {
+        if (!currentOptionProduct) return;
+        const { selectedUnit, selectedToppings } = currentSelection();
+        const base = Number(selectedUnit?.price || 0);
+        const toppingTotal = selectedToppings.reduce((sum, top) => sum + Number(top.price || 0), 0);
+        document.getElementById('option-price-preview').textContent = formatCurrency(base + toppingTotal);
+    };
+
+    const addCurrentSelectionToCart = () => {
+        if (!currentOptionProduct) return;
+
+        const { selectedUnit, selectedToppings, note } = currentSelection();
+        if (!selectedUnit) {
+            showToast('Vui lòng chọn kích thước.', 'warning');
+            return;
+        }
+
+        const item = {
+            product_id: currentOptionProduct.id,
+            unit_id: selectedUnit.id,
+            name: currentOptionProduct.name,
+            image: currentOptionProduct.image,
+            unit_name: selectedUnit.name,
+            unit_price: Number(selectedUnit.price) + selectedToppings.reduce((sum, top) => sum + Number(top.price || 0), 0),
+            quantity: 1,
+            note,
+            toppings: selectedToppings,
+            topping_ids: selectedToppings.map((top) => top.id),
+        };
+
+        const key = itemKey(item);
+        const idx = cart.findIndex((row) => itemKey(row) === key);
+        if (idx >= 0) {
+            cart[idx].quantity += 1;
+        } else {
+            cart.push(item);
+        }
+
+        if (optionModalInstance) optionModalInstance.hide();
+        renderCart();
+        showToast('Đã thêm món vào giỏ.', 'success');
+    };
+
+    const changeQty = (index, delta) => {
+        if (!canCompose()) return;
+        const row = cart[index];
+        if (!row) return;
+        row.quantity += delta;
+        if (row.quantity <= 0) {
+            cart.splice(index, 1);
+        }
+        renderCart();
+    };
+
+    const removeCartItem = (index) => {
+        if (!canCompose()) return;
+        cart.splice(index, 1);
+        renderCart();
+    };
+
+    const setActiveOrder = (order, { fromPolling = false } = {}) => {
+        const prevStatus = activeOrder?.status;
+        activeOrder = order || null;
+
+        if (activeOrder?.id) {
+            saveActiveOrderId(activeOrder.id);
+        }
+
+        if (fromPolling && prevStatus === 'PENDING' && activeOrder && activeOrder.status !== 'PENDING') {
+            editingPendingOrder = false;
+            cart = [];
+            showToast(`Đơn #${activeOrder.id} đã chuyển trạng thái: ${statusLabel(activeOrder.status)}.`, 'info');
+        }
+
+        if (activeOrder && activeOrder.status !== 'PENDING') {
+            editingPendingOrder = false;
+            cart = [];
+        }
+
+        syncUi();
+    };
+
+    const fetchOrderDetail = async (orderId, { fromPolling = false } = {}) => {
+        const params = new URLSearchParams({ table_code: tableCode, token });
+        const url = `${API_ORDER_BASE}${orderId}/?${params.toString()}`;
+        try {
+            const response = await requestJson(url);
+            setActiveOrder(response.order, { fromPolling });
+            return response.order;
+        } catch (error) {
+            if ([403, 404].includes(error.status)) {
+                clearActiveOrderId();
+                activeOrder = null;
+                editingPendingOrder = false;
+                cart = [];
+                syncUi();
+                if (!fromPolling) {
+                    showToast('Không tìm thấy đơn QR phù hợp với bàn hiện tại.', 'warning');
+                }
+                return null;
+            }
+            throw error;
+        }
+    };
+
+        const submitOrder = async () => {
+        if (!canCompose()) {
+            showToast('Đơn hiện tại đang khóa chỉnh sửa.', 'warning');
+            return;
+        }
+        if (!cart.length) {
+            showToast('Giỏ tạm đang trống.', 'warning');
+            return;
+        }
+
+        const payload = {
+            table_code: tableCode,
+            token,
+            note: (document.getElementById('qr-order-note').value || '').trim(),
+            items: cart.map((item) => ({
+                product_id: item.product_id,
+                unit_id: item.unit_id,
+                quantity: item.quantity,
+                note: item.note || '',
+                topping_ids: item.topping_ids || [],
+            })),
+        };
+
+            try {
+                let response;
+                if (editingPendingOrder && activeOrder?.status === 'PENDING') {
+                    response = await requestJson(`${API_ORDER_BASE}${activeOrder.id}/`, {
+                    method: 'PATCH',
+                    payload,
+                });
+                showToast('Đã cập nhật đơn QR.', 'success');
+            } else {
+                response = await requestJson(API_CREATE_URL, {
+                    method: 'POST',
+                    payload,
+                });
+                    showToast('Đã gửi đơn QR thành công.', 'success');
+                }
+
+                editingPendingOrder = false;
+                cart = [];
+                const order = response.order || null;
+                if (order) {
+                    setActiveOrder(order);
+                } else if (response.qr_order_id) {
+                    await fetchOrderDetail(response.qr_order_id);
+                } else {
+                    syncUi();
+                }
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        };
+
+    const editPendingOrder = () => {
+        if (!activeOrder || activeOrder.status !== 'PENDING') return;
+
+        cart = (activeOrder.items || []).map((item) => {
+            const product = getProductById(item.product_id);
+            return {
+                product_id: item.product_id,
+                unit_id: item.unit_id,
+                name: item.name,
+                image: product?.image || 'https://placehold.co/600x600/png?text=Product',
+                unit_name: item.size,
+                unit_price: Number(item.price || 0),
+                quantity: Number(item.qty || 1),
+                note: item.note || '',
+                toppings: (item.toppings || []).map((top) => ({ id: top.id, name: top.name, price: Number(top.price || 0) })),
+                topping_ids: (item.topping_ids || []).map((id) => Number(id)),
+            };
+        });
+
+        document.getElementById('qr-order-note').value = activeOrder.customer_note || '';
+        editingPendingOrder = true;
+        syncUi();
+        showToast('Đang chỉnh sửa đơn chờ duyệt.', 'primary');
+    };
+
+    const openCancelOrderModal = () => {
+        if (!activeOrder || activeOrder.status !== 'PENDING') return;
+        if (!cancelModalInstance) {
+            cancelModalInstance = new bootstrap.Modal(document.getElementById('cancelOrderModal'));
+        }
+        cancelModalInstance.show();
+    };
+
+    const cancelPendingOrder = async () => {
+        if (!activeOrder || activeOrder.status !== 'PENDING') return;
+        try {
+            const response = await requestJson(`${API_ORDER_BASE}${activeOrder.id}/cancel/`, {
+                method: 'POST',
+                payload: {
+                    table_code: tableCode,
+                    token,
+                },
+            });
+            if (cancelModalInstance) cancelModalInstance.hide();
+            setActiveOrder(response.order || null);
+            showToast('Đã hủy đơn QR.', 'warning');
+        } catch (error) {
+            showToast(error.message, 'danger');
+        }
+    };
+
+    const startNewOrder = () => {
+        clearActiveOrderId();
+        activeOrder = null;
+        editingPendingOrder = false;
+        cart = [];
+        document.getElementById('qr-order-note').value = '';
+        syncUi();
+        showToast('Bạn có thể tạo đơn QR mới.', 'primary');
+    };
+
+    const bootstrapPage = async () => {
+        syncUi();
+
+        const existingOrderId = getActiveOrderId();
+        if (existingOrderId) {
+            try {
+                await fetchOrderDetail(existingOrderId);
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        setInterval(async () => {
+            const orderId = getActiveOrderId();
+            if (!orderId) return;
+            try {
+                await fetchOrderDetail(orderId, { fromPolling: true });
+            } catch (error) {
+                // keep polling silent for transient failures
+            }
+        }, 5000);
+    };
+
+    document.getElementById('qr-search-input').addEventListener('input', (event) => {
+        searchTerm = event.target.value || '';
+        renderProducts();
+    });
+    document.getElementById('btn-submit-order').addEventListener('click', submitOrder);
+    document.getElementById('btn-confirm-option').addEventListener('click', addCurrentSelectionToCart);
+    document.getElementById('btn-confirm-cancel').addEventListener('click', cancelPendingOrder);
+
+    window.openOptionModal = openOptionModal;
+    window.updateOptionPreview = updateOptionPreview;
+    window.changeQty = changeQty;
+    window.removeCartItem = removeCartItem;
+    window.editPendingOrder = editPendingOrder;
+    window.openCancelOrderModal = openCancelOrderModal;
+    window.startNewOrder = startNewOrder;
+
+    bootstrapPage();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
-from App_Sales.models import Order, OrderItem, OrderItemTopping
+from App_Sales.models import DiningTable, Order, OrderItem, OrderItemTopping
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -36,12 +36,14 @@ class QuanlyPermissionTests(TestCase):
         res = self.client.get(reverse('App_Quanly:dashboard'))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(self.client.get(reverse('App_Quanly:orders')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('App_Quanly:qr_tables')).status_code, 200)
 
     def test_staff_cannot_access_dashboard(self):
         self.client.login(username='staff_demo', password='123456')
         res = self.client.get(reverse('App_Quanly:dashboard'))
         self.assertEqual(res.status_code, 403)
         self.assertEqual(self.client.get(reverse('App_Quanly:orders')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Quanly:qr_tables')).status_code, 403)
 
     def test_manager_can_access_topping_crud_pages(self):
         self.client.login(username='manager_demo', password='123456')
@@ -282,3 +284,102 @@ class QuanlyToppingUnifiedFormTests(TestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertIn('Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.', res.content.decode('utf-8'))
+
+
+class QuanlyQrTableCrudTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='Tenant QR Table', public_slug='tenant-qr-table')
+        self.store_1 = Store.objects.create(tenant=self.tenant, name='Store QR 1', is_default=True)
+        self.store_2 = Store.objects.create(tenant=self.tenant, name='Store QR 2', is_default=False)
+        self.manager = User.objects.create_user(
+            username='manager_qr_table',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.MANAGER,
+        )
+        UserStoreAccess.objects.create(user=self.manager, store=self.store_1, is_default=True)
+
+        self.table = DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            code='A-01',
+            name='Bàn A-01',
+            is_active=True,
+            display_order=1,
+        )
+
+    def test_qr_table_list_and_create(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        res = self.client.get(reverse('App_Quanly:qr_tables'))
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('Quản lý QR bàn', res.content.decode('utf-8'))
+
+        post_res = self.client.post(
+            reverse('App_Quanly:qr_tables'),
+            data={
+                'store': str(self.store_2.id),
+                'code': 'b-02',
+                'name': 'Bàn B-02',
+                'display_order': 2,
+                'is_active': 'on',
+            },
+        )
+        self.assertEqual(post_res.status_code, 302)
+        created = DiningTable.objects.get(tenant=self.tenant, store=self.store_2, code='B-02')
+        self.assertEqual(created.name, 'Bàn B-02')
+
+    def test_qr_table_edit(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        res = self.client.post(
+            reverse('App_Quanly:qr_table_edit', kwargs={'pk': self.table.id}),
+            data={
+                'store': str(self.store_1.id),
+                'code': 'a-09',
+                'name': 'Bàn VIP 09',
+                'display_order': 9,
+                'is_active': 'on',
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.code, 'A-09')
+        self.assertEqual(self.table.name, 'Bàn VIP 09')
+        self.assertEqual(self.table.display_order, 9)
+
+    def test_qr_table_reset_token(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        old_token = self.table.qr_token
+        res = self.client.post(reverse('App_Quanly:qr_table_reset_token', kwargs={'pk': self.table.id}))
+        self.assertEqual(res.status_code, 302)
+        self.table.refresh_from_db()
+        self.assertNotEqual(old_token, self.table.qr_token)
+
+    def test_qr_table_delete(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        res = self.client.post(reverse('App_Quanly:qr_table_delete', kwargs={'pk': self.table.id}))
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(DiningTable.objects.filter(pk=self.table.id).exists())
+
+    def test_qr_table_png_download(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        res = self.client.get(reverse('App_Quanly:qr_table_png', kwargs={'pk': self.table.id}))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'image/png')
+        content = b''.join(res.streaming_content)
+        self.assertTrue(content.startswith(b'\x89PNG'))
+
+    def test_qr_table_print_pdf_by_store(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            code='A-02',
+            name='Bàn A-02',
+            is_active=True,
+            display_order=2,
+        )
+        res = self.client.get(reverse('App_Quanly:qr_tables_print_pdf'), {'store': self.store_1.id})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'application/pdf')
+        content = b''.join(res.streaming_content)
+        self.assertTrue(content.startswith(b'%PDF'))

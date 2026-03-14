@@ -22,6 +22,12 @@ urlpatterns = [
     path('product-toppings/', views.product_topping_list_create, name='product_toppings'),
     path('product-toppings/<int:pk>/edit/', views.product_topping_edit, name='product_topping_edit'),
     path('product-toppings/<int:pk>/delete/', views.product_topping_delete, name='product_topping_delete'),
+    path('qr-tables/', views.qr_table_list_create, name='qr_tables'),
+    path('qr-tables/<int:pk>/edit/', views.qr_table_edit, name='qr_table_edit'),
+    path('qr-tables/<int:pk>/delete/', views.qr_table_delete, name='qr_table_delete'),
+    path('qr-tables/<int:pk>/reset-token/', views.qr_table_reset_token, name='qr_table_reset_token'),
+    path('qr-tables/<int:pk>/png/', views.qr_table_png, name='qr_table_png'),
+    path('qr-tables/print-pdf/', views.qr_tables_store_pdf, name='qr_tables_print_pdf'),
     path('staffs/', views.staff_list_create, name='staffs'),
     path('staffs/<int:pk>/password/', views.staff_password_reset, name='staff_password_reset'),
 ]

@@ -31,6 +31,25 @@ class RoutingAndPublicTests(TestCase):
         res = self.client.get(reverse('App_Public:tenant_catalog', kwargs={'public_slug': 'demo'}))
         self.assertEqual(res.status_code, 200)
 
+    def test_public_qr_route_works(self):
+        table = DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store,
+            code='QR-DEMO',
+            name='Bàn Demo',
+            qr_token='demo-token',
+            is_active=True,
+            display_order=1,
+        )
+        res = self.client.get(
+            reverse('App_Public:tenant_qr_ordering', kwargs={'public_slug': 'demo'}),
+            {'table_code': table.code, 'token': table.qr_token},
+        )
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('Gọi món QR', html)
+        self.assertIn('qr-bootstrap-data', html)
+
     def test_root_after_login_renders_pos(self):
         self.client.login(username='staff_demo', password='123456')
         res = self.client.get(reverse('App_Sales:pos'))
@@ -71,12 +90,12 @@ class PublicQrApiTests(TestCase):
             display_order=1,
         )
 
-    def test_public_qr_create_pending_order_success(self):
+    def _create_pending_order(self, note='Gọi thêm đá riêng'):
         url = reverse('App_Public_API:qr_orders_create')
         payload = {
-            'table_code': 'qr-01',
-            'token': 'token-qr-01',
-            'note': 'Gọi thêm đá riêng',
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'note': note,
             'items': [
                 {
                     'product_id': self.product.id,
@@ -89,9 +108,14 @@ class PublicQrApiTests(TestCase):
         }
         res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
         self.assertEqual(res.status_code, 201)
+        return res.json()['qr_order_id']
+
+    def test_public_qr_create_pending_order_success(self):
+        order_id = self._create_pending_order()
         self.assertEqual(QROrder.objects.count(), 1)
 
         order = QROrder.objects.prefetch_related('items').first()
+        self.assertEqual(order.id, order_id)
         self.assertEqual(order.status, QROrder.Status.PENDING)
         self.assertEqual(order.table_id, self.table.id)
         self.assertEqual(order.items.count(), 1)
@@ -134,6 +158,88 @@ class PublicQrApiTests(TestCase):
         res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
         self.assertEqual(res.status_code, 400)
         self.assertEqual(QROrder.objects.count(), 0)
+
+    def test_public_qr_get_order_detail_success(self):
+        order_id = self._create_pending_order()
+        url = reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': order_id})
+        res = self.client.get(url, {'table_code': self.table.code, 'token': self.table.qr_token})
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()['order']
+        self.assertEqual(payload['id'], order_id)
+        self.assertEqual(payload['status'], QROrder.Status.PENDING)
+        self.assertEqual(len(payload['items']), 1)
+        self.assertEqual(payload['items'][0]['qty'], 2)
+
+    def test_public_qr_get_order_detail_wrong_token_returns_403(self):
+        order_id = self._create_pending_order()
+        url = reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': order_id})
+        res = self.client.get(url, {'table_code': self.table.code, 'token': 'wrong-token'})
+        self.assertEqual(res.status_code, 403)
+
+    def test_public_qr_patch_pending_order_success(self):
+        order_id = self._create_pending_order()
+        url = reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': order_id})
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'note': 'Đổi ghi chú đơn',
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                    'note': 'Không đá',
+                    'topping_ids': [],
+                }
+            ],
+        }
+        res = self.client.patch(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        body = res.json()['order']
+        self.assertEqual(body['status'], QROrder.Status.PENDING)
+        self.assertEqual(body['customer_note'], 'Đổi ghi chú đơn')
+        self.assertEqual(body['items'][0]['qty'], 1)
+        self.assertEqual(body['items'][0]['topping_ids'], [])
+
+    def test_public_qr_patch_terminal_order_returns_400(self):
+        order_id = self._create_pending_order()
+        QROrder.objects.filter(id=order_id).update(status=QROrder.Status.APPROVED)
+
+        url = reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': order_id})
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                }
+            ],
+        }
+        res = self.client.patch(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_public_qr_cancel_pending_success_and_idempotent(self):
+        order_id = self._create_pending_order()
+        url = reverse('App_Public_API:qr_orders_cancel', kwargs={'order_id': order_id})
+        payload = {'table_code': self.table.code, 'token': self.table.qr_token}
+
+        first = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.json()['order']['status'], QROrder.Status.CANCELLED)
+
+        second = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()['order']['status'], QROrder.Status.CANCELLED)
+
+    def test_public_qr_cancel_approved_order_returns_400(self):
+        order_id = self._create_pending_order()
+        QROrder.objects.filter(id=order_id).update(status=QROrder.Status.APPROVED)
+        url = reverse('App_Public_API:qr_orders_cancel', kwargs={'order_id': order_id})
+        payload = {'table_code': self.table.code, 'token': self.table.qr_token}
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 400)
 
     def test_public_qr_rejects_invalid_quantity(self):
         url = reverse('App_Public_API:qr_orders_create')

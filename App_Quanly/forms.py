@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
+from App_Sales.models import DiningTable
 from App_Tenant.models import Store
 
 
@@ -102,6 +103,23 @@ class ProductToppingForm(forms.ModelForm):
         if tenant:
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant, is_active=True).order_by('name')
             self.fields['topping'].queryset = Topping.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        _apply_bootstrap_classes(self)
+
+
+class DiningTableForm(forms.ModelForm):
+    class Meta:
+        model = DiningTable
+        fields = ['store', 'code', 'name', 'display_order', 'is_active']
+        widgets = {
+            'code': forms.TextInput(attrs={'placeholder': 'VD: A-01'}),
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Bàn 01'}),
+        }
+
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if tenant:
+            self.fields['store'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        self.fields['code'].help_text = 'Mã bàn sẽ tự chuyển sang chữ in hoa.'
         _apply_bootstrap_classes(self)
 
 

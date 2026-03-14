@@ -2,8 +2,8 @@
 
 ## Dieu kien
 - Python 3.10
-- Virtualenv da tao san: `/Users/anhkhoa/Downloads/Project_django/env_10_web`
-- Thu muc code: `/Users/anhkhoa/Downloads/Project_django/eapp-fnb`
+- Virtualenv: `/Users/anhkhoa/Downloads/Project_django/env_10_web`
+- Source: `/Users/anhkhoa/Downloads/Project_django/eapp-fnb`
 
 ## Kich hoat moi truong
 ```bash
@@ -14,26 +14,22 @@ source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
 ## Cau hinh env
 File env duoc doc tai `Project/.env`.
 
-Gia tri quan trong:
+Bien quan trong:
 - `DEBUG=true|false`
 - `SECRET_KEY=...`
 - `ALLOWED_HOSTS=127.0.0.1,localhost`
-- `DB_ENGINE=sqlite` hoac `DB_ENGINE=postgres`
+- `DB_ENGINE=sqlite|postgres`
 
-Neu dung postgres, can them:
+Neu `DB_ENGINE=postgres`, can them:
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
 - `POSTGRES_HOST`
 - `POSTGRES_PORT`
 
-## Khoi tao database
+## Migrate va seed
 ```bash
 python manage.py migrate
-```
-
-## Seed du lieu demo
-```bash
 python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 ```
 
@@ -44,7 +40,12 @@ python manage.py runserver 127.0.0.1:8000
 
 ## URL chinh
 - POS: `http://127.0.0.1:8000/`
-- Quan ly: `http://127.0.0.1:8000/quanly/`
 - Login: `http://127.0.0.1:8000/accounts/login/`
-- Public demo: `http://127.0.0.1:8000/demo/`
-- Don hang trong ngay: `http://127.0.0.1:8000/orders/today/`
+- Quan ly: `http://127.0.0.1:8000/quanly/`
+- Don hom nay: `http://127.0.0.1:8000/orders/today/`
+- Public catalog: `http://127.0.0.1:8000/demo/`
+- Public QR ordering: `http://127.0.0.1:8000/demo/qr/?table_code=<CODE>&token=<TOKEN>`
+
+## Tai khoan demo
+- Manager: `demo_quanly / 123456`
+- Staff: `demo_nhanvien_1 / 123456`

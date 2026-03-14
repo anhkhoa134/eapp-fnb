@@ -1,20 +1,29 @@
 from datetime import datetime, time
+from io import BytesIO
 from decimal import Decimal
+from urllib.parse import urlencode
 
+import qrcode
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
-from django.http import Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from reportlab.lib.pagesizes import A3, landscape
+from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
 
 from App_Accounts.models import User
 from App_Accounts.permissions import manager_required
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Quanly.forms import (
     CategoryForm,
+    DiningTableForm,
     ProductForm,
     ProductToppingForm,
     ProductUnitForm,
@@ -22,7 +31,7 @@ from App_Quanly.forms import (
     StaffPasswordResetForm,
     ToppingForm,
 )
-from App_Sales.models import Order, OrderItem
+from App_Sales.models import DiningTable, Order, OrderItem, generate_qr_token
 from App_Tenant.models import Store, UserStoreAccess
 
 
@@ -428,6 +437,196 @@ def product_topping_delete(request, pk):
     mapping.delete()
     messages.success(request, 'Đã xóa gán topping khỏi sản phẩm.')
     return redirect('App_Quanly:toppings')
+
+
+def _build_table_qr_url(request, *, tenant_slug, table):
+    base_path = reverse('App_Public:tenant_qr_ordering', kwargs={'public_slug': tenant_slug})
+    return request.build_absolute_uri(f'{base_path}?{urlencode({"table_code": table.code, "token": table.qr_token})}')
+
+
+def _build_qr_png_buffer(*, qr_url, box_size=8, border=2):
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=box_size,
+        border=border,
+    )
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+    image = qr.make_image(fill_color='black', back_color='white').convert('RGB')
+    buffer = BytesIO()
+    image.save(buffer, format='PNG')
+    buffer.seek(0)
+    return buffer
+
+
+@manager_required
+def qr_table_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+    selected_store = (request.GET.get('store') or '').strip()
+
+    tables_qs = DiningTable.objects.filter(tenant=tenant).select_related('store').order_by('store__name', 'display_order', 'id')
+    if selected_store.isdigit():
+        tables_qs = tables_qs.filter(store_id=int(selected_store))
+
+    form = DiningTableForm(request.POST or None, tenant=tenant)
+    if request.method == 'POST':
+        if form.is_valid():
+            table = form.save(commit=False)
+            table.tenant = tenant
+            table.save()
+            messages.success(request, f'Đã tạo bàn "{table.name}".')
+            return redirect('App_Quanly:qr_tables')
+        messages.error(request, 'Không thể tạo bàn QR, vui lòng kiểm tra dữ liệu.')
+
+    table_rows = [
+        {
+            'table': table,
+            'qr_url': _build_table_qr_url(request, tenant_slug=tenant.public_slug, table=table),
+        }
+        for table in tables_qs
+    ]
+
+    return render(
+        request,
+        'App_Quanly/qr_tables.html',
+        {
+            'stores': stores,
+            'selected_store': selected_store,
+            'form': form,
+            'table_rows': table_rows,
+        },
+    )
+
+
+@manager_required
+def qr_table_edit(request, pk):
+    tenant = _tenant_or_404(request.user)
+    table = get_object_or_404(DiningTable, pk=pk, tenant=tenant)
+
+    form = DiningTableForm(request.POST or None, instance=table, tenant=tenant)
+    if request.method == 'POST':
+        if form.is_valid():
+            table = form.save()
+            messages.success(request, f'Đã cập nhật bàn "{table.name}".')
+            return redirect('App_Quanly:qr_tables')
+        messages.error(request, 'Không thể cập nhật bàn QR, vui lòng kiểm tra dữ liệu.')
+
+    return render(
+        request,
+        'App_Quanly/qr_table_edit.html',
+        {
+            'form': form,
+            'table': table,
+            'qr_url': _build_table_qr_url(request, tenant_slug=tenant.public_slug, table=table),
+        },
+    )
+
+
+@manager_required
+@require_POST
+def qr_table_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    table = get_object_or_404(DiningTable, pk=pk, tenant=tenant)
+    table.delete()
+    messages.success(request, 'Đã xóa bàn QR.')
+    return redirect('App_Quanly:qr_tables')
+
+
+@manager_required
+@require_POST
+def qr_table_reset_token(request, pk):
+    tenant = _tenant_or_404(request.user)
+    table = get_object_or_404(DiningTable, pk=pk, tenant=tenant)
+
+    new_token = generate_qr_token()
+    while DiningTable.objects.filter(qr_token=new_token).exclude(pk=table.pk).exists():
+        new_token = generate_qr_token()
+
+    table.qr_token = new_token
+    table.save(update_fields=['qr_token', 'updated_at'])
+    messages.success(request, f'Đã reset token QR cho bàn "{table.name}".')
+    return redirect('App_Quanly:qr_tables')
+
+
+@manager_required
+def qr_table_png(request, pk):
+    tenant = _tenant_or_404(request.user)
+    table = get_object_or_404(DiningTable.objects.select_related('store'), pk=pk, tenant=tenant)
+    qr_url = _build_table_qr_url(request, tenant_slug=tenant.public_slug, table=table)
+    png_buffer = _build_qr_png_buffer(qr_url=qr_url)
+    filename = f'qr-{table.store.slug}-{table.code}.png'
+    return FileResponse(png_buffer, as_attachment=True, filename=filename, content_type='image/png')
+
+
+@manager_required
+def qr_tables_store_pdf(request):
+    tenant = _tenant_or_404(request.user)
+    store_id = (request.GET.get('store') or '').strip()
+    if not store_id.isdigit():
+        return HttpResponse('Thiếu store hợp lệ để in PDF.', status=400)
+
+    store = get_object_or_404(Store, pk=int(store_id), tenant=tenant, is_active=True)
+    tables = list(
+        DiningTable.objects.filter(tenant=tenant, store=store).order_by('display_order', 'id')
+    )
+    if not tables:
+        return HttpResponse('Cửa hàng chưa có bàn để in PDF.', status=400)
+
+    page_size = landscape(A3)
+    page_width, page_height = page_size
+    cols = 5
+    rows = 3
+    margin_x = 10 * mm
+    margin_y = 14 * mm
+    cell_w = (page_width - margin_x * 2) / cols
+    cell_h = (page_height - margin_y * 2) / rows
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=page_size)
+    now_label = timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')
+
+    per_page = cols * rows  # 15 bàn / trang
+    for index, table in enumerate(tables):
+        slot = index % (cols * rows)
+        if slot == 0:
+            if index > 0:
+                pdf.showPage()
+            page_no = (index // per_page) + 1
+            total_pages = (len(tables) + per_page - 1) // per_page
+            pdf.setFont('Helvetica-Bold', 15)
+            pdf.drawString(margin_x, page_height - 8 * mm, f'QR bàn - {store.name}')
+            pdf.setFont('Helvetica', 9)
+            pdf.drawRightString(page_width - margin_x, page_height - 8 * mm, f'{now_label} | Trang {page_no}/{total_pages}')
+
+        row = slot // cols
+        col = slot % cols
+        x = margin_x + col * cell_w
+        y = page_height - margin_y - (row + 1) * cell_h
+
+        qr_url = _build_table_qr_url(request, tenant_slug=tenant.public_slug, table=table)
+        qr_png = _build_qr_png_buffer(qr_url=qr_url, box_size=8, border=2)
+        qr_reader = ImageReader(qr_png)
+
+        title_y = y + cell_h - 6 * mm
+        code_y = title_y - 5 * mm
+        max_qr_h = code_y - (y + 4 * mm) - 2 * mm
+        max_qr_w = cell_w * 0.68
+        qr_size = min(max_qr_w, max_qr_h)
+        qr_x = x + (cell_w - qr_size) / 2
+        qr_y = code_y - 2 * mm - qr_size
+        pdf.drawImage(qr_reader, qr_x, qr_y, width=qr_size, height=qr_size, preserveAspectRatio=True, mask='auto')
+
+        pdf.setFont('Helvetica-Bold', 10)
+        pdf.drawCentredString(x + cell_w / 2, title_y, table.name)
+        pdf.setFont('Helvetica', 8)
+        pdf.drawCentredString(x + cell_w / 2, code_y, f'Mã bàn: {table.code}')
+
+    pdf.save()
+    buffer.seek(0)
+    filename = f'qr-ban-{store.slug}.pdf'
+    return FileResponse(buffer, as_attachment=True, filename=filename, content_type='application/pdf')
 
 
 @manager_required

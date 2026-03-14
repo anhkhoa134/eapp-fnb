@@ -436,6 +436,78 @@ class SalesApiTests(TestCase):
         qr_order.refresh_from_db()
         self.assertEqual(qr_order.status, QROrder.Status.PENDING)
 
+    def test_qr_approve_or_reject_cancelled_order_returns_400(self):
+        qr_order = QROrder.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            status=QROrder.Status.CANCELLED,
+            customer_note='Đơn QR đã bị khách hủy',
+        )
+        QROrderItem.objects.create(
+            qr_order=qr_order,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=1,
+            line_total=Decimal('0'),
+        )
+
+        approve_url = reverse('App_Sales_API:qr_order_approve', kwargs={'order_id': qr_order.id})
+        reject_url = reverse('App_Sales_API:qr_order_reject', kwargs={'order_id': qr_order.id})
+
+        approve_res = self.client.post(approve_url, data='{}', content_type='application/json')
+        reject_res = self.client.post(reject_url, data='{}', content_type='application/json')
+
+        self.assertEqual(approve_res.status_code, 400)
+        self.assertEqual(reject_res.status_code, 400)
+        self.assertEqual(TableCartItem.objects.filter(table=self.table_1).count(), 0)
+
+    def test_qr_orders_pending_does_not_return_cancelled_orders(self):
+        pending_order = QROrder.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            status=QROrder.Status.PENDING,
+            customer_note='Đơn pending',
+        )
+        cancelled_order = QROrder.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            status=QROrder.Status.CANCELLED,
+            customer_note='Đơn cancelled',
+        )
+        QROrderItem.objects.create(
+            qr_order=pending_order,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=1,
+            line_total=Decimal('0'),
+        )
+        QROrderItem.objects.create(
+            qr_order=cancelled_order,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=1,
+            line_total=Decimal('0'),
+        )
+
+        url = reverse('App_Sales_API:qr_orders')
+        res = self.client.get(url, {'store_id': self.store_1.id, 'status': 'pending'})
+        self.assertEqual(res.status_code, 200)
+        order_ids = [row['id'] for row in res.json()['orders']]
+        self.assertIn(pending_order.id, order_ids)
+        self.assertNotIn(cancelled_order.id, order_ids)
+
     def test_orders_today_page_staff_only_sees_accessible_store_orders(self):
         allow_order = Order.objects.create(
             tenant=self.tenant,

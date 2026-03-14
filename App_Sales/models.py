@@ -89,6 +89,7 @@ class QROrder(TimeStampedModel):
         PENDING = 'PENDING', 'Pending'
         APPROVED = 'APPROVED', 'Approved'
         REJECTED = 'REJECTED', 'Rejected'
+        CANCELLED = 'CANCELLED', 'Cancelled'
 
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='qr_orders')
     store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='qr_orders')

@@ -1,53 +1,59 @@
 # 6) Test va smoke checklist
 
-## Automated test
+## Automated
 
-### Chay check
+### Check
 ```bash
 python manage.py check
 ```
 
-### Chay toan bo test
+### Full test
 ```bash
 python manage.py test --keepdb
 ```
 
-### Chay nhanh theo module
+### Nhom test thuong dung
 ```bash
-python manage.py test App_Accounts.tests App_Quanly.tests --keepdb
+python manage.py test App_Public.tests App_Sales.tests App_Quanly.tests --keepdb
 ```
 
-## Manual smoke checklist
+## Manual smoke (core)
 
-### A. Topping
-1. Login staff vao POS.
-2. Chon mon co topping, tick topping, them vao gio.
-3. Xac nhan cart hien topping va tong tien tang dung.
+### A. POS topping + payment
+1. Chon mon co topping, them gio.
+2. Thu cash thieu/du tien.
+3. Thu card.
 
 ### B. Save-to-table
 1. Tao gio takeaway.
-2. Bam `Luu ban`.
-3. Chon ban trong tab `Chon ban`.
-4. Xac nhan cart ban da nhan item, giu dung topping/note/so luong.
+2. Bam Luu ban, chon ban.
+3. Verify item/topping sang cart ban.
 
-### C. Payment cash/card
-1. Cash: thu case thieu tien (fail) va du tien (pass).
-2. Card: thanh toan khong can nhap tien mat.
-3. Xac nhan payload gui `payment_method` dung gia tri.
+### C. QR staff
+1. Tao pending QR qua public API.
+2. Approve/reject trong tab Don QR.
+3. Verify table state + cart.
 
-### D. QR approve topping
-1. Tao pending QR qua `POST /api/public/qr/orders`.
-2. Duyet trong tab `Don QR`.
-3. Mo ban va kiem tra item/topping da merge.
-4. Checkout ban va kiem tra cart ban da clear.
+### D. QR customer UI
+1. Mo `/<slug>/qr/?table_code=&token=`.
+2. Tao don pending.
+3. Sua don pending.
+4. Huy don pending.
+5. Verify polling 5s khi staff approve/reject.
 
-## Regression diem nhay cam can luon test lai
-- Logout chi chap nhan `POST`.
+### E. Quanly QR tables
+1. Tao/sua/xoa ban QR.
+2. Reset token.
+3. Tai PNG tung ban.
+4. In PDF store (15 ban/trang).
+
+## Regression can giu
+- Logout chi POST.
 - `/quanly/product-toppings/` redirect ve `/quanly/toppings/`.
-- Lich su don (`/quanly/orders/`) loc + phan trang + row chi tiet topping.
+- QROrder terminal states khong cho sua/huy/approve/reject sai luat.
 
 ## Repo hygiene
 ```bash
 git ls-files | rg "(__pycache__/|\\.pyc$)"
 ```
-- Ky vong: khong co ket qua nao.
+Ky vong: khong co ket qua.

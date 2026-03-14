@@ -1002,6 +1002,7 @@ def api_qr_orders(request):
         'PENDING': QROrder.Status.PENDING,
         'APPROVED': QROrder.Status.APPROVED,
         'REJECTED': QROrder.Status.REJECTED,
+        'CANCELLED': QROrder.Status.CANCELLED,
     }
     selected_status = status_map.get(status, QROrder.Status.PENDING)
 
@@ -1071,6 +1072,8 @@ def api_qr_order_approve(request, order_id):
             return JsonResponse({'detail': 'Đơn đã được duyệt trước đó.', 'status': order.status})
         if order.status == QROrder.Status.REJECTED:
             return _json_error('Đơn đã bị từ chối nên không thể duyệt.', 400)
+        if order.status == QROrder.Status.CANCELLED:
+            return _json_error('Đơn đã bị khách hủy nên không thể duyệt.', 400)
 
         for qr_item in order.items.all():
             if not qr_item.unit_id or not qr_item.product_id:
@@ -1121,6 +1124,8 @@ def api_qr_order_reject(request, order_id):
             return JsonResponse({'detail': 'Đơn đã bị từ chối trước đó.', 'status': order.status})
         if order.status == QROrder.Status.APPROVED:
             return _json_error('Đơn đã được duyệt nên không thể từ chối.', 400)
+        if order.status == QROrder.Status.CANCELLED:
+            return _json_error('Đơn đã bị khách hủy nên không thể từ chối.', 400)
 
         order.status = QROrder.Status.REJECTED
         order.rejected_by = user

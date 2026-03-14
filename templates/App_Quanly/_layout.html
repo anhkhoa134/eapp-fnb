@@ -242,6 +242,9 @@
                     <a class="admin-nav-link {% if '/quanly/toppings/' in request.path or '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}">
                         <i class="bi bi-plus-circle"></i> Topping
                     </a>
+                    <a class="admin-nav-link {% if '/quanly/qr-tables/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:qr_tables' %}">
+                        <i class="bi bi-qr-code-scan"></i> QR bàn
+                    </a>
                     <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}">
                         <i class="bi bi-people"></i> Nhân viên
                     </a>
@@ -266,7 +269,7 @@
         <div class="admin-hero">
             <div>
                 <h1>Trung tâm quản lý</h1>
-                <div class="sub">Quản lý danh mục, sản phẩm, topping, lịch sử đơn và báo cáo doanh thu theo cửa hàng.</div>
+                <div class="sub">Quản lý danh mục, sản phẩm, topping, QR bàn, lịch sử đơn và báo cáo doanh thu theo cửa hàng.</div>
             </div>
             <span class="badge rounded-pill text-bg-light border px-3 py-2">
                 <i class="bi bi-shield-check me-1"></i> Manager Portal

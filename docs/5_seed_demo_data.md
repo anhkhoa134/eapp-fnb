@@ -6,32 +6,27 @@ python manage.py seed_initial_data --tenant-slug demo --tenant-name "Demo FNB" -
 ```
 
 ## Option ho tro
-- `--tenant-slug`: mac dinh `demo`.
-- `--tenant-name`: mac dinh `Demo FNB`.
-- `--default-password`: mat khau mac dinh cho tai khoan seed.
-- `--reset-passwords`: reset lai password tai khoan da ton tai.
-- `--seed-qr-pending` / `--no-seed-qr-pending`: bat/tat seed don QR pending.
-- `--skip-qr-pending`: alias cu, tuong duong tat seed QR pending.
+- `--tenant-slug` (default: `demo`)
+- `--tenant-name` (default: `Demo FNB`)
+- `--default-password` (default: `123456`)
+- `--reset-passwords`
+- `--seed-qr-pending` / `--no-seed-qr-pending`
+- `--skip-qr-pending` (alias cu)
 
-## Du lieu duoc tao (compact-plus)
+## Du lieu duoc tao
 - 1 tenant demo.
-- 3 cua hang:
-  - CN Trung Tam (default)
-  - CN Thu Duc
-  - CN Go Vap
-- User:
-  - 1 manager: `demo_quanly`
-  - 4 staff: `demo_nhanvien_1..4`
-- 8 danh muc.
-- 10 san pham mau co anh that (Unsplash), co unit gia theo size.
-- Topping tenant-level + mapping gia theo tung san pham.
-- 12 ban moi cua hang (`code` + `qr_token`).
-- Don QR pending mau (neu bat option seed QR pending).
+- 3 store: CN Trung Tam (default), CN Thu Duc, CN Go Vap.
+- 1 manager + 4 staff (co mapping store access).
+- 8 category.
+- 10 product anh that (Unsplash), co unit/size.
+- Topping tenant-level + mapping gia theo product.
+- 12 dining table moi store (co `code` + `qr_token`).
+- QROrder pending mau neu bat `--seed-qr-pending`.
 
 ## Tinh chat idempotent
-- Lenh seed co the chay nhieu lan.
-- Du lieu ton tai duoc update thay vi tao trung.
-- Mot so ban ghi cu khong nam trong bo curated se duoc dat `is_active=False`.
+- Chay nhieu lan an toan.
+- Ban ghi ton tai duoc update, khong tao trung.
+- Du lieu ngoai bo curated co the bi set `is_active=False`.
 
 ## Tai khoan demo
 - Manager: `demo_quanly / 123456`

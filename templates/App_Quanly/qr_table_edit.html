@@ -1,0 +1,55 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h2 class="admin-card-title">
+            <i class="bi bi-pencil-square"></i>
+            Cập nhật bàn QR
+        </h2>
+
+        <div class="mb-3">
+            <label class="form-label small text-muted mb-1">Link QR hiện tại</label>
+            <div class="input-group input-group-sm">
+                <input class="form-control" value="{{ qr_url }}" readonly>
+                <button class="btn btn-outline-primary" type="button" onclick="copyQrLink('{{ qr_url|escapejs }}')">Copy</button>
+                <a class="btn btn-outline-success" href="{% url 'App_Quanly:qr_table_png' table.id %}">PNG QR</a>
+            </div>
+            <div class="small text-muted mt-1">Mã: {{ table.code }} | Token: {{ table.qr_token }}</div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-save me-1"></i>Lưu cập nhật
+                </button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:qr_tables' %}">
+                    <i class="bi bi-arrow-left me-1"></i>Quay lại
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    const copyQrLink = async (value) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            const body = document.getElementById('commonModalBody');
+            if (body) {
+                body.textContent = 'Đã copy link QR.';
+                const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('commonModal'));
+                modal.show();
+            }
+        } catch (_) {
+            alert('Không thể copy tự động. Vui lòng copy thủ công.');
+        }
+    };
+    window.copyQrLink = copyQrLink;
+</script>
+{% endblock %}
