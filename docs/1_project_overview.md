@@ -10,8 +10,10 @@
 ## Cong nghe
 - Python 3.10
 - Django 5.0
+- Django Channels (ASGI/WebSocket)
 - Bootstrap 5.3
 - SQLite mac dinh, co cau hinh PostgreSQL qua env.
+- Redis cho realtime WebSocket channel layer.
 
 ## Kien truc app
 - `App_Core`: tien ich dung chung, context processor, seed command.
@@ -24,6 +26,7 @@
 
 ## Trang thai hien tai
 - Da co: POS takeaway/table, topping full-stack, QR flow staff, QR flow khach (create/edit/cancel/status), quan ly QR ban (PNG/PDF 15 ban/trang).
+- QR realtime da dung WebSocket cho POS + Public QR, co fallback polling 15s khi WS mat ket noi.
 - Chua lam: inventory, shift, refund.
 
 ## Danh sach tai lieu theo thu tu
@@ -34,3 +37,4 @@
 5. `docs/5_seed_demo_data.md`
 6. `docs/6_testing_and_smoke.md`
 7. `docs/7_qr_public_and_qr_admin.md`
+8. `docs/8_websocket_realtime.md`

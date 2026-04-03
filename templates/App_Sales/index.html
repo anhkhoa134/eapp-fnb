@@ -66,6 +66,39 @@
         .navbar {
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
+        .top-nav-content {
+            order: 1;
+            flex: 0 0 auto;
+            margin-left: 0;
+        }
+        .top-nav-icons-row {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .top-nav-search {
+            order: 2;
+            margin-left: 0.75rem;
+            max-width: 380px;
+            flex: 1 1 auto;
+            min-width: 160px;
+        }
+        .top-nav-tools {
+            order: 3;
+            margin-left: 0.5rem;
+        }
+        .top-account-dropdown {
+            order: 4;
+            margin-left: 0.5rem;
+        }
+        @media (min-width: 992px) {
+            .top-nav-tools {
+                margin-left: auto;
+            }
+            .top-account-dropdown {
+                margin-left: 0.35rem;
+            }
+        }
 
         /* Notification Bell Animation */
         @keyframes ring {
@@ -81,7 +114,10 @@
 
         /* --- Account Dropdown --- */
         .account-menu {
-            position: relative;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            left: auto;
             min-width: 320px;
             border: 1px solid rgba(148, 163, 184, 0.35) !important;
             border-radius: 16px;
@@ -89,6 +125,7 @@
             box-shadow: 0 22px 40px rgba(15, 23, 42, 0.2) !important;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(12px);
+            z-index: 1085;
         }
         .account-menu::before {
             content: "";
@@ -342,9 +379,96 @@
         }
 
         @media (max-width: 991.98px) {
+            .navbar > .container-fluid {
+                flex-wrap: nowrap;
+            }
             .mobile-cart-btn { display: block; }
             /* Make offcanvas act truly as offcanvas on mobile */
             .cart-area-wrapper { border-left: none; }
+            .top-nav-content {
+                order: 1;
+                flex: 0 0 auto;
+                margin: 0;
+            }
+            .top-nav-icons-row {
+                display: flex;
+                align-items: center;
+                flex-wrap: nowrap;
+                gap: 0.5rem;
+            }
+            .top-nav-tabs {
+                flex: 1 1 auto;
+                display: flex;
+                flex-direction: row !important;
+                align-items: center;
+                flex-wrap: nowrap;
+                margin-bottom: 0 !important;
+            }
+            .top-nav-search {
+                order: 2;
+                flex: 1 1 auto;
+                margin: 0 0.45rem !important;
+                max-width: none !important;
+                min-width: 110px;
+            }
+            .top-nav-tools {
+                order: 3;
+                flex: 0 0 auto;
+                display: flex;
+                flex-direction: row !important;
+                align-items: center;
+                margin-left: 0.35rem;
+                margin-bottom: 0 !important;
+            }
+            .top-nav-tools .nav-item,
+            .top-nav-tabs .nav-item {
+                margin: 0 !important;
+            }
+            .top-account-dropdown {
+                order: 4;
+                margin-left: 0.35rem;
+            }
+            .top-nav-content .nav-pills .nav-link {
+                width: 44px;
+                height: 44px;
+                padding: 0 !important;
+                border-radius: 14px !important;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .top-nav-content .nav-pills .nav-link i {
+                margin-right: 0 !important;
+                font-size: 1rem;
+            }
+            .top-nav-content .nav-pills .nav-link .nav-label { display: none; }
+            .top-nav-content .nav-pills {
+                gap: 0.5rem !important;
+            }
+            .top-nav-content .navbar-nav .nav-item.me-3 { margin-right: 0 !important; }
+            .top-nav-tools .nav-link {
+                width: 44px;
+                height: 44px;
+                padding: 0 !important;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .top-account-dropdown > .nav-link img {
+                margin-right: 0 !important;
+            }
+            .top-account-dropdown > .nav-link {
+                padding: 0 !important;
+                display: inline-flex;
+                align-items: center;
+                height: 44px;
+            }
+            .top-account-dropdown .account-menu {
+                min-width: 0;
+                width: min(360px, calc(100vw - 24px));
+                max-height: calc(100vh - 88px);
+                overflow-y: auto;
+            }
         }
 
         /* Custom Scrollbar */
@@ -540,164 +664,151 @@
 
     <!-- Top Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top py-2">
-        <div class="container-fluid">
-            <!-- Brand -->
-            <a class="navbar-brand fw-bold text-primary fs-4 d-flex align-items-center gap-2" href="#">
+        <div class="container-fluid align-items-center">
+            <!-- Brand (Desktop only) -->
+            <a class="navbar-brand fw-bold text-primary fs-4 d-none d-lg-flex align-items-center gap-2 me-3" href="#">
                 <img src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB" style="width: 36px; height: 36px; object-fit: cover; border-radius: 8px;">
                 <span>eApp FnB</span>
             </a>
 
-            <!-- Mobile Toggle for Navbar -->
-            <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <!-- Navbar Content -->
-            <div class="collapse navbar-collapse" id="topNav">
-                <!-- Navigation Tabs -->
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 nav-pills gap-2" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active fw-bold px-3 rounded-pill" id="tab-menu" data-bs-toggle="pill" data-bs-target="#view-menu" type="button" role="tab">
-                            <i class="fa-solid fa-utensils me-2"></i>Thực đơn
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-bold px-3 rounded-pill" id="tab-tables" data-bs-toggle="pill" data-bs-target="#view-tables" type="button" role="tab">
-                            <i class="fa-solid fa-table me-2"></i>Chọn bàn
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-bold px-3 rounded-pill position-relative" id="tab-online" data-bs-toggle="pill" data-bs-target="#view-online" type="button" role="tab">
-                            <i class="fa-solid fa-qrcode me-2"></i>Đơn QR
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="nav-online-badge">0</span>
-                        </button>
-                    </li>
-                </ul>
-
-                <!-- Search Form in Navbar -->
-                <form class="d-flex mx-lg-4 my-2 my-lg-0 flex-grow-1" style="max-width: 350px;" onsubmit="event.preventDefault();">
-                    <div class="input-group shadow-sm" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
-                        <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
-                        <input class="form-control bg-light border-start-0" type="search" placeholder="Tìm món..." id="searchInput" style="box-shadow: none;">
-                    </div>
-                </form>
-
-                <!-- Tools & Account -->
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-                    <!-- Simulate QR Order Button (For Demo) -->
-                    <li class="nav-item me-2 my-2 my-lg-0 d-none">
-                        <button class="btn btn-warning btn-sm fw-bold rounded-pill text-dark shadow-sm px-3 py-2" onclick="simulateQrOrder()">
-                            <i class="fa-solid fa-mobile-screen-button me-1"></i>Giả lập khách quét QR
-                        </button>
-                    </li>
-
-                    <!-- Notification Bell -->
-                    <li class="nav-item me-3">
-                        <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();">
-                            <i class="fa-regular fa-bell fs-5" id="nav-bell-icon"></i>
-                            <span class="position-absolute top-25 start-75 translate-middle p-1 bg-danger border border-light rounded-circle d-none" id="nav-bell-dot">
-                                <span class="visually-hidden">New alerts</span>
-                            </span>
-                        </a>
-                    </li>
-
-                    <!-- Account Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
-                            <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="32" height="32" alt="Avatar">
-                            <span class="d-none d-xl-inline"><strong>{{ user.username }}</strong></span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end account-menu p-0">
-                            <li class="account-head">
-                                <div class="d-flex align-items-center justify-content-between gap-2">
-                                    <div class="d-flex align-items-center">
-                                        <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="38" height="38" alt="Avatar">
-                                        <div>
-                                            <div class="fw-bold text-dark">{{ user.username }}</div>
-                                            <div class="small text-muted">
-                                                {% if user.is_manager %}
-                                                <span class="account-role-pill manager"><i class="fa-solid fa-shield-halved"></i>Quản lý</span>
-                                                {% else %}
-                                                <span class="account-role-pill staff"><i class="fa-solid fa-user-check"></i>Nhân viên</span>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span class="account-chip">eApp FnB</span>
+            <!-- Account Dropdown -->
+            <div class="dropdown top-account-dropdown">
+                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
+                    <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="32" height="32" alt="Avatar">
+                    <span class="d-none d-xl-inline"><strong>{{ user.username }}</strong></span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end account-menu p-0">
+                    <li class="account-head">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="d-flex align-items-center">
+                                <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="38" height="38" alt="Avatar">
+                                <div>
+                                    <div class="fw-bold text-dark">{{ user.username }}</div>
+                                    <div class="small text-muted">
+                                        {% if user.is_manager %}
+                                        <span class="account-role-pill manager"><i class="fa-solid fa-shield-halved"></i>Quản lý</span>
+                                        {% else %}
+                                        <span class="account-role-pill staff"><i class="fa-solid fa-user-check"></i>Nhân viên</span>
+                                        {% endif %}
                                     </div>
                                 </div>
-                            </li>
-                            <li class="px-3 pt-2">
-                                <div class="section-label"><i class="fa-solid fa-store me-1"></i>Cửa hàng</div>
-                                <select class="form-select form-select-sm" id="storeSelector">
-                                    {% for store in stores %}
-                                    <option value="{{ store.id }}" {% if default_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </li>
-                            <li class="px-3 pt-2 pb-2">
-                                <div class="section-label"><i class="fa-solid fa-palette me-1"></i>Màu giao diện</div>
-                                <select class="form-select form-select-sm" id="themeSelector">
-                                    <option value="green">Xanh lá</option>
-                                    <option value="blue">Xanh dương</option>
-                                    <option value="yellow">Vàng</option>
-                                    <option value="orange">Cam</option>
-                                    <option value="purple">Tím</option>
-                                    <option value="pink">Hồng</option>
-                                </select>
-                            </li>
-                            <li class="px-3 pb-2">
-                                <div class="section-label"><i class="fa-solid fa-volume-high me-1"></i>Thông báo QR</div>
-                                <div class="d-flex flex-column gap-2">
-                                    <div class="account-toggle-row">
-                                        <div>
-                                            <div class="account-toggle-title"><i class="fa-solid fa-bell me-1 text-warning"></i>Chuông đơn mới</div>
-                                            <div class="account-toggle-subtitle">Phát tiếng chuông khi có đơn QR mới.</div>
-                                        </div>
-                                        <div class="form-check form-switch m-0">
-                                            <input class="form-check-input" type="checkbox" role="switch" id="qrSoundToggle">
-                                        </div>
-                                    </div>
-                                    <div class="account-toggle-row">
-                                        <div>
-                                            <div class="account-toggle-title"><i class="fa-solid fa-bullhorn me-1 text-primary"></i>Giọng nói</div>
-                                            <div class="account-toggle-subtitle">Đọc thông báo bằng tiếng Việt.</div>
-                                        </div>
-                                        <div class="form-check form-switch m-0">
-                                            <input class="form-check-input" type="checkbox" role="switch" id="qrVoiceToggle">
-                                        </div>
-                                    </div>
+                            </div>
+                            <div>
+                                <span class="account-chip">eApp FnB</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="px-3 pt-2">
+                        <div class="section-label"><i class="fa-solid fa-store me-1"></i>Cửa hàng</div>
+                        <select class="form-select form-select-sm" id="storeSelector">
+                            {% for store in stores %}
+                            <option value="{{ store.id }}" {% if default_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </li>
+                    <li class="px-3 pt-2 pb-2">
+                        <div class="section-label"><i class="fa-solid fa-palette me-1"></i>Màu giao diện</div>
+                        <select class="form-select form-select-sm" id="themeSelector">
+                            <option value="green">Xanh lá</option>
+                            <option value="blue">Xanh dương</option>
+                            <option value="yellow">Vàng</option>
+                            <option value="orange">Cam</option>
+                            <option value="purple">Tím</option>
+                            <option value="pink">Hồng</option>
+                        </select>
+                    </li>
+                    <li class="px-3 pb-2">
+                        <div class="section-label"><i class="fa-solid fa-volume-high me-1"></i>Thông báo QR</div>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="account-toggle-row">
+                                <div>
+                                    <div class="account-toggle-title"><i class="fa-solid fa-bell me-1 text-warning"></i>Chuông đơn mới</div>
+                                    <div class="account-toggle-subtitle">Phát tiếng chuông khi có đơn QR mới.</div>
                                 </div>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
-                                    <span class="account-icon-pill"><i class="fa-solid fa-receipt"></i></span>Đơn hàng trong ngày
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); toggleFullscreen();">
-                                    <span class="account-icon-pill"><i class="fa-solid fa-expand"></i></span>Fullscreen
-                                </a>
-                            </li>
-                            {% if user.is_manager %}
-                            <li>
-                                <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
-                                    <span class="account-icon-pill"><i class="fa-solid fa-chart-line"></i></span>Trang quản lý
-                                </a>
-                            </li>
-                            {% endif %}
-                            <li><hr class="dropdown-divider"></li>
-                            <li class="px-2 pb-2">
-                                <button class="dropdown-item text-danger mx-2 mb-2 fw-bold rounded-3" type="button" onclick="openLogoutConfirmModal()">
-                                    <span class="account-icon-pill"><i class="fa-solid fa-right-from-bracket"></i></span>Đăng xuất
-                                </button>
-                            </li>
-                        </ul>
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="qrSoundToggle">
+                                </div>
+                            </div>
+                            <div class="account-toggle-row">
+                                <div>
+                                    <div class="account-toggle-title"><i class="fa-solid fa-bullhorn me-1 text-primary"></i>Giọng nói</div>
+                                    <div class="account-toggle-subtitle">Đọc thông báo bằng tiếng Việt.</div>
+                                </div>
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="qrVoiceToggle">
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
+                            <span class="account-icon-pill"><i class="fa-solid fa-receipt"></i></span>Đơn hàng trong ngày
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); toggleFullscreen();">
+                            <span class="account-icon-pill"><i class="fa-solid fa-expand"></i></span>Fullscreen
+                        </a>
+                    </li>
+                    {% if user.is_manager %}
+                    <li>
+                        <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
+                            <span class="account-icon-pill"><i class="fa-solid fa-chart-line"></i></span>Trang quản lý
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="px-2 pb-2">
+                        <button class="dropdown-item text-danger mx-2 mb-2 fw-bold rounded-3" type="button" onclick="openLogoutConfirmModal()">
+                            <span class="account-icon-pill"><i class="fa-solid fa-right-from-bracket"></i></span>Đăng xuất
+                        </button>
                     </li>
                 </ul>
             </div>
+
+            <!-- Navbar Content -->
+            <div class="navbar-collapse top-nav-content" id="topNav">
+                <div class="top-nav-icons-row">
+                    <!-- Navigation Tabs -->
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0 nav-pills gap-2 top-nav-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold px-3 rounded-pill" id="tab-menu" data-bs-toggle="pill" data-bs-target="#view-menu" type="button" role="tab">
+                                <i class="fa-solid fa-utensils me-2"></i><span class="nav-label">Thực đơn</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold px-3 rounded-pill" id="tab-tables" data-bs-toggle="pill" data-bs-target="#view-tables" type="button" role="tab">
+                                <i class="fa-solid fa-table me-2"></i><span class="nav-label">Chọn bàn</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold px-3 rounded-pill position-relative" id="tab-online" data-bs-toggle="pill" data-bs-target="#view-online" type="button" role="tab">
+                                <i class="fa-solid fa-qrcode me-2"></i><span class="nav-label">Đơn QR</span>
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="nav-online-badge">0</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <!-- Search Form in Navbar -->
+            <form class="d-flex my-2 my-lg-0 top-nav-search" onsubmit="event.preventDefault();">
+                <div class="input-group shadow-sm" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
+                    <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input class="form-control bg-light border-start-0" type="search" placeholder="Tìm món..." id="searchInput" style="box-shadow: none;">
+                </div>
+            </form>
+            <!-- Notification -->
+            <ul class="navbar-nav mb-2 mb-lg-0 align-items-lg-center top-nav-tools">
+                <li class="nav-item">
+                    <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();">
+                        <i class="fa-regular fa-bell fs-5" id="nav-bell-icon"></i>
+                        <span class="position-absolute top-25 start-75 translate-middle p-1 bg-danger border border-light rounded-circle d-none" id="nav-bell-dot">
+                            <span class="visually-hidden">New alerts</span>
+                        </span>
+                    </a>
+                </li>
+            </ul>
         </div>
     </nav>
     <form id="posLogoutForm" method="post" action="{% url 'App_Accounts:logout' %}" class="d-none">
@@ -788,7 +899,7 @@
                         <button class="btn btn-sm btn-outline-danger d-none align-items-center me-2" onclick="clearCart()" id="btn-clear-cart" title="Xóa toàn bộ giỏ hàng">
                             <i class="fa-solid fa-trash-can me-1"></i>Xóa tất cả
                         </button>
-                        <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                        <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#cartOffcanvas" aria-label="Close"></button>
                     </div>
                 </div>
 

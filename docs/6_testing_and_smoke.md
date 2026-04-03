@@ -17,6 +17,11 @@ python manage.py test --keepdb
 python manage.py test App_Public.tests App_Sales.tests App_Quanly.tests --keepdb
 ```
 
+### Nhom test WebSocket
+```bash
+python manage.py test App_Sales.tests_ws App_Public.tests_ws
+```
+
 ## Manual smoke (core)
 
 ### A. POS topping + payment
@@ -41,6 +46,7 @@ python manage.py test App_Public.tests App_Sales.tests App_Quanly.tests --keepdb
 4. Huy don pending.
 5. Verify WebSocket realtime khi staff approve/reject.
 6. Tat Redis/chan WS de verify fallback polling 15s van cap nhat.
+7. Mo DevTools, dam bao khong con loop loi ket noi WS khi server chay ASGI.
 
 ### E. Quanly QR tables
 1. Tao/sua/xoa ban QR.

@@ -15,18 +15,23 @@ source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
 File env duoc doc tai `Project/.env`.
 
 Bien quan trong:
+- `ENVIRONMENT=dev|prod`
 - `DEBUG=true|false`
 - `SECRET_KEY=...`
 - `ALLOWED_HOSTS=127.0.0.1,localhost`
-- `DB_ENGINE=sqlite|postgres`
-- `REDIS_URL=redis://127.0.0.1:6379/1` (WebSocket Channels)
+- `REAL_ADMIN_PATH=admin`
+- `REDIS_URL=redis://127.0.0.1:6379` (WebSocket Channels)
 
-Neu `DB_ENGINE=postgres`, can them:
+Neu dung PostgreSQL, can them:
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
 - `POSTGRES_HOST`
 - `POSTGRES_PORT`
+
+Rule DB theo settings:
+- `ENVIRONMENT=prod`: bat buoc dung `POSTGRES_*`.
+- `ENVIRONMENT=dev`: neu de trong `POSTGRES_DB` thi dung SQLite mac dinh.
 
 ## Migrate va seed
 ```bash
@@ -42,6 +47,12 @@ python manage.py runserver 127.0.0.1:8000
 Luu y realtime QR:
 - Can Redis chay theo `REDIS_URL` de WebSocket hoat dong day du.
 - Neu Redis down, UI tu fallback sang polling 15s.
+- Khong dung `--noasgi`, neu khong WebSocket se bi fail.
+
+Lenh mo Redis local (neu chua co service):
+```bash
+redis-server
+```
 
 ## URL chinh
 - POS: `http://127.0.0.1:8000/`

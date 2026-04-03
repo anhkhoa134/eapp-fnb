@@ -27,8 +27,14 @@ python manage.py runserver 127.0.0.1:8000
 ```
 
 Realtime QR qua WebSocket:
-- Set `REDIS_URL` (mac dinh `redis://127.0.0.1:6379/1`).
+- Set `REDIS_URL` (mac dinh `redis://127.0.0.1:6379`).
 - Neu Redis chua san sang, UI se fallback polling 15s.
+- Khong chay `runserver --noasgi`.
+
+Neu chay local Redis thu cong:
+```bash
+redis-server
+```
 
 ## 5) Route chính
 - POS nhân viên: `/`

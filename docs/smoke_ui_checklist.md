@@ -11,6 +11,10 @@ python manage.py seed_initial_data --tenant-slug demo --tenant-name "Demo FNB" -
 python manage.py runserver 127.0.0.1:8000
 ```
 
+Luu y:
+- Khong dung `--noasgi`.
+- Neu can WS day du, mo Redis local: `redis-server`.
+
 ### 1.2 Tai khoan test
 - Staff POS: `demo_nhanvien_1 / 123456`
 - Manager: `demo_quanly / 123456`

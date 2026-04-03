@@ -40,6 +40,12 @@
 - `GET ws://<host>/ws/pos/store/<store_id>/`
 - `GET ws://<host>/ws/public/qr/order/<order_id>/?table_code=&token=`
 
+## WebSocket message schema
+- POS:
+  - `{ "type": "qr.changed", "store_id": <id>, "order_id": <id>, "reason": "created|updated|approved|rejected|cancelled", "ts": "<iso>" }`
+- Public QR:
+  - `{ "type": "qr.order.changed", "order_id": <id>, "status": "PENDING|APPROVED|REJECTED|CANCELLED", "reason": "...", "ts": "<iso>" }`
+
 ## Quanly API-like routes (server-rendered)
 - `GET|POST /quanly/qr-tables/`
 - `GET|POST /quanly/qr-tables/<id>/edit/`

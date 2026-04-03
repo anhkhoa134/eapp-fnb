@@ -14,6 +14,10 @@
 - Cho `edit/cancel` chi khi don con `PENDING`.
 - Luu `active_qr_order_id` theo `table_code` trong localStorage.
 
+### POS realtime lien quan
+- POS mo socket theo `store_id` de nhan signal don QR moi.
+- Khi nhan signal, POS refetch `qr/orders` + `tables` va cap nhat badge/chuong.
+
 ### Trang thai don
 - `PENDING`: cho staff duyet.
 - `APPROVED`: da duyet, merge vao cart ban.

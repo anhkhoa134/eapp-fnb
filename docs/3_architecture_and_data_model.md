@@ -32,6 +32,15 @@
 4. Khach huy don pending -> `CANCELLED`.
 5. Terminal states: `APPROVED/REJECTED/CANCELLED` (khong cho sua/huy tiep).
 
+## Realtime QR architecture
+- ASGI stack: `Django + Channels + Daphne`.
+- Channel layer: Redis (`REDIS_URL`).
+- WS group:
+  - POS theo store: `pos_store_<store_id>`.
+  - Public theo order: `public_qr_order_<order_id>`.
+- Event mode: WS chi push signal, frontend refetch lai REST API hien co.
+- Fallback: khi WS disconnect, frontend polling 15s.
+
 ## Quan ly QR ban
 - Manager CRUD ban QR trong `/quanly/qr-tables/`.
 - Co reset token, tai PNG QR tung ban.
