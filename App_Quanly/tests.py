@@ -57,6 +57,108 @@ class QuanlyPermissionTests(TestCase):
         self.assertEqual(self.client.get(reverse('App_Quanly:toppings')).status_code, 403)
         self.assertEqual(self.client.get(reverse('App_Quanly:product_toppings')).status_code, 403)
 
+    def test_categories_page_uses_modal_crud_actions(self):
+        self.client.login(username='manager_demo', password='123456')
+        category = Category.objects.create(tenant=self.tenant, name='Món chính')
+        res = self.client.get(reverse('App_Quanly:categories'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('data-bs-target="#createCategoryModal"', html)
+        self.assertIn('id="editCategoryModal"', html)
+        self.assertIn('id="deleteCategoryModal"', html)
+        self.assertIn('class="btn btn-sm btn-outline-primary js-edit-category"', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:category_edit", kwargs={"pk": category.id})}"',
+            html,
+        )
+
+    def test_products_page_uses_modal_crud_actions(self):
+        self.client.login(username='manager_demo', password='123456')
+        category = Category.objects.create(tenant=self.tenant, name='Món chính')
+        product = Product.objects.create(tenant=self.tenant, category=category, name='Phở')
+        res = self.client.get(reverse('App_Quanly:products'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="createProductModal"', html)
+        self.assertIn('id="editProductModal"', html)
+        self.assertIn('id="deleteProductModal"', html)
+        self.assertIn('id="addUnitModal"', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:product_edit", kwargs={"pk": product.id})}"',
+            html,
+        )
+
+    def test_toppings_page_uses_modal_crud_actions(self):
+        self.client.login(username='manager_demo', password='123456')
+        topping = Topping.objects.create(tenant=self.tenant, name='Thêm trứng')
+        res = self.client.get(reverse('App_Quanly:toppings'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="createToppingModal"', html)
+        self.assertIn('id="createMappingModal"', html)
+        self.assertIn('id="editToppingModal"', html)
+        self.assertIn('id="editMappingModal"', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:topping_edit", kwargs={"pk": topping.id})}"',
+            html,
+        )
+
+    def test_qr_tables_page_uses_modal_crud_actions(self):
+        self.client.login(username='manager_demo', password='123456')
+        table = DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store,
+            code='A-01',
+            name='Bàn A-01',
+            is_active=True,
+        )
+        res = self.client.get(reverse('App_Quanly:qr_tables'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="createTableModal"', html)
+        self.assertIn('id="editTableModal"', html)
+        self.assertIn('id="deleteTableModal"', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:qr_table_edit", kwargs={"pk": table.id})}"',
+            html,
+        )
+
+    def test_staffs_page_uses_modal_password_reset_action(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:staffs'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="createStaffModal"', html)
+        self.assertIn('id="resetStaffPasswordModal"', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:staff_password_reset", kwargs={"pk": self.staff.id})}"',
+            html,
+        )
+
+    def test_category_edit_get_redirects_back_to_list(self):
+        self.client.login(username='manager_demo', password='123456')
+        category = Category.objects.create(tenant=self.tenant, name='Đồ ăn')
+        res = self.client.get(reverse('App_Quanly:category_edit', kwargs={'pk': category.id}))
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res.url, reverse('App_Quanly:categories'))
+
+    def test_category_edit_post_updates_from_modal_payload(self):
+        self.client.login(username='manager_demo', password='123456')
+        category = Category.objects.create(tenant=self.tenant, name='Đồ ăn')
+        res = self.client.post(
+            reverse('App_Quanly:category_edit', kwargs={'pk': category.id}),
+            data={
+                'name': 'Đồ ăn nóng',
+                'description': 'Món nóng',
+                'is_active': 'on',
+                'store_ids': [str(self.store.id)],
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        category.refresh_from_db()
+        self.assertEqual(category.name, 'Đồ ăn nóng')
+        self.assertEqual(category.description, 'Món nóng')
+
     def test_manager_can_access_staff_management_pages(self):
         self.client.login(username='manager_demo', password='123456')
         self.assertEqual(self.client.get(reverse('App_Quanly:staffs')).status_code, 200)

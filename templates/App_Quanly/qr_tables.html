@@ -1,112 +1,258 @@
 {% extends 'App_Quanly/_layout.html' %}
 
 {% block quanly_content %}
-<div class="row g-3">
-    <div class="col-12 col-xl-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-qr-code-scan"></i>
-                    Tạo bàn QR
-                </h2>
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-                    <button class="btn btn-primary" type="submit">
-                        <i class="bi bi-save me-1"></i>Lưu bàn
-                    </button>
-                </form>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-qr-code-scan"></i>
+                Quản lý QR bàn
+            </h2>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                {% if selected_store %}
+                <a class="btn btn-outline-dark" href="{% url 'App_Quanly:qr_tables_print_pdf' %}?store={{ selected_store }}" target="_blank" rel="noopener">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>In PDF khổ lớn
+                </a>
+                {% endif %}
+                <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createTableModal">
+                    <i class="bi bi-plus-lg me-1"></i>Tạo bàn QR
+                </button>
             </div>
         </div>
-    </div>
 
-    <div class="col-12 col-xl-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-                    <h2 class="admin-card-title mb-0">
-                        <i class="bi bi-table"></i>
-                        Quản lý QR bàn
-                    </h2>
-                    <form method="get" class="d-flex align-items-center gap-2">
-                        <label class="small text-muted mb-0">Cửa hàng</label>
-                        <select name="store" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">Tất cả</option>
-                            {% for store in stores %}
-                            <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:'s' %}selected{% endif %}>{{ store.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </form>
-                    {% if selected_store %}
-                    <a class="btn btn-sm btn-outline-dark" href="{% url 'App_Quanly:qr_tables_print_pdf' %}?store={{ selected_store }}" target="_blank" rel="noopener">
-                        <i class="bi bi-file-earmark-pdf me-1"></i>In PDF khổ lớn
-                    </a>
-                    {% else %}
-                    <span class="small text-muted">Chọn cửa hàng để in PDF khổ lớn.</span>
-                    {% endif %}
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Bàn</th>
-                                <th>Cửa hàng</th>
-                                <th>Trạng thái</th>
-                                <th class="text-end">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in table_rows %}
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold">{{ row.table.name }}</div>
-                                    <div class="small text-muted">Mã: {{ row.table.code }}</div>
-                                    <div class="small text-muted text-break">Token: {{ row.table.qr_token }}</div>
-                                    <div class="input-group input-group-sm mt-2">
-                                        <input class="form-control" value="{{ row.qr_url }}" readonly>
-                                        <button class="btn btn-outline-primary" type="button" onclick="copyQrLink('{{ row.qr_url|escapejs }}')">Copy</button>
-                                    </div>
-                                </td>
-                                <td>{{ row.table.store.name }}</td>
-                                <td>
-                                    {% if row.table.is_active %}
-                                    <span class="badge text-bg-success">Active</span>
-                                    {% else %}
-                                    <span class="badge text-bg-secondary">Inactive</span>
-                                    {% endif %}
-                                    <div class="small text-muted mt-1">Thứ tự: {{ row.table.display_order }}</div>
-                                </td>
-                                <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-success mb-1" href="{% url 'App_Quanly:qr_table_png' row.table.id %}">
-                                        <i class="bi bi-image me-1"></i>PNG QR
-                                    </a>
-                                    <a class="btn btn-sm btn-outline-primary mb-1" href="{% url 'App_Quanly:qr_table_edit' row.table.id %}">
-                                        <i class="bi bi-pencil-square me-1"></i>Sửa
-                                    </a>
-                                    <form method="post" action="{% url 'App_Quanly:qr_table_reset_token' row.table.id %}" class="d-inline">
-                                        {% csrf_token %}
-                                        <button class="btn btn-sm btn-outline-warning mb-1" onclick="return confirm('Reset token QR cho bàn này?')">
-                                            <i class="bi bi-arrow-repeat me-1"></i>Reset token
-                                        </button>
-                                    </form>
-                                    <form method="post" action="{% url 'App_Quanly:qr_table_delete' row.table.id %}" class="d-inline">
-                                        {% csrf_token %}
-                                        <button class="btn btn-sm btn-outline-danger mb-1" onclick="return confirm('Xóa bàn QR này?')">
-                                            <i class="bi bi-trash me-1"></i>Xóa
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="4" class="text-center text-muted">Chưa có bàn QR.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <form method="get" class="row g-2 align-items-end mb-3">
+            <div class="col-12 col-md-4">
+                <label class="form-label small text-muted mb-1">Lọc theo cửa hàng</label>
+                <select name="store" class="form-select" onchange="this.form.submit()">
+                    <option value="">Tất cả</option>
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:'s' %}selected{% endif %}>{{ store.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Bàn</th>
+                        <th>Cửa hàng</th>
+                        <th>Trạng thái</th>
+                        <th>QR URL</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in table_rows %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ row.table.name }}</div>
+                            <div class="small text-muted">Mã: {{ row.table.code }}</div>
+                            <div class="small text-muted text-break">Token: {{ row.table.qr_token }}</div>
+                        </td>
+                        <td>{{ row.table.store.name }}</td>
+                        <td>
+                            {% if row.table.is_active %}
+                            <span class="badge bg-success">Hoạt động</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Tắt</span>
+                            {% endif %}
+                            <div class="small text-muted mt-1">Thứ tự: {{ row.table.display_order }}</div>
+                        </td>
+                        <td>
+                            <div class="input-group input-group-sm">
+                                <input class="form-control" value="{{ row.qr_url }}" readonly>
+                                <button class="btn btn-outline-primary" type="button" onclick="copyQrLink('{{ row.qr_url|escapejs }}')">Copy</button>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-success mb-1" href="{% url 'App_Quanly:qr_table_png' row.table.id %}">
+                                <i class="bi bi-image me-1"></i>PNG QR
+                            </a>
+                            <button
+                                class="btn btn-sm btn-outline-primary mb-1 js-edit-table"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editTableModal"
+                                data-action="{% url 'App_Quanly:qr_table_edit' row.table.id %}"
+                                data-table-name="{{ row.table.name|escape }}"
+                                data-table-code="{{ row.table.code|escape }}"
+                                data-table-display-order="{{ row.table.display_order }}"
+                                data-table-store-id="{{ row.table.store_id }}"
+                                data-table-active="{% if row.table.is_active %}1{% else %}0{% endif %}"
+                            >
+                                <i class="bi bi-pencil-square me-1"></i>Sửa
+                            </button>
+                            <button
+                                class="btn btn-sm btn-outline-warning mb-1 js-reset-token"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#resetTokenModal"
+                                data-action="{% url 'App_Quanly:qr_table_reset_token' row.table.id %}"
+                                data-table-name="{{ row.table.name|escape }}"
+                            >
+                                <i class="bi bi-arrow-repeat me-1"></i>Reset token
+                            </button>
+                            <button
+                                class="btn btn-sm btn-outline-danger mb-1 js-delete-table"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#deleteTableModal"
+                                data-action="{% url 'App_Quanly:qr_table_delete' row.table.id %}"
+                                data-table-name="{{ row.table.name|escape }}"
+                            >
+                                <i class="bi bi-trash me-1"></i>Xóa
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Chưa có bàn QR.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="createTableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2 text-primary"></i>Tạo bàn QR</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:qr_tables' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.store.id_for_label }}">Cửa hàng</label>
+                            {{ form.store }}
+                            {{ form.store.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.code.id_for_label }}">Mã bàn</label>
+                            {{ form.code }}
+                            {{ form.code.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên bàn</label>
+                            {{ form.name }}
+                            {{ form.name.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.display_order.id_for_label }}">Thứ tự</label>
+                            {{ form.display_order }}
+                            {{ form.display_order.errors }}
+                        </div>
+                        <div class="switch-card">
+                            <div class="form-check m-0 mt-4">
+                                {{ form.is_active }}
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Is active (tick để bật)</label>
+                            </div>
+                            {{ form.is_active.errors }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu bàn</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editTableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa bàn QR</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editTableForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-table-store">Cửa hàng</label>
+                            <select class="form-select" id="edit-table-store" name="store" required>
+                                {% for store in stores %}
+                                <option value="{{ store.id }}">{{ store.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-table-code">Mã bàn</label>
+                            <input class="form-control" id="edit-table-code" name="code" maxlength="40" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-table-name">Tên bàn</label>
+                            <input class="form-control" id="edit-table-name" name="name" maxlength="120" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-table-display-order">Thứ tự</label>
+                            <input class="form-control" id="edit-table-display-order" name="display_order" type="number" min="0" value="0" required>
+                        </div>
+                        <div class="switch-card">
+                            <div class="form-check m-0 mt-4">
+                                <input class="form-check-input" id="edit-table-active" name="is_active" type="checkbox">
+                                <label class="form-check-label fw-semibold" for="edit-table-active">Is active (tick để bật)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="resetTokenModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-warning"><i class="bi bi-arrow-repeat me-2"></i>Reset token QR</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="resetTokenForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Xác nhận reset token cho bàn <strong id="resetTokenTableName"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-warning" type="submit">Reset token</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteTableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa bàn QR</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="deleteTableForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Bạn chắc chắn muốn xóa bàn <strong id="deleteTableName"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit">Xóa</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -118,16 +264,60 @@
     const copyQrLink = async (value) => {
         try {
             await navigator.clipboard.writeText(value);
-            const body = document.getElementById('commonModalBody');
-            if (body) {
-                body.textContent = 'Đã copy link QR.';
-                const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('commonModal'));
-                modal.show();
+            if (typeof window.showQuanlyToast === 'function') {
+                window.showQuanlyToast('Đã copy link QR.', 'success');
             }
         } catch (_) {
-            alert('Không thể copy tự động. Vui lòng copy thủ công.');
+            if (typeof window.showQuanlyToast === 'function') {
+                window.showQuanlyToast('Không thể copy tự động. Vui lòng copy thủ công.', 'error');
+            }
         }
     };
     window.copyQrLink = copyQrLink;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const editTableForm = document.getElementById('editTableForm');
+        const editTableStore = document.getElementById('edit-table-store');
+        const editTableCode = document.getElementById('edit-table-code');
+        const editTableName = document.getElementById('edit-table-name');
+        const editTableDisplayOrder = document.getElementById('edit-table-display-order');
+        const editTableActive = document.getElementById('edit-table-active');
+
+        document.querySelectorAll('.js-edit-table').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (editTableForm) editTableForm.action = button.dataset.action || '';
+                if (editTableStore) editTableStore.value = button.dataset.tableStoreId || '';
+                if (editTableCode) editTableCode.value = button.dataset.tableCode || '';
+                if (editTableName) editTableName.value = button.dataset.tableName || '';
+                if (editTableDisplayOrder) editTableDisplayOrder.value = button.dataset.tableDisplayOrder || '0';
+                if (editTableActive) editTableActive.checked = button.dataset.tableActive === '1';
+            });
+        });
+
+        const resetTokenForm = document.getElementById('resetTokenForm');
+        const resetTokenTableName = document.getElementById('resetTokenTableName');
+        document.querySelectorAll('.js-reset-token').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (resetTokenForm) resetTokenForm.action = button.dataset.action || '';
+                if (resetTokenTableName) resetTokenTableName.textContent = button.dataset.tableName || '';
+            });
+        });
+
+        const deleteTableForm = document.getElementById('deleteTableForm');
+        const deleteTableName = document.getElementById('deleteTableName');
+        document.querySelectorAll('.js-delete-table').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (deleteTableForm) deleteTableForm.action = button.dataset.action || '';
+                if (deleteTableName) deleteTableName.textContent = button.dataset.tableName || '';
+            });
+        });
+
+        {% if open_create_modal %}
+        const createModalEl = document.getElementById('createTableModal');
+        if (createModalEl) {
+            bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        }
+        {% endif %}
+    });
 </script>
 {% endblock %}

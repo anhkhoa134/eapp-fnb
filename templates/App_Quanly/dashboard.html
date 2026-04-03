@@ -2,15 +2,196 @@
 {% load number_format %}
 
 {% block quanly_content %}
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-body">
-        <h1 class="admin-card-title">
-            <i class="bi bi-bar-chart-line"></i>
-            Dashboard doanh thu
-        </h1>
-        <form class="row g-2" method="get">
+<style>
+    .quanly-page .brand-hero.card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 22px;
+        border: 1px solid rgba(125, 211, 252, 0.45) !important;
+        background:
+            radial-gradient(circle at 8% 16%, rgba(125, 211, 252, 0.38), transparent 38%),
+            radial-gradient(circle at 92% 10%, rgba(59, 130, 246, 0.22), transparent 35%),
+            linear-gradient(140deg, rgba(239, 246, 255, 0.9), rgba(224, 242, 254, 0.82), rgba(219, 234, 254, 0.86)) !important;
+        color: #0f172a;
+        box-shadow: 0 18px 34px rgba(30, 64, 175, 0.14);
+        backdrop-filter: blur(12px);
+    }
+    .quanly-page .brand-hero .card-body {
+        color: #0f172a;
+    }
+    .brand-hero::after {
+        content: "";
+        position: absolute;
+        right: -42px;
+        bottom: -42px;
+        width: 190px;
+        height: 190px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(56, 189, 248, 0.35), transparent 70%);
+    }
+    .brand-hero .hero-title {
+        font-size: 1.26rem;
+        font-weight: 800;
+        margin-bottom: 0.2rem;
+        color: #1e3a8a;
+    }
+    .brand-hero .hero-sub {
+        margin: 0;
+        color: #334155;
+        font-size: 0.92rem;
+    }
+    .hero-chip-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .hero-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        border-radius: 999px;
+        padding: 0.34rem 0.68rem;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(96, 165, 250, 0.42);
+        color: #1e3a8a;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+    .hero-filter {
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(125, 211, 252, 0.45);
+        padding: 0.82rem;
+    }
+    .brand-hero .hero-filter .form-label {
+        color: #1e3a8a !important;
+        font-weight: 700;
+    }
+    .hero-filter .form-select,
+    .hero-filter .form-control {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.5);
+    }
+    .kpi-card {
+        border-radius: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: rgba(255, 255, 255, 0.82);
+    }
+    .kpi-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .kpi-label {
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 0.22rem;
+    }
+    .kpi-hint {
+        color: #475569;
+        font-size: 0.8rem;
+    }
+    .kpi-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+        color: #0f172a;
+    }
+    .kpi-icon.revenue {
+        background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(248, 250, 252, 0.8));
+    }
+    .kpi-icon.orders {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(248, 250, 252, 0.8));
+    }
+    .kpi-icon.aov {
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(248, 250, 252, 0.8));
+    }
+    .kpi-icon.today {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.24), rgba(248, 250, 252, 0.85));
+    }
+    .paymix-track {
+        height: 10px;
+        border-radius: 99px;
+        overflow: hidden;
+        background: rgba(226, 232, 240, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.24);
+    }
+    .paymix-cash {
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+    }
+    .paymix-card {
+        background: linear-gradient(90deg, #0ea5e9, #2563eb);
+    }
+    .kpi-zone-title {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+    .store-kpi-item {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: rgba(248, 250, 252, 0.7);
+        padding: 0.6rem 0.72rem;
+    }
+    .store-kpi-rank {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: rgba(30, 64, 175, 0.12);
+        color: #1e40af;
+        font-size: 0.72rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .recent-table-wrap table {
+        margin-bottom: 0;
+    }
+    .chart-box {
+        width: 100%;
+        height: 320px;
+    }
+    .chart-box.chart-sm {
+        height: 280px;
+    }
+    .chart-headline {
+        font-size: 0.8rem;
+        color: #64748b;
+        font-weight: 700;
+        margin-top: -0.2rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+<div class="brand-hero card mb-3">
+    <div class="card-body p-3 p-lg-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <div class="hero-title">Revenue Command Center</div>
+                <p class="hero-sub">Bảng điều hành KPI doanh thu theo tenant, giúp theo dõi nhịp bán hàng theo thời gian thực tế vận hành.</p>
+            </div>
+            <div class="hero-chip-wrap">
+                <span class="hero-chip"><i class="bi bi-buildings"></i>{{ user.tenant.name|default:'Tenant' }}</span>
+                <span class="hero-chip"><i class="bi bi-calendar-range"></i>{{ period_label }}</span>
+                <span class="hero-chip"><i class="bi bi-shop"></i>{{ active_store_count }} cửa hàng</span>
+            </div>
+        </div>
+
+        <form class="row g-2 hero-filter" method="get">
             <div class="col-md-4">
-                <label class="form-label small text-muted">Cửa hàng</label>
+                <label class="form-label small">Cửa hàng</label>
                 <select name="store" class="form-select">
                     <option value="">Tất cả cửa hàng</option>
                     {% for store in stores %}
@@ -19,79 +200,352 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small text-muted">Từ ngày</label>
+                <label class="form-label small">Từ ngày</label>
                 <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label small text-muted">Đến ngày</label>
+                <label class="form-label small">Đến ngày</label>
                 <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
             </div>
             <div class="col-md-2 d-grid align-items-end">
-                <button class="btn btn-primary">Lọc</button>
+                <button class="btn btn-primary">
+                    <i class="bi bi-funnel me-1"></i>Lọc
+                </button>
             </div>
         </form>
     </div>
 </div>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100 metric-card">
-            <div class="card-body">
-                <div class="text-muted small">Tổng doanh thu</div>
-                <div class="h4 fw-bold text-danger mb-0">{{ total_revenue|thousand_sep }} đ</div>
+    <div class="col-12">
+        <div class="row g-3">
+            <div class="col-sm-6">
+                <div class="kpi-card h-100 card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-start gap-3">
+                        <span class="kpi-icon revenue"><i class="bi bi-cash-coin"></i></span>
+                        <div>
+                            <div class="kpi-label">Tổng doanh thu</div>
+                            <div class="kpi-value text-danger">{{ total_revenue|thousand_sep }} đ</div>
+                            <div class="kpi-hint">Theo bộ lọc hiện tại</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100 metric-card">
-            <div class="card-body">
-                <div class="text-muted small">Tổng đơn</div>
-                <div class="h4 fw-bold mb-0">{{ total_orders|thousand_sep }}</div>
+            <div class="col-sm-6">
+                <div class="kpi-card h-100 card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-start gap-3">
+                        <span class="kpi-icon orders"><i class="bi bi-receipt-cutoff"></i></span>
+                        <div>
+                            <div class="kpi-label">Tổng đơn hoàn tất</div>
+                            <div class="kpi-value">{{ total_orders|thousand_sep }}</div>
+                            <div class="kpi-hint">Số đơn đang được tính KPI</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100 metric-card">
-            <div class="card-body">
-                <div class="text-muted small">Giá trị đơn TB</div>
-                <div class="h4 fw-bold mb-0">{{ avg_order_value|thousand_sep }} đ</div>
+            <div class="col-sm-6">
+                <div class="kpi-card h-100 card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-start gap-3">
+                        <span class="kpi-icon aov"><i class="bi bi-graph-up-arrow"></i></span>
+                        <div>
+                            <div class="kpi-label">Giá trị đơn trung bình</div>
+                            <div class="kpi-value">{{ avg_order_value|thousand_sep }} đ</div>
+                            <div class="kpi-hint">AOV toàn bộ đơn trong bộ lọc</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6">
+                <div class="kpi-card h-100 card border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-start gap-3">
+                        <span class="kpi-icon today"><i class="bi bi-lightning-charge"></i></span>
+                        <div>
+                            <div class="kpi-label">Hiệu suất hôm nay</div>
+                            <div class="kpi-value">{{ today_revenue|thousand_sep }} đ</div>
+                            <div class="kpi-hint">{{ today_orders|thousand_sep }} đơn trong ngày</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-body">
-        <h2 class="admin-card-title">
-            <i class="bi bi-receipt-cutoff"></i>
-            Đơn gần nhất
-        </h2>
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th>Mã đơn</th>
-                        <th>Cửa hàng</th>
-                        <th>Thu ngân</th>
-                        <th>Tổng tiền</th>
-                        <th>Thời gian</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for order in recent_orders %}
-                    <tr>
-                        <td>{{ order.order_code }}</td>
-                        <td>{{ order.store.name }}</td>
-                        <td>{{ order.cashier.username }}</td>
-                        <td>{{ order.total_amount|thousand_sep }} đ</td>
-                        <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm kpi-card h-100">
+            <div class="card-body">
+                <div class="admin-card-title">
+                    <i class="bi bi-activity"></i>
+                    Xu hướng doanh thu
+                </div>
+                <div class="chart-headline">{{ chart_caption }}</div>
+                <div id="revenueTrendChart" class="chart-box"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm kpi-card h-100">
+            <div class="card-body">
+                <div class="admin-card-title">
+                    <i class="bi bi-pie-chart"></i>
+                    Cơ cấu thanh toán
+                </div>
+                <div id="paymentMixDonutChart" class="chart-box chart-sm"></div>
+            </div>
         </div>
     </div>
 </div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-5">
+        <div class="card border-0 shadow-sm h-100 kpi-card">
+            <div class="card-body">
+                <div class="admin-card-title">
+                    <i class="bi bi-diagram-3"></i>
+                    KPI theo cửa hàng
+                </div>
+                <div id="storeRevenueBarChart" class="chart-box chart-sm mb-2"></div>
+                <div class="d-flex flex-column gap-2">
+                    {% for row in store_kpis %}
+                    <div class="store-kpi-item d-flex justify-content-between align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="store-kpi-rank">{{ forloop.counter }}</span>
+                            <div>
+                                <div class="fw-semibold text-dark">{{ row.store__name }}</div>
+                                <div class="small text-muted">{{ row.total_orders|thousand_sep }} đơn</div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold text-danger">{{ row.total_revenue|thousand_sep }} đ</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-muted small">Chưa có dữ liệu theo cửa hàng cho bộ lọc hiện tại.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-7">
+        <div class="card border-0 shadow-sm kpi-card">
+            <div class="card-body recent-table-wrap">
+                <h2 class="admin-card-title">
+                    <i class="bi bi-clock-history"></i>
+                    Đơn gần nhất
+                </h2>
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Mã đơn</th>
+                                <th>Cửa hàng</th>
+                                <th>Thu ngân</th>
+                                <th>Tổng tiền</th>
+                                <th>Thời gian</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td>{{ order.order_code }}</td>
+                                <td>{{ order.store.name }}</td>
+                                <td>{{ order.cashier.username }}</td>
+                                <td>{{ order.total_amount|thousand_sep }} đ</td>
+                                <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{ chart_revenue_labels|json_script:"chart-revenue-labels" }}
+{{ chart_revenue_values|json_script:"chart-revenue-values" }}
+{{ chart_orders_values|json_script:"chart-orders-values" }}
+{{ chart_payment_names|json_script:"chart-payment-names" }}
+{{ chart_payment_values|json_script:"chart-payment-values" }}
+{{ chart_store_names|json_script:"chart-store-names" }}
+{{ chart_store_values|json_script:"chart-store-values" }}
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+    const parseChartJson = (id, fallback = []) => {
+        const el = document.getElementById(id);
+        if (!el) return fallback;
+        try {
+            return JSON.parse(el.textContent);
+        } catch (error) {
+            console.warn('Invalid chart data:', id, error);
+            return fallback;
+        }
+    };
+
+    const formatCompactVnd = (value) => `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} đ`;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof echarts === 'undefined') return;
+
+        const revenueLabels = parseChartJson('chart-revenue-labels');
+        const revenueValues = parseChartJson('chart-revenue-values');
+        const ordersValues = parseChartJson('chart-orders-values');
+        const paymentNames = parseChartJson('chart-payment-names');
+        const paymentValues = parseChartJson('chart-payment-values');
+        const storeNames = parseChartJson('chart-store-names');
+        const storeValues = parseChartJson('chart-store-values');
+
+        const charts = [];
+
+        const revenueEl = document.getElementById('revenueTrendChart');
+        if (revenueEl) {
+            const revenueChart = echarts.init(revenueEl);
+            revenueChart.setOption({
+                color: ['#2563eb', '#0ea5e9'],
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                    borderWidth: 0,
+                    textStyle: { color: '#f8fafc' },
+                    formatter: (params) => {
+                        const revenue = params.find((p) => p.seriesName === 'Doanh thu');
+                        const orders = params.find((p) => p.seriesName === 'Số đơn');
+                        const date = params?.[0]?.axisValue || '';
+                        return [
+                            `<strong>${date}</strong>`,
+                            revenue ? `Doanh thu: ${formatCompactVnd(revenue.value)}` : '',
+                            orders ? `Số đơn: ${orders.value}` : '',
+                        ].filter(Boolean).join('<br>');
+                    },
+                },
+                legend: {
+                    data: ['Doanh thu', 'Số đơn'],
+                    bottom: 0,
+                },
+                grid: { left: 48, right: 48, top: 26, bottom: 48 },
+                xAxis: {
+                    type: 'category',
+                    data: revenueLabels,
+                    axisLine: { lineStyle: { color: '#bfdbfe' } },
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'Doanh thu',
+                        axisLabel: { formatter: (v) => `${Math.round(v / 1000)}k` },
+                        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.16)' } },
+                    },
+                    {
+                        type: 'value',
+                        name: 'Đơn',
+                        axisLabel: { formatter: '{value}' },
+                        splitLine: { show: false },
+                    },
+                ],
+                series: [
+                    {
+                        name: 'Doanh thu',
+                        type: 'line',
+                        smooth: true,
+                        symbolSize: 7,
+                        data: revenueValues,
+                        areaStyle: {
+                            color: 'rgba(37, 99, 235, 0.18)',
+                        },
+                        lineStyle: { width: 3 },
+                    },
+                    {
+                        name: 'Số đơn',
+                        type: 'bar',
+                        yAxisIndex: 1,
+                        barMaxWidth: 20,
+                        itemStyle: {
+                            color: 'rgba(14, 165, 233, 0.7)',
+                            borderRadius: [6, 6, 0, 0],
+                        },
+                        data: ordersValues,
+                    },
+                ],
+            });
+            charts.push(revenueChart);
+        }
+
+        const paymentEl = document.getElementById('paymentMixDonutChart');
+        if (paymentEl) {
+            const paymentChart = echarts.init(paymentEl);
+            const paymentData = paymentNames.map((name, index) => ({ name, value: paymentValues[index] || 0 }));
+            paymentChart.setOption({
+                color: ['#2563eb', '#0ea5e9'],
+                tooltip: {
+                    trigger: 'item',
+                    formatter: ({ name, value, percent }) => `${name}: ${value} đơn (${percent}%)`,
+                },
+                legend: {
+                    bottom: 0,
+                    icon: 'circle',
+                },
+                series: [
+                    {
+                        type: 'pie',
+                        radius: ['58%', '78%'],
+                        center: ['50%', '44%'],
+                        data: paymentData,
+                        label: { formatter: '{d}%' },
+                        itemStyle: {
+                            borderColor: '#fff',
+                            borderWidth: 2,
+                        },
+                    },
+                ],
+            });
+            charts.push(paymentChart);
+        }
+
+        const storeEl = document.getElementById('storeRevenueBarChart');
+        if (storeEl) {
+            const storeChart = echarts.init(storeEl);
+            storeChart.setOption({
+                color: ['#3b82f6'],
+                grid: { left: 8, right: 12, top: 8, bottom: 8, containLabel: true },
+                xAxis: {
+                    type: 'value',
+                    axisLabel: { formatter: (v) => `${Math.round(v / 1000)}k` },
+                    splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.16)' } },
+                },
+                yAxis: {
+                    type: 'category',
+                    data: storeNames,
+                    axisTick: { show: false },
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: (params) => {
+                        const point = params?.[0];
+                        if (!point) return '';
+                        return `${point.name}<br>Doanh thu: ${formatCompactVnd(point.value)}`;
+                    },
+                },
+                series: [
+                    {
+                        type: 'bar',
+                        data: storeValues,
+                        barMaxWidth: 18,
+                        itemStyle: {
+                            borderRadius: [0, 8, 8, 0],
+                        },
+                    },
+                ],
+            });
+            charts.push(storeChart);
+        }
+
+        if (charts.length) {
+            window.addEventListener('resize', () => charts.forEach((chart) => chart.resize()));
+        }
+    });
+</script>
 {% endblock %}

@@ -27,6 +27,8 @@
 ## Trang thai hien tai
 - Da co: POS takeaway/table, topping full-stack, QR flow staff, QR flow khach (create/edit/cancel/status), quan ly QR ban (PNG/PDF 15 ban/trang).
 - QR realtime da dung WebSocket cho POS + Public QR, co fallback polling 15s khi WS mat ket noi.
+- Superadmin tao tenant trong Django Admin/Jazzmin se tu bootstrap du lieu mac dinh:
+  1 quan ly, 2 nhan vien, 1 store, 12 ban co QR token, 2 category, 4 product co unit.
 - Chua lam: inventory, shift, refund.
 
 ## Danh sach tai lieu theo thu tu

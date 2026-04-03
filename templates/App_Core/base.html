@@ -226,13 +226,15 @@
 </form>
 
 <div class="{% block container_class %}container-fluid py-3{% endblock %}">
-    {% if messages %}
-    <div class="mb-3">
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags|default:'info' }} mb-2">{{ message }}</div>
-        {% endfor %}
-    </div>
-    {% endif %}
+    {% block messages_ui %}
+        {% if messages %}
+        <div class="mb-3">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} mb-2">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endblock %}
     {% block content %}{% endblock %}
 </div>
 

@@ -1,4 +1,5 @@
 import os
+import importlib.util
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -57,6 +58,7 @@ def env_required(key):
     return value
 
 INSTALLED_APPS = [
+    *(['jazzmin'] if importlib.util.find_spec('jazzmin') else []),
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -74,10 +76,45 @@ INSTALLED_APPS = [
     'App_Public',
 ]
 
+JAZZMIN_SETTINGS = {
+    'site_title': 'eApp FnB Admin',
+    'site_header': 'eApp FnB Control Center',
+    'site_brand': 'eApp FnB',
+    'welcome_sign': 'Superadmin quản trị tenant và hệ thống',
+    'copyright': 'eApp FnB',
+    'show_ui_builder': False,
+    'order_with_respect_to': [
+        'App_Tenant',
+        'App_Accounts',
+        'App_Catalog',
+        'App_Sales',
+        'App_Quanly',
+        'App_Public',
+    ],
+    'topmenu_links': [
+        {'name': 'POS', 'url': 'App_Sales:pos'},
+        {'name': 'Dashboard quản lý', 'url': 'App_Quanly:dashboard'},
+        {'app': 'App_Tenant'},
+    ],
+    'icons': {
+        'auth': 'fas fa-users-cog',
+        'App_Accounts.User': 'fas fa-user-shield',
+        'App_Tenant.Tenant': 'fas fa-building',
+        'App_Tenant.Store': 'fas fa-store',
+        'App_Tenant.UserStoreAccess': 'fas fa-key',
+        'App_Catalog.Category': 'fas fa-layer-group',
+        'App_Catalog.Product': 'fas fa-mug-hot',
+        'App_Catalog.Topping': 'fas fa-plus-circle',
+        'App_Sales.Order': 'fas fa-receipt',
+        'App_Sales.DiningTable': 'fas fa-table',
+    },
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'App_Core.middleware.NotFoundRedirectMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -226,7 +263,7 @@ LOGGING = {
         'recent_error_file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': str(LOGS_DIR / 'recent-errors.log'),
-            'maxBytes': 5 * 1024 * 1024,
+            'maxBytes': 5 * 1024 * 1024, # 5MB
             'backupCount': 1,
             'encoding': 'utf-8',
             'level': 'ERROR',

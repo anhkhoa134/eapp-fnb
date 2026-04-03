@@ -1,53 +1,304 @@
 {% extends 'App_Quanly/_layout.html' %}
 
 {% block quanly_content %}
-<div class="row g-3">
-    <div class="col-lg-5">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-grid-3x3-gap"></i>
-                    Tạo danh mục
-                </h2>
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-                    <button class="btn btn-primary" type="submit">Lưu danh mục</button>
-                </form>
-            </div>
+<style>
+    .crud-modal .modal-content {
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+    }
+    .crud-modal .modal-header {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 1rem 1.15rem;
+    }
+    .crud-modal .modal-title {
+        color: #0f172a;
+    }
+    .crud-modal .modal-body {
+        padding: 1rem 1.15rem;
+    }
+    .crud-modal .modal-footer {
+        border-top: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 0.85rem 1.15rem 1rem;
+    }
+    .form-section-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 0.55rem;
+    }
+    .store-check-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.45rem 0.7rem;
+    }
+    .store-check-item {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 10px;
+        padding: 0.5rem 0.55rem;
+        background: rgba(255, 255, 255, 0.9);
+        font-size: 0.9rem;
+        color: #334155;
+    }
+    .active-toggle {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 10px;
+        padding: 0.55rem 0.65rem;
+        background: rgba(255, 255, 255, 0.9);
+    }
+    @media (max-width: 767.98px) {
+        .store-check-list {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-list-check"></i>
+                Danh sách danh mục
+            </h2>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
+                <i class="bi bi-plus-lg me-1"></i>Tạo danh mục
+            </button>
         </div>
-    </div>
-    <div class="col-lg-7">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-list-check"></i>
-                    Danh sách danh mục
-                </h2>
-                <div class="table-responsive">
-                    <table class="table align-middle">
-                        <thead><tr><th>Tên</th><th>Trạng thái</th><th></th></tr></thead>
-                        <tbody>
-                            {% for item in categories %}
-                            <tr>
-                                <td>{{ item.name }}</td>
-                                <td>{% if item.is_active %}<span class="badge bg-success">Hoạt động</span>{% else %}<span class="badge bg-secondary">Tắt</span>{% endif %}</td>
-                                <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:category_edit' item.id %}">Sửa</a>
-                                    <form class="d-inline" method="post" action="{% url 'App_Quanly:category_delete' item.id %}">
-                                        {% csrf_token %}
-                                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa danh mục này?')">Xóa</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="3" class="text-center text-muted">Chưa có danh mục.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Tên</th>
+                        <th>Mô tả</th>
+                        <th>Cửa hàng hiển thị</th>
+                        <th>Trạng thái</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in category_rows %}
+                    {% with item=row.category %}
+                    <tr>
+                        <td class="fw-semibold">{{ item.name }}</td>
+                        <td class="text-muted small">{{ item.description|default:'-' }}</td>
+                        <td class="small">{{ row.visible_store_names|default:'-' }}</td>
+                        <td>
+                            {% if item.is_active %}
+                            <span class="badge bg-success">Hoạt động</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Tắt</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button
+                                class="btn btn-sm btn-outline-primary js-edit-category"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editCategoryModal"
+                                data-action="{% url 'App_Quanly:category_edit' item.id %}"
+                                data-category-name="{{ item.name|escape }}"
+                                data-category-description="{{ item.description|default:''|escape }}"
+                                data-category-active="{% if item.is_active %}1{% else %}0{% endif %}"
+                                data-category-store-ids="{{ row.visible_store_ids_csv }}"
+                            >
+                                Sửa
+                            </button>
+                            <button
+                                class="btn btn-sm btn-outline-danger js-delete-category"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#deleteCategoryModal"
+                                data-action="{% url 'App_Quanly:category_delete' item.id %}"
+                                data-category-name="{{ item.name|escape }}"
+                            >
+                                Xóa
+                            </button>
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">Chưa có danh mục.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
+<div class="modal fade crud-modal" id="createCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle me-2 text-primary"></i>Tạo danh mục</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:categories' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên danh mục</label>
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Mô tả</label>
+                        <textarea
+                            class="form-control"
+                            id="{{ form.description.id_for_label }}"
+                            name="{{ form.description.html_name }}"
+                            rows="2"
+                        >{{ form.description.value|default_if_none:'' }}</textarea>
+                        {{ form.description.errors }}
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-section-title">Hiển thị ở cửa hàng</div>
+                        <div class="store-check-list">
+                            {% for checkbox in form.store_ids %}
+                            <label class="store-check-item">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+                            {% empty %}
+                            <div class="text-muted small">Chưa có cửa hàng hoạt động.</div>
+                            {% endfor %}
+                        </div>
+                        {{ form.store_ids.errors }}
+                    </div>
+                    <div class="active-toggle">
+                        <div class="form-check m-0">
+                            {{ form.is_active }}
+                            <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">
+                                Is active (tick để bật)
+                            </label>
+                        </div>
+                        {{ form.is_active.errors }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu danh mục</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-pencil-square me-2 text-primary"></i>Sửa danh mục
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editCategoryForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Tên</label>
+                        <input type="text" class="form-control" id="edit-category-name" name="name" maxlength="120" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả</label>
+                        <textarea class="form-control" id="edit-category-description" name="description" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-section-title">Hiển thị ở cửa hàng</div>
+                        <div class="store-check-list">
+                            {% for store in stores %}
+                            <label class="store-check-item">
+                                <input class="form-check-input me-2 js-edit-store-checkbox" type="checkbox" name="store_ids" value="{{ store.id }}">
+                                {{ store.name }}
+                            </label>
+                            {% empty %}
+                            <span class="text-muted small">Chưa có cửa hàng hoạt động.</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="active-toggle">
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" id="edit-category-active" name="is_active">
+                            <label class="form-check-label fw-semibold" for="edit-category-active">Is active (tick để bật)</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="bi bi-trash me-2"></i>Xóa danh mục
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="deleteCategoryForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Bạn chắc chắn muốn xóa danh mục <strong id="deleteCategoryName"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-danger">Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const editForm = document.getElementById('editCategoryForm');
+        const editName = document.getElementById('edit-category-name');
+        const editDescription = document.getElementById('edit-category-description');
+        const editActive = document.getElementById('edit-category-active');
+        const editStoreCheckboxes = Array.from(document.querySelectorAll('.js-edit-store-checkbox'));
+
+        document.querySelectorAll('.js-edit-category').forEach((button) => {
+            button.addEventListener('click', () => {
+                const storeIds = (button.dataset.categoryStoreIds || '')
+                    .split(',')
+                    .map((value) => value.trim())
+                    .filter(Boolean);
+                if (editForm) editForm.action = button.dataset.action || '';
+                if (editName) editName.value = button.dataset.categoryName || '';
+                if (editDescription) editDescription.value = button.dataset.categoryDescription || '';
+                if (editActive) editActive.checked = button.dataset.categoryActive === '1';
+                editStoreCheckboxes.forEach((checkbox) => {
+                    checkbox.checked = storeIds.includes(checkbox.value);
+                });
+            });
+        });
+
+        const deleteForm = document.getElementById('deleteCategoryForm');
+        const deleteName = document.getElementById('deleteCategoryName');
+        document.querySelectorAll('.js-delete-category').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (deleteForm) deleteForm.action = button.dataset.action || '';
+                if (deleteName) deleteName.textContent = button.dataset.categoryName || '';
+            });
+        });
+
+        {% if open_create_modal %}
+        const createModalEl = document.getElementById('createCategoryModal');
+        if (createModalEl) {
+            bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        }
+        {% endif %}
+    });
+</script>
 {% endblock %}

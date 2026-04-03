@@ -3,6 +3,19 @@
 
 {% block body_class %}quanly-page{% endblock %}
 {% block container_class %}container-fluid py-4 px-3 px-xl-4{% endblock %}
+{% block messages_ui %}
+    {% if messages %}
+    <div id="quanlyMessageSource" class="d-none">
+        {% for message in messages %}
+        <div
+            class="js-quanly-message"
+            data-tags="{{ message.tags|default:'info' }}"
+            data-text="{{ message|escape }}"
+        ></div>
+        {% endfor %}
+    </div>
+    {% endif %}
+{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -207,6 +220,91 @@
         border-radius: 14px;
         background: rgba(255, 255, 255, 0.62);
     }
+    .crud-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.7rem;
+        margin-bottom: 1rem;
+    }
+    .crud-modal .modal-content {
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+        box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+    }
+    .crud-modal .modal-header {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 1rem 1.15rem;
+    }
+    .crud-modal .modal-body {
+        padding: 1rem 1.15rem;
+    }
+    .crud-modal .modal-footer {
+        border-top: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 0.9rem 1.15rem 1rem;
+    }
+    .crud-modal .modal-title {
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .crud-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.85rem 0.95rem;
+    }
+    .crud-form-grid .full {
+        grid-column: 1 / -1;
+    }
+    .form-section-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+    }
+    .check-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem 0.7rem;
+    }
+    .check-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 10px;
+        padding: 0.5rem 0.58rem;
+        background: rgba(255, 255, 255, 0.9);
+        color: #334155;
+    }
+    .switch-card {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 10px;
+        padding: 0.58rem 0.66rem;
+        background: rgba(255, 255, 255, 0.92);
+    }
+    .crud-modal .invalid-feedback {
+        display: block;
+    }
+    @media (max-width: 767.98px) {
+        .crud-form-grid,
+        .check-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    .quanly-toast {
+        border: 0;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.25);
+    }
+    .quanly-toast .toast-body {
+        font-weight: 600;
+        font-size: 0.88rem;
+    }
 </style>
 {% endblock %}
 
@@ -280,4 +378,57 @@
         {% block quanly_content %}{% endblock %}
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const source = document.getElementById('quanlyMessageSource');
+        const items = source ? Array.from(source.querySelectorAll('.js-quanly-message')) : [];
+        const container = document.getElementById('toastContainer');
+        if (typeof bootstrap === 'undefined' || !container) return;
+
+        const toneMap = {
+            success: { cls: 'bg-success', textClass: 'text-white', icon: 'bi-check-circle-fill', closeClass: 'btn-close btn-close-white' },
+            error: { cls: 'bg-danger', textClass: 'text-white', icon: 'bi-x-circle-fill', closeClass: 'btn-close btn-close-white' },
+            danger: { cls: 'bg-danger', textClass: 'text-white', icon: 'bi-x-circle-fill', closeClass: 'btn-close btn-close-white' },
+            warning: { cls: 'bg-warning', textClass: 'text-dark', icon: 'bi-exclamation-triangle-fill', closeClass: 'btn-close' },
+            info: { cls: 'bg-primary', textClass: 'text-white', icon: 'bi-info-circle-fill', closeClass: 'btn-close btn-close-white' },
+        };
+
+        const showQuanlyToast = (message, toneKey = 'info') => {
+            const key = toneMap[toneKey] ? toneKey : 'info';
+            const tone = toneMap[key];
+            const toastEl = document.createElement('div');
+            toastEl.className = `toast align-items-center border-0 quanly-toast ${tone.cls} ${tone.textClass}`;
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            const row = document.createElement('div');
+            row.className = 'd-flex';
+            const body = document.createElement('div');
+            body.className = 'toast-body';
+            const icon = document.createElement('i');
+            icon.className = `bi ${tone.icon} me-2`;
+            const labelEl = document.createElement('span');
+            labelEl.textContent = message || '';
+            body.appendChild(icon);
+            body.appendChild(labelEl);
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = `${tone.closeClass} me-2 m-auto`;
+            closeBtn.setAttribute('data-bs-dismiss', 'toast');
+            closeBtn.setAttribute('aria-label', 'Close');
+            row.appendChild(body);
+            row.appendChild(closeBtn);
+            toastEl.appendChild(row);
+            container.appendChild(toastEl);
+            bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3200 }).show();
+        };
+        window.showQuanlyToast = showQuanlyToast;
+
+        items.forEach((item) => {
+            const rawTags = (item.dataset.tags || 'info').split(' ');
+            const key = rawTags.find((tag) => toneMap[tag]) || 'info';
+            showQuanlyToast(item.dataset.text || '', key);
+        });
+    });
+</script>
 {% endblock %}

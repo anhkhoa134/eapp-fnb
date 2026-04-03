@@ -2,81 +2,491 @@
 {% load number_format %}
 
 {% block quanly_content %}
-<div class="row g-3">
-    <div class="col-lg-5">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-cup-hot"></i>
-                    Tạo sản phẩm
-                </h2>
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-                    <button class="btn btn-primary" type="submit">Lưu sản phẩm</button>
-                </form>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-cup-hot"></i>
+                Danh sách sản phẩm
+            </h2>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createProductModal">
+                <i class="bi bi-plus-lg me-1"></i>Tạo sản phẩm
+            </button>
+        </div>
+
+        {% for row in product_rows %}
+        {% with product=row.product %}
+        <div class="record-block p-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                    <div class="fw-semibold fs-6">{{ product.name }}</div>
+                    <div class="small text-muted">{{ product.category.name|default:'Không danh mục' }}</div>
+                    <div class="small text-muted">{{ row.available_store_names|default:'Chưa gán cửa hàng' }}</div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 justify-content-end">
+                    {% if product.is_active %}
+                    <span class="badge bg-success align-self-center">Hoạt động</span>
+                    {% else %}
+                    <span class="badge bg-secondary align-self-center">Tạm tắt</span>
+                    {% endif %}
+                    <button
+                        class="btn btn-sm btn-outline-success js-add-unit"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#addUnitModal"
+                        data-action="{% url 'App_Quanly:unit_add' product.id %}"
+                        data-product-name="{{ product.name|escape }}"
+                    >
+                        Thêm đơn vị
+                    </button>
+                    <button
+                        class="btn btn-sm btn-outline-primary js-edit-product"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#editProductModal"
+                        data-action="{% url 'App_Quanly:product_edit' product.id %}"
+                        data-product-name="{{ product.name|escape }}"
+                        data-product-category="{{ product.category_id|default:'' }}"
+                        data-product-short-description="{{ product.short_description|default:''|escape }}"
+                        data-product-description="{{ product.description|default:''|escape }}"
+                        data-product-image-url="{{ product.image_url|default:''|escape }}"
+                        data-product-active="{% if product.is_active %}1{% else %}0{% endif %}"
+                        data-product-store-ids="{{ row.available_store_ids_csv }}"
+                    >
+                        Sửa
+                    </button>
+                    <button
+                        class="btn btn-sm btn-outline-danger js-delete-product"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#deleteProductModal"
+                        data-action="{% url 'App_Quanly:product_delete' product.id %}"
+                        data-product-name="{{ product.name|escape }}"
+                    >
+                        Xóa
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Đơn vị</th>
+                            <th>Giá</th>
+                            <th>SKU</th>
+                            <th>Thứ tự</th>
+                            <th>Trạng thái</th>
+                            <th class="text-end">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for unit in product.units.all %}
+                        <tr>
+                            <td>{{ unit.name }}</td>
+                            <td>{{ unit.price|thousand_sep }} đ</td>
+                            <td>{{ unit.sku|default:'-' }}</td>
+                            <td>{{ unit.display_order }}</td>
+                            <td>
+                                {% if unit.is_active %}
+                                <span class="badge bg-success">Hoạt động</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Tắt</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <button
+                                    class="btn btn-sm btn-outline-primary js-edit-unit"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editUnitModal"
+                                    data-action="{% url 'App_Quanly:unit_edit' unit.id %}"
+                                    data-unit-name="{{ unit.name|escape }}"
+                                    data-unit-price="{{ unit.price|stringformat:'s' }}"
+                                    data-unit-sku="{{ unit.sku|default:''|escape }}"
+                                    data-unit-display-order="{{ unit.display_order }}"
+                                    data-unit-active="{% if unit.is_active %}1{% else %}0{% endif %}"
+                                    data-product-name="{{ product.name|escape }}"
+                                >
+                                    Sửa
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-danger js-delete-unit"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteUnitModal"
+                                    data-action="{% url 'App_Quanly:unit_delete' unit.id %}"
+                                    data-unit-name="{{ unit.name|escape }}"
+                                    data-product-name="{{ product.name|escape }}"
+                                >
+                                    Xóa
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-muted">Chưa có đơn vị.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
+        {% endwith %}
+        {% empty %}
+        <div class="text-muted">Chưa có sản phẩm.</div>
+        {% endfor %}
     </div>
-    <div class="col-lg-7">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-card-list"></i>
-                    Danh sách sản phẩm
-                </h2>
-                {% for product in products %}
-                <div class="record-block p-3 mb-3">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <div class="fw-semibold">{{ product.name }}</div>
-                            <div class="small text-muted">{{ product.category.name|default:'Không danh mục' }}</div>
-                        </div>
-                        <div class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:product_edit' product.id %}">Sửa</a>
-                            <form class="d-inline" method="post" action="{% url 'App_Quanly:product_delete' product.id %}">
-                                {% csrf_token %}
-                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa sản phẩm này?')">Xóa</button>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="table-responsive mb-2">
-                        <table class="table table-sm align-middle mb-1">
-                            <thead><tr><th>Đơn vị</th><th>Giá</th><th>SKU</th><th></th></tr></thead>
-                            <tbody>
-                                {% for unit in product.units.all %}
-                                <tr>
-                                    <td>{{ unit.name }}</td>
-                                    <td>{{ unit.price|thousand_sep }} đ</td>
-                                    <td>{{ unit.sku|default:'-' }}</td>
-                                    <td class="text-end">
-                                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Quanly:unit_edit' unit.id %}">Sửa</a>
-                                        <form class="d-inline" method="post" action="{% url 'App_Quanly:unit_delete' unit.id %}">
-                                            {% csrf_token %}
-                                            <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa đơn vị này?')">Xóa</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="4" class="text-muted">Chưa có đơn vị.</td></tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    <form method="post" action="{% url 'App_Quanly:unit_add' product.id %}" class="row g-2">
-                        {% csrf_token %}
-                        <div class="col-md-3"><input class="form-control" name="name" placeholder="Tên đơn vị" required></div>
-                        <div class="col-md-3"><input class="form-control" name="price" type="number" step="0.01" placeholder="Giá" required></div>
-                        <div class="col-md-2"><input class="form-control" name="sku" placeholder="SKU"></div>
-                        <div class="col-md-2"><input class="form-control" name="display_order" type="number" value="0"></div>
-                        <div class="col-md-2 d-grid"><button class="btn btn-sm btn-primary">Thêm đơn vị</button></div>
-                    </form>
-                </div>
-                {% empty %}
-                <div class="text-muted">Chưa có sản phẩm.</div>
-                {% endfor %}
+</div>
+
+<div class="modal fade crud-modal" id="createProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2 text-primary"></i>Tạo sản phẩm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form method="post" action="{% url 'App_Quanly:products' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên sản phẩm</label>
+                            {{ form.name }}
+                            {{ form.name.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.category.id_for_label }}">Danh mục</label>
+                            {{ form.category }}
+                            {{ form.category.errors }}
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.short_description.id_for_label }}">Mô tả ngắn</label>
+                            {{ form.short_description }}
+                            {{ form.short_description.errors }}
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Mô tả chi tiết</label>
+                            <textarea class="form-control" id="{{ form.description.id_for_label }}" name="{{ form.description.html_name }}" rows="3">{{ form.description.value|default_if_none:'' }}</textarea>
+                            {{ form.description.errors }}
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.image_url.id_for_label }}">Image URL</label>
+                            {{ form.image_url }}
+                            {{ form.image_url.errors }}
+                        </div>
+                        <div class="full">
+                            <div class="form-section-title">Bán tại cửa hàng</div>
+                            <div class="check-grid">
+                                {% for checkbox in form.store_ids %}
+                                <label class="check-chip">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có cửa hàng hoạt động.</span>
+                                {% endfor %}
+                            </div>
+                            {{ form.store_ids.errors }}
+                        </div>
+                        <div class="full switch-card">
+                            <div class="form-check m-0">
+                                {{ form.is_active }}
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Is active (tick để bật)</label>
+                            </div>
+                            {{ form.is_active.errors }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu sản phẩm</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<div class="modal fade crud-modal" id="editProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa sản phẩm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editProductForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-product-name">Tên sản phẩm</label>
+                            <input class="form-control" id="edit-product-name" name="name" maxlength="180" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-product-category">Danh mục</label>
+                            <select class="form-select" id="edit-product-category" name="category">
+                                <option value="">Không danh mục</option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-product-short-description">Mô tả ngắn</label>
+                            <input class="form-control" id="edit-product-short-description" name="short_description" maxlength="255">
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-product-description">Mô tả chi tiết</label>
+                            <textarea class="form-control" id="edit-product-description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-product-image-url">Image URL</label>
+                            <input class="form-control" id="edit-product-image-url" name="image_url" type="url">
+                        </div>
+                        <div class="full">
+                            <div class="form-section-title">Bán tại cửa hàng</div>
+                            <div class="check-grid">
+                                {% for store in stores %}
+                                <label class="check-chip">
+                                    <input class="form-check-input me-2 js-edit-product-store" type="checkbox" name="store_ids" value="{{ store.id }}">
+                                    {{ store.name }}
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="full switch-card">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" id="edit-product-active" name="is_active" type="checkbox">
+                                <label class="form-check-label fw-semibold" for="edit-product-active">Is active (tick để bật)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa sản phẩm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="deleteProductForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Bạn chắc chắn muốn xóa sản phẩm <strong id="deleteProductName"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit">Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="addUnitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-square me-2 text-primary"></i>Thêm đơn vị</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="addUnitForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="small text-muted mb-3">Sản phẩm: <strong id="addUnitProductName"></strong></div>
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="add-unit-name">Tên đơn vị</label>
+                            <input class="form-control" id="add-unit-name" name="name" maxlength="120" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="add-unit-price">Giá</label>
+                            <input class="form-control" id="add-unit-price" name="price" type="number" step="0.01" min="0" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="add-unit-sku">SKU</label>
+                            <input class="form-control" id="add-unit-sku" name="sku" maxlength="120">
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="add-unit-display-order">Thứ tự hiển thị</label>
+                            <input class="form-control" id="add-unit-display-order" name="display_order" type="number" min="0" value="0">
+                        </div>
+                        <div class="full switch-card">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" id="add-unit-active" name="is_active" type="checkbox" checked>
+                                <label class="form-check-label fw-semibold" for="add-unit-active">Is active (tick để bật)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu đơn vị</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editUnitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa đơn vị</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editUnitForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="small text-muted mb-3">Sản phẩm: <strong id="editUnitProductName"></strong></div>
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-unit-name">Tên đơn vị</label>
+                            <input class="form-control" id="edit-unit-name" name="name" maxlength="120" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-unit-price">Giá</label>
+                            <input class="form-control" id="edit-unit-price" name="price" type="number" step="0.01" min="0" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-unit-sku">SKU</label>
+                            <input class="form-control" id="edit-unit-sku" name="sku" maxlength="120">
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-unit-display-order">Thứ tự hiển thị</label>
+                            <input class="form-control" id="edit-unit-display-order" name="display_order" type="number" min="0" value="0">
+                        </div>
+                        <div class="full switch-card">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" id="edit-unit-active" name="is_active" type="checkbox">
+                                <label class="form-check-label fw-semibold" for="edit-unit-active">Is active (tick để bật)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteUnitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa đơn vị</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="deleteUnitForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Xóa đơn vị <strong id="deleteUnitName"></strong> của sản phẩm <strong id="deleteUnitProductName"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit">Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const editProductForm = document.getElementById('editProductForm');
+        const editProductName = document.getElementById('edit-product-name');
+        const editProductCategory = document.getElementById('edit-product-category');
+        const editProductShortDescription = document.getElementById('edit-product-short-description');
+        const editProductDescription = document.getElementById('edit-product-description');
+        const editProductImageUrl = document.getElementById('edit-product-image-url');
+        const editProductActive = document.getElementById('edit-product-active');
+        const editProductStores = Array.from(document.querySelectorAll('.js-edit-product-store'));
+
+        document.querySelectorAll('.js-edit-product').forEach((button) => {
+            button.addEventListener('click', () => {
+                const storeIds = (button.dataset.productStoreIds || '')
+                    .split(',')
+                    .map((value) => value.trim())
+                    .filter(Boolean);
+                if (editProductForm) editProductForm.action = button.dataset.action || '';
+                if (editProductName) editProductName.value = button.dataset.productName || '';
+                if (editProductCategory) editProductCategory.value = button.dataset.productCategory || '';
+                if (editProductShortDescription) editProductShortDescription.value = button.dataset.productShortDescription || '';
+                if (editProductDescription) editProductDescription.value = button.dataset.productDescription || '';
+                if (editProductImageUrl) editProductImageUrl.value = button.dataset.productImageUrl || '';
+                if (editProductActive) editProductActive.checked = button.dataset.productActive === '1';
+                editProductStores.forEach((checkbox) => {
+                    checkbox.checked = storeIds.includes(checkbox.value);
+                });
+            });
+        });
+
+        const deleteProductForm = document.getElementById('deleteProductForm');
+        const deleteProductName = document.getElementById('deleteProductName');
+        document.querySelectorAll('.js-delete-product').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (deleteProductForm) deleteProductForm.action = button.dataset.action || '';
+                if (deleteProductName) deleteProductName.textContent = button.dataset.productName || '';
+            });
+        });
+
+        const addUnitForm = document.getElementById('addUnitForm');
+        const addUnitProductName = document.getElementById('addUnitProductName');
+        document.querySelectorAll('.js-add-unit').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (addUnitForm) addUnitForm.action = button.dataset.action || '';
+                if (addUnitProductName) addUnitProductName.textContent = button.dataset.productName || '';
+            });
+        });
+
+        const editUnitForm = document.getElementById('editUnitForm');
+        const editUnitProductName = document.getElementById('editUnitProductName');
+        const editUnitName = document.getElementById('edit-unit-name');
+        const editUnitPrice = document.getElementById('edit-unit-price');
+        const editUnitSku = document.getElementById('edit-unit-sku');
+        const editUnitDisplayOrder = document.getElementById('edit-unit-display-order');
+        const editUnitActive = document.getElementById('edit-unit-active');
+        document.querySelectorAll('.js-edit-unit').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (editUnitForm) editUnitForm.action = button.dataset.action || '';
+                if (editUnitProductName) editUnitProductName.textContent = button.dataset.productName || '';
+                if (editUnitName) editUnitName.value = button.dataset.unitName || '';
+                if (editUnitPrice) editUnitPrice.value = button.dataset.unitPrice || '';
+                if (editUnitSku) editUnitSku.value = button.dataset.unitSku || '';
+                if (editUnitDisplayOrder) editUnitDisplayOrder.value = button.dataset.unitDisplayOrder || '0';
+                if (editUnitActive) editUnitActive.checked = button.dataset.unitActive === '1';
+            });
+        });
+
+        const deleteUnitForm = document.getElementById('deleteUnitForm');
+        const deleteUnitName = document.getElementById('deleteUnitName');
+        const deleteUnitProductName = document.getElementById('deleteUnitProductName');
+        document.querySelectorAll('.js-delete-unit').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (deleteUnitForm) deleteUnitForm.action = button.dataset.action || '';
+                if (deleteUnitName) deleteUnitName.textContent = button.dataset.unitName || '';
+                if (deleteUnitProductName) deleteUnitProductName.textContent = button.dataset.productName || '';
+            });
+        });
+
+        {% if open_create_modal %}
+        const createModalEl = document.getElementById('createProductModal');
+        if (createModalEl) {
+            bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        }
+        {% endif %}
+    });
+</script>
 {% endblock %}

@@ -1,69 +1,172 @@
 {% extends 'App_Quanly/_layout.html' %}
 
 {% block quanly_content %}
-<div class="row g-3">
-    <div class="col-lg-5">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-person-plus"></i>
-                    Tạo nhân viên
-                </h2>
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-                    <button class="btn btn-primary" type="submit">
-                        <i class="bi bi-save me-1"></i>Lưu nhân viên
-                    </button>
-                </form>
-            </div>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-people"></i>
+                Danh sách nhân viên
+            </h2>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createStaffModal">
+                <i class="bi bi-plus-lg me-1"></i>Tạo nhân viên
+            </button>
         </div>
-    </div>
-    <div class="col-lg-7">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h2 class="admin-card-title">
-                    <i class="bi bi-people"></i>
-                    Danh sách nhân viên
-                </h2>
-                <div class="table-responsive">
-                    <table class="table align-middle">
-                        <thead>
-                            <tr>
-                                <th>Tài khoản</th>
-                                <th>Cửa hàng được cấp quyền</th>
-                                <th class="text-end">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for staff in staffs %}
-                            <tr>
-                                <td class="fw-semibold">{{ staff.username }}</td>
-                                <td>
-                                    {% for access in staff.store_accesses.all %}
-                                    <span class="badge text-bg-light border me-1 mb-1">
-                                        {{ access.store.name }}{% if access.is_default %} (mặc định){% endif %}
-                                    </span>
-                                    {% empty %}
-                                    <span class="text-muted small">Chưa cấp cửa hàng</span>
-                                    {% endfor %}
-                                </td>
-                                <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:staff_password_reset' staff.id %}">
-                                        <i class="bi bi-key me-1"></i>Đặt lại mật khẩu
-                                    </a>
-                                </td>
-                            </tr>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Tài khoản</th>
+                        <th>Cửa hàng được cấp quyền</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for staff in staffs %}
+                    <tr>
+                        <td class="fw-semibold">{{ staff.username }}</td>
+                        <td>
+                            {% for access in staff.store_accesses.all %}
+                            <span class="badge text-bg-light border me-1 mb-1">
+                                {{ access.store.name }}{% if access.is_default %} (mặc định){% endif %}
+                            </span>
                             {% empty %}
-                            <tr>
-                                <td colspan="3" class="text-center text-muted">Chưa có nhân viên.</td>
-                            </tr>
+                            <span class="text-muted small">Chưa cấp cửa hàng</span>
                             {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        </td>
+                        <td class="text-end">
+                            <button
+                                class="btn btn-sm btn-outline-primary js-reset-staff-password"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#resetStaffPasswordModal"
+                                data-action="{% url 'App_Quanly:staff_password_reset' staff.id %}"
+                                data-staff-username="{{ staff.username|escape }}"
+                            >
+                                <i class="bi bi-key me-1"></i>Đặt lại mật khẩu
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted">Chưa có nhân viên.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
+<div class="modal fade crud-modal" id="createStaffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2 text-primary"></i>Tạo nhân viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:staffs' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.username.id_for_label }}">Tên đăng nhập</label>
+                            {{ form.username }}
+                            {{ form.username.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.default_store.id_for_label }}">Cửa hàng mặc định</label>
+                            {{ form.default_store }}
+                            {{ form.default_store.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.password1.id_for_label }}">Mật khẩu</label>
+                            {{ form.password1 }}
+                            {{ form.password1.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.password2.id_for_label }}">Xác nhận mật khẩu</label>
+                            {{ form.password2 }}
+                            {{ form.password2.errors }}
+                        </div>
+                        <div class="full">
+                            <div class="form-section-title">Cấp quyền cửa hàng</div>
+                            <div class="check-grid">
+                                {% for checkbox in form.store_ids %}
+                                <label class="check-chip">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có cửa hàng hoạt động.</span>
+                                {% endfor %}
+                            </div>
+                            {{ form.store_ids.errors }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu nhân viên</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="resetStaffPasswordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-key me-2 text-primary"></i>Đặt lại mật khẩu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="resetStaffPasswordForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="small text-muted">Tài khoản: <strong id="resetStaffUsername"></strong></p>
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="reset-staff-password-1">Mật khẩu mới</label>
+                            <input class="form-control" id="reset-staff-password-1" name="new_password1" type="password" autocomplete="new-password" required>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="reset-staff-password-2">Xác nhận mật khẩu mới</label>
+                            <input class="form-control" id="reset-staff-password-2" name="new_password2" type="password" autocomplete="new-password" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật mật khẩu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const resetForm = document.getElementById('resetStaffPasswordForm');
+        const resetStaffUsername = document.getElementById('resetStaffUsername');
+        const resetPassword1 = document.getElementById('reset-staff-password-1');
+        const resetPassword2 = document.getElementById('reset-staff-password-2');
+        document.querySelectorAll('.js-reset-staff-password').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (resetForm) resetForm.action = button.dataset.action || '';
+                if (resetStaffUsername) resetStaffUsername.textContent = button.dataset.staffUsername || '';
+                if (resetPassword1) resetPassword1.value = '';
+                if (resetPassword2) resetPassword2.value = '';
+            });
+        });
+
+        {% if open_create_modal %}
+        const createModalEl = document.getElementById('createStaffModal');
+        if (createModalEl) {
+            bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        }
+        {% endif %}
+    });
+</script>
 {% endblock %}

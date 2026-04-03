@@ -39,6 +39,20 @@ python manage.py migrate
 python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 ```
 
+## Tao tenant nhanh tren Jazzmin (superadmin)
+- Vao Django Admin/Jazzmin, tao moi `Tenant`.
+- Ngay khi tao tenant moi, he thong tu bootstrap bo du lieu co ban:
+  - 1 manager + 2 staff (password mac dinh: `123456`)
+  - 1 store mac dinh
+  - 12 ban (`BAN-01` -> `BAN-12`) co `qr_token`
+  - 2 category + 4 product co `ProductUnit`
+- Username duoc tao theo `public_slug`:
+  - `<slug>_quanly`
+  - `<slug>_nhanvien_1`
+  - `<slug>_nhanvien_2`
+- Luong nay phu hop cho tenant moi can bo du lieu toi thieu.
+- Neu can du lieu demo day du (3 store, 8 category, 10 product, topping, QR pending), dung `seed_initial_data`.
+
 ## Chay server
 ```bash
 python manage.py runserver 127.0.0.1:8000
