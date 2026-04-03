@@ -532,7 +532,6 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         tenant=tenant,
                         category=cat,
                         name=prod_name,
-                        short_description='',
                         description=long_d,
                         image_url=img,
                         is_active=active,

@@ -214,14 +214,12 @@ class Command(BaseCommand):
                 name=product_name,
                 defaults={
                     'category': category,
-                    'short_description': f'{product_name} chuẩn vị',
                     'description': f'Sản phẩm {product_name}',
                     'image_url': image_url,
                     'is_active': True,
                 },
             )
             product.category = category
-            product.short_description = f'{product_name} chuẩn vị'
             product.description = f'Sản phẩm {product_name}'
             product.image_url = image_url
             product.is_active = True

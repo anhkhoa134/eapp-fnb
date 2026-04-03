@@ -12,6 +12,7 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from reportlab.lib.pagesizes import A3, landscape
 from reportlab.lib.units import mm
@@ -306,6 +307,24 @@ def order_history(request):
             'query_string': query_params.urlencode(),
         },
     )
+
+
+@manager_required
+@require_POST
+def order_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    order = get_object_or_404(Order, pk=pk, tenant=tenant)
+    code = order.order_code
+    order.delete()
+    messages.success(request, f'Đã xóa đơn hàng {code}.')
+    next_url = (request.POST.get('next') or '').strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect('App_Quanly:orders')
 
 
 @manager_required

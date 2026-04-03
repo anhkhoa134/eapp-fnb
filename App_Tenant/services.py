@@ -160,7 +160,6 @@ def provision_tenant_default_setup(tenant, *, default_password=DEFAULT_TENANT_US
                 tenant=tenant,
                 category=categories[category_name],
                 name=product_name,
-                short_description=f'{product_name} cơ bản',
                 description=f'Sản phẩm mẫu: {product_name}',
                 is_active=True,
             )

@@ -43,7 +43,6 @@
                         data-action="{% url 'App_Quanly:product_edit' product.id %}"
                         data-product-name="{{ product.name|escape }}"
                         data-product-category="{{ product.category_id|default:'' }}"
-                        data-product-short-description="{{ product.short_description|default:''|escape }}"
                         data-product-description="{{ product.description|default:''|escape }}"
                         data-product-image-url="{{ product.image_url|default:''|escape }}"
                         data-product-active="{% if product.is_active %}1{% else %}0{% endif %}"
@@ -154,13 +153,8 @@
                             {{ form.category.errors }}
                         </div>
                         <div class="full">
-                            <label class="form-label fw-semibold" for="{{ form.short_description.id_for_label }}">Mô tả ngắn</label>
-                            {{ form.short_description }}
-                            {{ form.short_description.errors }}
-                        </div>
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Mô tả chi tiết</label>
-                            <textarea class="form-control" id="{{ form.description.id_for_label }}" name="{{ form.description.html_name }}" rows="3">{{ form.description.value|default_if_none:'' }}</textarea>
+                            <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Mô tả</label>
+                            {{ form.description }}
                             {{ form.description.errors }}
                         </div>
                         <div class="full">
@@ -222,12 +216,8 @@
                             </select>
                         </div>
                         <div class="full">
-                            <label class="form-label fw-semibold" for="edit-product-short-description">Mô tả ngắn</label>
-                            <input class="form-control" id="edit-product-short-description" name="short_description" maxlength="255">
-                        </div>
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="edit-product-description">Mô tả chi tiết</label>
-                            <textarea class="form-control" id="edit-product-description" name="description" rows="3"></textarea>
+                            <label class="form-label fw-semibold" for="edit-product-description">Mô tả</label>
+                            <textarea class="form-control" id="edit-product-description" name="description" rows="2"></textarea>
                         </div>
                         <div class="full">
                             <label class="form-label fw-semibold" for="edit-product-image-url">Image URL</label>
@@ -400,7 +390,6 @@
         const editProductForm = document.getElementById('editProductForm');
         const editProductName = document.getElementById('edit-product-name');
         const editProductCategory = document.getElementById('edit-product-category');
-        const editProductShortDescription = document.getElementById('edit-product-short-description');
         const editProductDescription = document.getElementById('edit-product-description');
         const editProductImageUrl = document.getElementById('edit-product-image-url');
         const editProductActive = document.getElementById('edit-product-active');
@@ -415,7 +404,6 @@
                 if (editProductForm) editProductForm.action = button.dataset.action || '';
                 if (editProductName) editProductName.value = button.dataset.productName || '';
                 if (editProductCategory) editProductCategory.value = button.dataset.productCategory || '';
-                if (editProductShortDescription) editProductShortDescription.value = button.dataset.productShortDescription || '';
                 if (editProductDescription) editProductDescription.value = button.dataset.productDescription || '';
                 if (editProductImageUrl) editProductImageUrl.value = button.dataset.productImageUrl || '';
                 if (editProductActive) editProductActive.checked = button.dataset.productActive === '1';

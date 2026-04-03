@@ -69,7 +69,6 @@ class CatalogAdminSlugAutofillTests(TestCase):
                 'category': '',
                 'name': product_name,
                 'slug': '',
-                'short_description': '',
                 'description': '',
                 'image_url': '',
                 'is_active': True,

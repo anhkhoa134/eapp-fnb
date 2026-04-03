@@ -62,7 +62,7 @@ class ProductForm(forms.ModelForm):
 
     class Meta:
         model = Product
-        fields = ['name', 'category', 'short_description', 'description', 'image_url', 'is_active']
+        fields = ['name', 'category', 'description', 'image_url', 'is_active']
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -70,6 +70,7 @@ class ProductForm(forms.ModelForm):
         self.fields['category'].queryset = Category.objects.filter(tenant=tenant, is_active=True).order_by('name')
         self.fields['store_ids'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
         _apply_bootstrap_classes(self)
+        self.fields['description'].widget.attrs['rows'] = 2
 
 
 class ProductUnitForm(forms.ModelForm):

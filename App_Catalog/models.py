@@ -47,8 +47,7 @@ class Product(TimeStampedModel):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     name = models.CharField(max_length=180)
     slug = models.SlugField(max_length=180)
-    short_description = models.CharField(max_length=255, blank=True)
-    description = models.TextField(blank=True)
+    description = models.TextField('Mô tả', blank=True)
     image_url = models.URLField(blank=True)
     is_active = models.BooleanField(default=True)
 

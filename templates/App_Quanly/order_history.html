@@ -1,6 +1,55 @@
 {% extends 'App_Quanly/_layout.html' %}
 {% load number_format %}
 
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .order-stat-card {
+        border-radius: 18px !important;
+    }
+    .order-stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        flex-shrink: 0;
+        color: #0f172a;
+    }
+    .order-stat-icon--orders {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(248, 250, 252, 0.9));
+    }
+    .order-stat-icon--revenue {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.26), rgba(248, 250, 252, 0.9));
+    }
+    .order-stat-label {
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: 0.2rem;
+    }
+    .order-stat-value {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .order-stat-value--money {
+        color: #0f766e;
+    }
+    .order-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.35rem;
+    }
+</style>
+{% endblock %}
+
 {% block quanly_content %}
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
@@ -18,7 +67,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-md-3">
                 <label class="form-label small text-muted">Thanh toán</label>
                 <select name="payment_method" class="form-select">
                     <option value="">Tất cả</option>
@@ -27,7 +76,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-md-3">
                 <label class="form-label small text-muted">Trạng thái</label>
                 <select name="status" class="form-select">
                     <option value="">Tất cả</option>
@@ -36,7 +85,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-md-3">
                 <label class="form-label small text-muted">Thu ngân</label>
                 <select name="cashier" class="form-select">
                     <option value="">Tất cả</option>
@@ -45,20 +94,20 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-6 col-md-1">
-                <label class="form-label small text-muted">Từ ngày</label>
-                <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
-            </div>
-            <div class="col-6 col-md-1">
-                <label class="form-label small text-muted">Đến ngày</label>
-                <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
-            </div>
-            <div class="col-12 col-md-7">
+            <div class="col-12 col-md-5 col-lg-4">
                 <label class="form-label small text-muted">Tìm kiếm</label>
                 <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Mã đơn, thu ngân, cửa hàng...">
             </div>
-            <div class="col-12 col-md-2 d-grid">
-                <button class="btn btn-primary">Lọc dữ liệu</button>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted">Từ ngày</label>
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted">Đến ngày</label>
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+            </div>
+            <div class="col-12 col-md-3 col-lg-4 d-grid">
+                <button type="submit" class="btn btn-primary">Lọc dữ liệu</button>
             </div>
         </form>
     </div>
@@ -66,18 +115,28 @@
 
 <div class="row g-3 mb-3">
     <div class="col-md-6">
-        <div class="card border-0 shadow-sm h-100 metric-card">
-            <div class="card-body">
-                <div class="text-muted small">Tổng số đơn</div>
-                <div class="h4 fw-bold mb-0">{{ total_orders|thousand_sep }}</div>
+        <div class="card border-0 shadow-sm h-100 order-stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="order-stat-icon order-stat-icon--orders" aria-hidden="true">
+                    <i class="bi bi-bag-check-fill"></i>
+                </div>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="order-stat-label">Tổng số đơn</div>
+                    <div class="order-stat-value mb-0">{{ total_orders|thousand_sep }}</div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-6">
-        <div class="card border-0 shadow-sm h-100 metric-card">
-            <div class="card-body">
-                <div class="text-muted small">Tổng doanh thu</div>
-                <div class="h4 fw-bold text-danger mb-0">{{ total_revenue|thousand_sep }} đ</div>
+        <div class="card border-0 shadow-sm h-100 order-stat-card">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="order-stat-icon order-stat-icon--revenue" aria-hidden="true">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="order-stat-label">Tổng doanh thu</div>
+                    <div class="order-stat-value order-stat-value--money mb-0">{{ total_revenue|thousand_sep }} đ</div>
+                </div>
             </div>
         </div>
     </div>
@@ -96,7 +155,7 @@
                         <th>Trạng thái</th>
                         <th class="text-end">Tổng tiền</th>
                         <th>Thời gian</th>
-                        <th></th>
+                        <th class="text-end">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -114,59 +173,23 @@
                         </td>
                         <td>
                             {% if order.status == 'completed' %}
-                            <span class="badge text-bg-success">Completed</span>
+                            <span class="badge text-bg-success">Hoàn thành</span>
                             {% else %}
-                            <span class="badge text-bg-secondary">Cancelled</span>
+                            <span class="badge text-bg-secondary">Đã hủy</span>
                             {% endif %}
                         </td>
                         <td class="text-end fw-semibold">{{ order.total_amount|thousand_sep }} đ</td>
                         <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#order-detail-{{ order.id }}">
-                                Chi tiết
-                            </button>
-                        </td>
-                    </tr>
-                    <tr class="collapse" id="order-detail-{{ order.id }}">
-                        <td colspan="8" class="bg-light-subtle">
-                            <div class="p-2">
-                                <div class="fw-semibold mb-2">Danh sách món</div>
-                                <div class="table-responsive">
-                                    <table class="table table-sm mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Món</th>
-                                                <th>Đơn vị</th>
-                                                <th class="text-center">SL</th>
-                                                <th class="text-end">Đơn giá</th>
-                                                <th class="text-end">Thành tiền</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for item in order.items.all %}
-                                            <tr>
-                                                <td>
-                                                    {{ item.snapshot_product_name }}
-                                                    {% if item.note %}<div class="small text-muted fst-italic">{{ item.note }}</div>{% endif %}
-                                                    {% if item.toppings.all %}
-                                                    <div class="small text-muted">
-                                                        {% for top in item.toppings.all %}
-                                                        + {{ top.snapshot_topping_name }} ({{ top.snapshot_price|thousand_sep }} đ){% if not forloop.last %}, {% endif %}
-                                                        {% endfor %}
-                                                    </div>
-                                                    {% endif %}
-                                                </td>
-                                                <td>{{ item.snapshot_unit_name }}</td>
-                                                <td class="text-center">{{ item.quantity|thousand_sep }}</td>
-                                                <td class="text-end">{{ item.unit_price|thousand_sep }} đ</td>
-                                                <td class="text-end fw-semibold">{{ item.line_total|thousand_sep }} đ</td>
-                                            </tr>
-                                            {% empty %}
-                                            <tr><td colspan="5" class="text-muted">Không có item.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
+                            <div class="order-row-actions">
+                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#orderDetailModal{{ order.id }}">
+                                    <i class="bi bi-eye"></i> Chi tiết
+                                </button>
+                                {% if user.is_manager %}
+                                <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal{{ order.id }}">
+                                    <i class="bi bi-trash"></i> Xóa
+                                </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -180,6 +203,119 @@
         </div>
     </div>
 </div>
+
+{% for order in orders %}
+<div class="modal fade crud-modal" id="orderDetailModal{{ order.id }}" tabindex="-1" aria-labelledby="orderDetailLabel{{ order.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5 mb-0" id="orderDetailLabel{{ order.id }}">
+                    <i class="bi bi-receipt me-2 text-primary"></i>Chi tiết đơn {{ order.order_code }}
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 small mb-3">
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Cửa hàng</span>
+                        <div class="fw-semibold">{{ order.store.name }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Thu ngân</span>
+                        <div class="fw-semibold">{{ order.cashier.username }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Thời gian</span>
+                        <div class="fw-semibold">{{ order.created_at|date:'d/m/Y H:i' }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Thanh toán</span>
+                        <div class="fw-semibold">
+                            {% if order.payment_method == 'cash' %}Tiền mặt{% else %}Thẻ/QR{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Trạng thái</span>
+                        <div class="fw-semibold">
+                            {% if order.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Tổng tiền</span>
+                        <div class="fw-semibold text-success">{{ order.total_amount|thousand_sep }} đ</div>
+                    </div>
+                </div>
+                <div class="form-section-title">Danh sách món</div>
+                <div class="table-responsive border rounded-3 overflow-hidden">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Món</th>
+                                <th>Đơn vị</th>
+                                <th class="text-center">SL</th>
+                                <th class="text-end">Đơn giá</th>
+                                <th class="text-end">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items.all %}
+                            <tr>
+                                <td>
+                                    {{ item.snapshot_product_name }}
+                                    {% if item.note %}<div class="small text-muted fst-italic">{{ item.note }}</div>{% endif %}
+                                    {% if item.toppings.all %}
+                                    <div class="small text-muted">
+                                        {% for top in item.toppings.all %}
+                                        + {{ top.snapshot_topping_name }} ({{ top.snapshot_price|thousand_sep }} đ){% if not forloop.last %}, {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.snapshot_unit_name }}</td>
+                                <td class="text-center">{{ item.quantity|thousand_sep }}</td>
+                                <td class="text-end">{{ item.unit_price|thousand_sep }} đ</td>
+                                <td class="text-end fw-semibold">{{ item.line_total|thousand_sep }} đ</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-muted text-center py-3">Không có dòng món.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% if user.is_manager %}
+<div class="modal fade crud-modal" id="orderDeleteModal{{ order.id }}" tabindex="-1" aria-labelledby="orderDeleteLabel{{ order.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="{% url 'App_Quanly:order_delete' order.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <div class="modal-header">
+                    <h2 class="modal-title h5 mb-0" id="orderDeleteLabel{{ order.id }}">
+                        <i class="bi bi-exclamation-triangle text-danger me-2"></i>Xác nhận xóa đơn
+                    </h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Bạn có chắc muốn xóa đơn <strong>{{ order.order_code }}</strong>? Thao tác không thể hoàn tác.</p>
+                    <p class="small text-muted mb-0">Chỉ tài khoản quản lý mới thực hiện được hành động này.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-danger">Xóa đơn hàng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
 
 {% if page_obj and page_obj.paginator.num_pages > 1 %}
 <nav class="mt-3">
