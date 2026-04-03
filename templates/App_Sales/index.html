@@ -1438,13 +1438,18 @@
             const parts = value.split(`; ${name}=`);
             return parts.length === 2 ? parts.pop().split(';').shift() : '';
         };
+        const getCsrfToken = () => (
+            document.querySelector('input[name="csrfmiddlewaretoken"]')?.value
+            || getCookie('csrftoken')
+        );
 
         const fetchJson = async (url, options = {}) => {
             const opts = { ...options };
-            if (opts.method && opts.method !== 'GET') {
+            const method = String(opts.method || 'GET').toUpperCase();
+            if (method !== 'GET') {
                 opts.headers = {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-CSRFToken': getCsrfToken(),
                     ...(opts.headers || {}),
                 };
             }
