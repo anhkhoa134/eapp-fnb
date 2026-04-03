@@ -523,13 +523,13 @@ class CatalogExcelImportTests(TestCase):
             ),
             (
                 'San_pham',
-                ['ten_danh_muc', 'ten_san_pham', 'mo_ta_ngan', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
-                [['Nước', 'Trà đá', '', '', '', 1, '*']],
+                ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
+                [['Nước', 'Trà đá', '', '', 1, '*']],
             ),
             (
                 'Don_vi',
-                ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'sku', 'thu_tu', 'hoat_dong'],
-                [['Nước', 'Trà đá', 'Ly', '10000', '', 0, 1]],
+                ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'thu_tu', 'hoat_dong'],
+                [['Nước', 'Trà đá', 'Ly', '10000', 0, 1]],
             ),
         ]
         for title, headers, rows in specs:

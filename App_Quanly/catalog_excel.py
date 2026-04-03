@@ -178,8 +178,19 @@ def resolve_product_qs(tenant: Tenant, cat_name: str, prod_name: str):
     return qs
 
 
+def _style_data_sheet_header(ws, column_widths: list[float]) -> None:
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for idx, width in enumerate(column_widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
+
 def build_template_workbook():
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws0 = wb.active
@@ -193,32 +204,73 @@ def build_template_workbook():
         'Khóa: Danh mục theo ten_danh_muc; Sản phẩm theo (ten_danh_muc + ten_san_pham), ten_danh_muc có thể để trống nếu tên sản phẩm là duy nhất trong tenant.',
         'Đơn vị / gán topping: có thể tham chiếu sản phẩm sẽ được tạo trong cùng file (sheet San_pham).',
         'Đơn vị: (ten_danh_muc, ten_san_pham, ten_don_vi). Topping: ten_topping. Gán topping: (ten_san_pham, ten_topping) + ten_danh_muc khi cần.',
+        '',
+        'Các sheet dữ liệu có thêm vài dòng mẫu để tham khảo định dạng; có thể xóa hoặc sửa trước khi import.',
     ]
     for i, line in enumerate(lines, start=1):
         ws0.cell(row=i, column=1, value=line)
+    ws0.column_dimensions[get_column_letter(1)].width = 92
 
-    sheets_headers: list[tuple[str, list[str]]] = [
+    sheet_column_widths: dict[str, list[float]] = {
+        SHEET_DANH_MUC: [20, 48, 11, 30],
+        SHEET_SAN_PHAM: [16, 24, 42, 36, 11, 30],
+        SHEET_DON_VI: [16, 24, 14, 12, 9, 11],
+        SHEET_TOPPING: [22, 10, 11],
+        SHEET_SAN_PHAM_TOPPING: [16, 24, 20, 12, 9, 11],
+    }
+
+    sheets_spec: list[tuple[str, list[str], list[list[Any]]]] = [
         (
             SHEET_DANH_MUC,
             ['ten_danh_muc', 'mo_ta', 'hoat_dong', 'cua_hang'],
+            [
+                ['Đồ uống', 'Danh mục ví dụ — nước, cà phê', 1, '*'],
+                ['Món mặn', 'Danh mục ví dụ — cơm, món chính', 1, '*'],
+            ],
         ),
         (
             SHEET_SAN_PHAM,
-            ['ten_danh_muc', 'ten_san_pham', 'mo_ta_ngan', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
+            ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
+            [
+                ['Đồ uống', 'Trà đá chanh', 'Trà đá với chanh tươi', '', 1, '*'],
+                ['Đồ uống', 'Cà phê sữa', 'Pha phin truyền thống', '', 1, '*'],
+                ['Món mặn', 'Cơm tấm sườn', 'Sườn nướng, bì, chả', '', 1, '*'],
+            ],
         ),
         (
             SHEET_DON_VI,
-            ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'sku', 'thu_tu', 'hoat_dong'],
+            ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'thu_tu', 'hoat_dong'],
+            [
+                ['Đồ uống', 'Trà đá chanh', 'Ly', 15000, 0, 1],
+                ['Đồ uống', 'Cà phê sữa', 'Ly', 25000, 0, 1],
+                ['Món mặn', 'Cơm tấm sườn', 'Phần', 55000, 0, 1],
+            ],
         ),
-        (SHEET_TOPPING, ['ten_topping', 'thu_tu', 'hoat_dong']),
+        (
+            SHEET_TOPPING,
+            ['ten_topping', 'thu_tu', 'hoat_dong'],
+            [
+                ['Thêm đá', 0, 1],
+                ['Thêm sữa', 1, 1],
+            ],
+        ),
         (
             SHEET_SAN_PHAM_TOPPING,
             ['ten_danh_muc', 'ten_san_pham', 'ten_topping', 'gia_them', 'thu_tu', 'hoat_dong'],
+            [
+                ['Đồ uống', 'Trà đá chanh', 'Thêm đá', 0, 0, 1],
+                ['Đồ uống', 'Cà phê sữa', 'Thêm sữa', 5000, 0, 1],
+            ],
         ),
     ]
-    for title, headers in sheets_headers:
+    for title, headers, sample_rows in sheets_spec:
         nws = wb.create_sheet(title)
         nws.append(headers)
+        for row in sample_rows:
+            nws.append(row)
+        widths = sheet_column_widths.get(title)
+        if widths:
+            _style_data_sheet_header(nws, widths)
     return wb
 
 
@@ -447,7 +499,6 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 cat_name = str(tdm).strip() if tdm is not None and str(tdm).strip() else ''
                 prod_name = str(d.get('ten_san_pham')).strip()
                 store_ids = resolve_store_ids(tenant, d.get('cua_hang'), stores)
-                short_d = str(d.get('mo_ta_ngan') or '')[:255]
                 long_d = str(d.get('mo_ta') or '')
                 raw_img = d.get('url_hinh')
                 img = str(raw_img).strip()[:200] if raw_img is not None and str(raw_img).strip() else ''
@@ -471,7 +522,6 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                     pr = prod_by_key[key]
                     if cat_name:
                         pr.category = cat
-                    pr.short_description = short_d
                     pr.description = long_d
                     pr.image_url = img
                     pr.is_active = active
@@ -482,7 +532,7 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         tenant=tenant,
                         category=cat,
                         name=prod_name,
-                        short_description=short_d,
+                        short_description='',
                         description=long_d,
                         image_url=img,
                         is_active=active,
@@ -514,23 +564,21 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 )
                 prod_by_key[key] = pr
                 price = parse_decimal_cell(d.get('gia'))
-                sku = str(d.get('sku') or '').strip()[:120]
                 order = parse_int_cell(d.get('thu_tu'), 0)
                 active = parse_bool_cell(d.get('hoat_dong'), default=True)
                 unit = ProductUnit.objects.filter(product=pr, name=unit_name).first()
                 if unit:
                     unit.price = price
-                    unit.sku = sku
                     unit.display_order = order
                     unit.is_active = active
-                    unit.save(update_fields=['price', 'sku', 'display_order', 'is_active', 'updated_at'])
+                    unit.save(update_fields=['price', 'display_order', 'is_active', 'updated_at'])
                     stats['units_updated'] += 1
                 else:
                     ProductUnit.objects.create(
                         product=pr,
                         name=unit_name,
                         price=price,
-                        sku=sku,
+                        sku='',
                         display_order=order,
                         is_active=active,
                     )
