@@ -1,0 +1,4 @@
+python scripts/run/1_reset_project.py --yes
+python scripts/run/2_git_clean_cached.py --yes -m "Cập nhật .gitignore và clean cache"
+git push
+

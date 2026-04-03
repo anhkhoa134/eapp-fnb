@@ -1,0 +1,19 @@
+Chạy Django Project:
+source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+python manage.py makemigrations
+python manage.py migrate
+python manage.py runserver
+
+Tạo mới Repository:
+git init
+git add .
+git commit -am 'Initial Commit'
+git remote add origin https://github.com/anhkhoa134/DriveSnap.git
+git branch -M main
+git push -u origin main
+
+Cập nhật Repository:
+git add .
+git commit -am 'Update'
+git branch -M main
+git push -u origin main
