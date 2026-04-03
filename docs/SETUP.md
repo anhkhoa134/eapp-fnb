@@ -26,6 +26,10 @@ python manage.py seed_initial_data --no-seed-qr-pending
 python manage.py runserver 127.0.0.1:8000
 ```
 
+Realtime QR qua WebSocket:
+- Set `REDIS_URL` (mac dinh `redis://127.0.0.1:6379/1`).
+- Neu Redis chua san sang, UI se fallback polling 15s.
+
 ## 5) Route chính
 - POS nhân viên: `/`
 - Đơn hàng trong ngày: `/orders/today/`

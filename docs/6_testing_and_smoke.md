@@ -39,7 +39,8 @@ python manage.py test App_Public.tests App_Sales.tests App_Quanly.tests --keepdb
 2. Tao don pending.
 3. Sua don pending.
 4. Huy don pending.
-5. Verify polling 5s khi staff approve/reject.
+5. Verify WebSocket realtime khi staff approve/reject.
+6. Tat Redis/chan WS de verify fallback polling 15s van cap nhat.
 
 ### E. Quanly QR tables
 1. Tao/sua/xoa ban QR.

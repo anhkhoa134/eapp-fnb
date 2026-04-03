@@ -19,6 +19,7 @@ Bien quan trong:
 - `SECRET_KEY=...`
 - `ALLOWED_HOSTS=127.0.0.1,localhost`
 - `DB_ENGINE=sqlite|postgres`
+- `REDIS_URL=redis://127.0.0.1:6379/1` (WebSocket Channels)
 
 Neu `DB_ENGINE=postgres`, can them:
 - `POSTGRES_DB`
@@ -37,6 +38,10 @@ python manage.py seed_initial_data --reset-passwords --default-password 123456 -
 ```bash
 python manage.py runserver 127.0.0.1:8000
 ```
+
+Luu y realtime QR:
+- Can Redis chay theo `REDIS_URL` de WebSocket hoat dong day du.
+- Neu Redis down, UI tu fallback sang polling 15s.
 
 ## URL chinh
 - POS: `http://127.0.0.1:8000/`

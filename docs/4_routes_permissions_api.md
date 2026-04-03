@@ -13,6 +13,8 @@
 - `GET /accounts/logout/` => 405.
 - Public QR APIs bat buoc `table_code + token` hop le.
 - POS APIs chi thao tac tren store user duoc cap quyen.
+- POS WebSocket can login + co quyen store.
+- Public WebSocket can `table_code + token` hop le va order thuoc dung ban.
 
 ## POS API (`/api/pos/`)
 - `GET products/?store_id=&q=&category=`
@@ -33,6 +35,10 @@
 - `GET qr/orders/<order_id>/?table_code=&token=` -> lay trang thai + items.
 - `PATCH qr/orders/<order_id>/` -> cap nhat don pending (replace items + note).
 - `POST qr/orders/<order_id>/cancel/` -> huy don pending (`CANCELLED`).
+
+## WebSocket routes
+- `GET ws://<host>/ws/pos/store/<store_id>/`
+- `GET ws://<host>/ws/public/qr/order/<order_id>/?table_code=&token=`
 
 ## Quanly API-like routes (server-rendered)
 - `GET|POST /quanly/qr-tables/`

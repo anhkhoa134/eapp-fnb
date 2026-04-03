@@ -1106,9 +1106,11 @@
         const API_QR_ORDERS_URL = "{% url 'App_Sales_API:qr_orders' %}";
         const API_TABLES_BASE = '/api/pos/tables/';
         const API_QR_ORDERS_BASE = '/api/pos/qr/orders/';
-        const QR_POLL_INTERVAL_MS = 5000;
+        const QR_FALLBACK_POLL_INTERVAL_MS = 15000;
         const QR_ALERT_COOLDOWN_MS = 2500;
         const QR_BELL_VOLUME = 0.5;
+        const POS_WS_RECONNECT_BASE_MS = 1000;
+        const POS_WS_RECONNECT_MAX_MS = 20000;
         const QR_SOUND_STORAGE_KEY = 'eapp_pos_qr_sound_enabled';
         const QR_VOICE_STORAGE_KEY = 'eapp_pos_qr_voice_enabled';
 
@@ -1134,14 +1136,18 @@
         let currentOptionElement = null;
         let pendingSaveToTable = false;
         let currentTheme = 'green';
-        let qrPollTimer = null;
+        let qrFallbackPollTimer = null;
         let qrPollInFlight = false;
         let hasLoadedOnlineOrdersOnce = false;
         let knownPendingQrOrderIds = new Set();
+        let pendingCreatedQrOrderIds = new Set();
         let lastQrAlertAt = 0;
         let qrAudioContext = null;
         let qrSoundEnabled = true;
         let qrVoiceEnabled = true;
+        let posQrSocket = null;
+        let posQrSocketReconnectTimer = null;
+        let posQrReconnectDelayMs = POS_WS_RECONNECT_BASE_MS;
 
         const themes = {
             green: { primary: '#10b981', hover: '#059669' },
@@ -1639,57 +1645,181 @@
             renderTables();
         };
 
-        const loadOnlineOrdersFromApi = async () => {
+        const maybeNotifyCreatedOrders = (createdOrders) => {
+            if (!createdOrders.length) return;
+            const topTables = createdOrders.slice(0, 2).map((order) => order.table_name).filter(Boolean).join(', ');
+            const remain = createdOrders.length - 2;
+            const tableTail = remain > 0 ? ` và ${remain} bàn khác` : '';
+            const tablePart = topTables ? ` (${topTables}${tableTail})` : '';
+            showToast(`Có ${createdOrders.length} đơn QR mới${tablePart}.`, 'warning');
+            playQrAlert(createdOrders);
+        };
+
+        const loadOnlineOrdersFromApi = async ({ notifyCreated = false, createdOrderIds = [] } = {}) => {
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId, status: 'pending' });
             const payload = await fetchJson(`${API_QR_ORDERS_URL}?${params.toString()}`);
             const nextOrders = payload.orders || [];
+            let newOrders = [];
             if (hasLoadedOnlineOrdersOnce) {
-                const newOrders = nextOrders.filter((order) => !knownPendingQrOrderIds.has(Number(order.id)));
-                if (newOrders.length) {
-                    const topTables = newOrders.slice(0, 2).map((order) => order.table_name).filter(Boolean).join(', ');
-                    const remain = newOrders.length - 2;
-                    const tableTail = remain > 0 ? ` và ${remain} bàn khác` : '';
-                    const tablePart = topTables ? ` (${topTables}${tableTail})` : '';
-                    showToast(`Có ${newOrders.length} đơn QR mới${tablePart}.`, 'warning');
-                    playQrAlert(newOrders);
+                newOrders = nextOrders.filter((order) => !knownPendingQrOrderIds.has(Number(order.id)));
+                if (notifyCreated && newOrders.length) {
+                    const expectedCreatedIds = new Set((createdOrderIds || []).map((id) => Number(id)));
+                    const createdOrders = expectedCreatedIds.size
+                        ? newOrders.filter((order) => expectedCreatedIds.has(Number(order.id)))
+                        : newOrders;
+                    if (createdOrders.length) {
+                        maybeNotifyCreatedOrders(createdOrders);
+                    }
                 }
             }
             onlineOrders = nextOrders;
             knownPendingQrOrderIds = new Set(nextOrders.map((order) => Number(order.id)));
             hasLoadedOnlineOrdersOnce = true;
             renderOnlineOrders();
+            return { newOrders, orders: nextOrders };
         };
 
         const resetOnlineOrdersTracking = () => {
             hasLoadedOnlineOrdersOnce = false;
             knownPendingQrOrderIds = new Set();
+            pendingCreatedQrOrderIds = new Set();
         };
 
-        const stopQrPolling = () => {
-            if (qrPollTimer) {
-                clearInterval(qrPollTimer);
-                qrPollTimer = null;
+        const stopFallbackPolling = () => {
+            if (qrFallbackPollTimer) {
+                clearInterval(qrFallbackPollTimer);
+                qrFallbackPollTimer = null;
             }
         };
 
-        const pollQrAndTables = async () => {
-            if (document.hidden || !currentStoreId || qrPollInFlight) return;
+        const refreshQrAndTables = async ({ notifyCreated = false, createdOrderIds = [] } = {}) => {
+            if (document.hidden || !currentStoreId || qrPollInFlight) return false;
             qrPollInFlight = true;
             try {
-                await Promise.all([loadOnlineOrdersFromApi(), loadTablesFromApi()]);
+                await Promise.all([
+                    loadOnlineOrdersFromApi({ notifyCreated, createdOrderIds }),
+                    loadTablesFromApi(),
+                ]);
             } catch (error) {
-                console.warn('QR polling failed:', error);
+                console.warn('QR realtime refresh failed:', error);
             } finally {
                 qrPollInFlight = false;
             }
+            return true;
         };
 
-        const startQrPolling = () => {
-            stopQrPolling();
-            qrPollTimer = setInterval(() => {
-                pollQrAndTables();
-            }, QR_POLL_INTERVAL_MS);
+        const startFallbackPolling = () => {
+            if (qrFallbackPollTimer) return;
+            qrFallbackPollTimer = setInterval(() => {
+                refreshQrAndTables();
+            }, QR_FALLBACK_POLL_INTERVAL_MS);
+        };
+
+        const clearPosQrReconnectTimer = () => {
+            if (posQrSocketReconnectTimer) {
+                clearTimeout(posQrSocketReconnectTimer);
+                posQrSocketReconnectTimer = null;
+            }
+        };
+
+        const stopPosQrSocket = () => {
+            clearPosQrReconnectTimer();
+            if (!posQrSocket) return;
+            const socket = posQrSocket;
+            posQrSocket = null;
+            socket.onopen = null;
+            socket.onmessage = null;
+            socket.onerror = null;
+            socket.onclose = null;
+            try {
+                socket.close();
+            } catch (error) {
+                console.warn('Cannot close POS QR socket:', error);
+            }
+        };
+
+        const schedulePosQrSocketReconnect = () => {
+            if (!currentStoreId || posQrSocketReconnectTimer) return;
+            startFallbackPolling();
+            posQrSocketReconnectTimer = setTimeout(() => {
+                posQrSocketReconnectTimer = null;
+                connectPosQrSocket();
+            }, posQrReconnectDelayMs);
+            posQrReconnectDelayMs = Math.min(posQrReconnectDelayMs * 2, POS_WS_RECONNECT_MAX_MS);
+        };
+
+        const handlePosQrSocketMessage = async (event) => {
+            let payload = null;
+            try {
+                payload = JSON.parse(event.data || '{}');
+            } catch (error) {
+                return;
+            }
+
+            if (!payload || payload.type !== 'qr.changed') return;
+            if (Number(payload.store_id) !== Number(currentStoreId)) return;
+
+            if (payload.reason === 'created' && payload.order_id) {
+                pendingCreatedQrOrderIds.add(Number(payload.order_id));
+            }
+            const refreshed = await refreshQrAndTables({
+                notifyCreated: payload.reason === 'created',
+                createdOrderIds: Array.from(pendingCreatedQrOrderIds),
+            });
+            if (!refreshed && payload.reason === 'created') {
+                setTimeout(() => {
+                    refreshQrAndTables({
+                        notifyCreated: true,
+                        createdOrderIds: Array.from(pendingCreatedQrOrderIds),
+                    });
+                }, 200);
+                return;
+            }
+            if (payload.reason === 'created') {
+                pendingCreatedQrOrderIds = new Set();
+            }
+        };
+
+        const connectPosQrSocket = () => {
+            if (!currentStoreId) return;
+            if (!('WebSocket' in window)) {
+                startFallbackPolling();
+                return;
+            }
+
+            clearPosQrReconnectTimer();
+            stopPosQrSocket();
+
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/pos/store/${currentStoreId}/`;
+            const socket = new WebSocket(wsUrl);
+            posQrSocket = socket;
+
+            socket.onopen = () => {
+                posQrReconnectDelayMs = POS_WS_RECONNECT_BASE_MS;
+                stopFallbackPolling();
+                refreshQrAndTables();
+            };
+
+            socket.onmessage = (event) => {
+                handlePosQrSocketMessage(event);
+            };
+
+            socket.onerror = () => {
+                try {
+                    socket.close();
+                } catch (error) {
+                    console.warn('POS QR socket close on error failed:', error);
+                }
+            };
+
+            socket.onclose = () => {
+                if (posQrSocket === socket) {
+                    posQrSocket = null;
+                }
+                schedulePosQrSocketReconnect();
+            };
         };
 
         const findProductImage = (productId) => products.find((row) => row.id === productId)?.img || 'https://placehold.co/200x200/png?text=Product';
@@ -2317,7 +2447,7 @@
                 await loadProductsFromApi();
                 await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi()]);
                 selectTakeaway();
-                startQrPolling();
+                connectPosQrSocket();
             } catch (error) {
                 showToast(error.message || 'Không tải được dữ liệu ban đầu.', 'danger');
             }
@@ -2340,7 +2470,10 @@
         });
 
         document.getElementById('storeSelector')?.addEventListener('change', async (event) => {
+            stopPosQrSocket();
+            stopFallbackPolling();
             currentStoreId = parseInt(event.target.value || '0', 10) || null;
+            posQrReconnectDelayMs = POS_WS_RECONNECT_BASE_MS;
             pendingSaveToTable = false;
             currentSelectedTableId = null;
             cart = [];
@@ -2351,11 +2484,17 @@
 
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                pollQrAndTables();
+                refreshQrAndTables();
+                if (window.WebSocket && (!posQrSocket || posQrSocket.readyState === WebSocket.CLOSED)) {
+                    connectPosQrSocket();
+                }
             }
         });
 
-        window.addEventListener('beforeunload', stopQrPolling);
+        window.addEventListener('beforeunload', () => {
+            stopPosQrSocket();
+            stopFallbackPolling();
+        });
         document.addEventListener('click', unlockQrAudio, { passive: true });
         document.addEventListener('touchstart', unlockQrAudio, { passive: true });
         document.addEventListener('keydown', unlockQrAudio);

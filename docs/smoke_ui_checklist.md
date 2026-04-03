@@ -45,7 +45,8 @@ python manage.py runserver 127.0.0.1:8000
 2. Tao don pending.
 3. Sua don pending (PATCH).
 4. Huy don pending (CANCELLED).
-5. Verify polling 5s cap nhat status sau khi staff xu ly.
+5. Verify WebSocket realtime cap nhat status sau khi staff xu ly.
+6. Neu WS mat ket noi, verify fallback polling 15s van cap nhat.
 
 ## E. Quanly QR tables
 1. Tao/sua/xoa ban QR.

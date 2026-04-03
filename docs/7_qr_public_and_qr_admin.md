@@ -9,7 +9,8 @@
 - Hien menu dung theo store cua ban.
 - Cho chon unit, topping, note, quantity.
 - Gui don tao `QROrder.PENDING`.
-- Polling 5s de cap nhat trang thai don.
+- WebSocket realtime de cap nhat trang thai don.
+- Neu mat ket noi WebSocket, fallback polling 15s.
 - Cho `edit/cancel` chi khi don con `PENDING`.
 - Luu `active_qr_order_id` theo `table_code` trong localStorage.
 
@@ -24,6 +25,10 @@
 - `GET /api/public/qr/orders/<id>/?table_code=&token=`
 - `PATCH /api/public/qr/orders/<id>/`
 - `POST /api/public/qr/orders/<id>/cancel/`
+
+## WebSocket endpoints
+- `ws://<host>/ws/pos/store/<store_id>/`
+- `ws://<host>/ws/public/qr/order/<order_id>/?table_code=<CODE>&token=<TOKEN>`
 
 ## Quanly QR ban
 

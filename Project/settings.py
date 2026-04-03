@@ -44,7 +44,9 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'daphne',
     'django.contrib.staticfiles',
+    'channels',
     'App_Core',
     'App_Accounts',
     'App_Tenant',
@@ -83,6 +85,16 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'Project.wsgi.application'
+ASGI_APPLICATION = 'Project.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [env('REDIS_URL', default='redis://127.0.0.1:6379/1')],
+        },
+    }
+}
 
 DB_ENGINE = env('DB_ENGINE', default='sqlite').strip().lower()
 if DB_ENGINE in {'postgres', 'postgresql'}:

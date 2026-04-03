@@ -161,7 +161,7 @@
         <div class="qr-glass p-3 mb-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                 <h2 class="qr-title mb-0"><i class="bi bi-receipt"></i>Trạng thái đơn hiện tại</h2>
-                <small class="text-muted">Tự cập nhật mỗi 5 giây</small>
+                <small class="text-muted">Realtime WebSocket (fallback tự động)</small>
             </div>
             <div id="order-status-panel" class="small text-muted">Đang tải trạng thái...</div>
         </div>
@@ -260,6 +260,9 @@
     const tenantSlug = data.tenant_slug || '';
     const API_CREATE_URL = "{% url 'App_Public_API:qr_orders_create' %}";
     const API_ORDER_BASE = '/api/public/qr/orders/';
+    const QR_WS_FALLBACK_POLL_INTERVAL_MS = 15000;
+    const QR_WS_RECONNECT_BASE_MS = 1000;
+    const QR_WS_RECONNECT_MAX_MS = 20000;
 
     const localStorageKey = `eapp_qr_active_order::${tenantSlug}::${tableCode}`;
 
@@ -271,6 +274,12 @@
     let currentOptionProduct = null;
     let optionModalInstance = null;
     let cancelModalInstance = null;
+    let qrOrderSocket = null;
+    let qrOrderSocketOrderId = null;
+    let qrOrderSocketReconnectTimer = null;
+    let qrOrderReconnectDelayMs = QR_WS_RECONNECT_BASE_MS;
+    let qrOrderFallbackTimer = null;
+    let qrOrderDetailInFlight = false;
 
     const formatCurrency = (value) => `${new Intl.NumberFormat('vi-VN').format(Number(value || 0))} đ`;
 
@@ -664,10 +673,13 @@
             cart = [];
         }
 
+        syncOrderRealtimeBinding();
         syncUi();
     };
 
     const fetchOrderDetail = async (orderId, { fromPolling = false } = {}) => {
+        if (qrOrderDetailInFlight) return activeOrder;
+        qrOrderDetailInFlight = true;
         const params = new URLSearchParams({ table_code: tableCode, token });
         const url = `${API_ORDER_BASE}${orderId}/?${params.toString()}`;
         try {
@@ -680,6 +692,7 @@
                 activeOrder = null;
                 editingPendingOrder = false;
                 cart = [];
+                syncOrderRealtimeBinding();
                 syncUi();
                 if (!fromPolling) {
                     showToast('Không tìm thấy đơn QR phù hợp với bàn hiện tại.', 'warning');
@@ -687,7 +700,144 @@
                 return null;
             }
             throw error;
+        } finally {
+            qrOrderDetailInFlight = false;
         }
+    };
+
+    const getActiveOrderIdForRealtime = () => activeOrder?.id || getActiveOrderId();
+
+    const stopQrOrderFallbackPolling = () => {
+        if (qrOrderFallbackTimer) {
+            clearInterval(qrOrderFallbackTimer);
+            qrOrderFallbackTimer = null;
+        }
+    };
+
+    const startQrOrderFallbackPolling = () => {
+        if (qrOrderFallbackTimer) return;
+        qrOrderFallbackTimer = setInterval(async () => {
+            if (document.hidden) return;
+            const orderId = getActiveOrderIdForRealtime();
+            if (!orderId) return;
+            try {
+                await fetchOrderDetail(orderId, { fromPolling: true });
+            } catch (error) {
+                // Keep fallback polling silent for transient failures.
+            }
+        }, QR_WS_FALLBACK_POLL_INTERVAL_MS);
+    };
+
+    const clearQrOrderReconnectTimer = () => {
+        if (qrOrderSocketReconnectTimer) {
+            clearTimeout(qrOrderSocketReconnectTimer);
+            qrOrderSocketReconnectTimer = null;
+        }
+    };
+
+    const stopQrOrderSocket = () => {
+        clearQrOrderReconnectTimer();
+        if (!qrOrderSocket) return;
+        const socket = qrOrderSocket;
+        qrOrderSocket = null;
+        qrOrderSocketOrderId = null;
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onclose = null;
+        socket.onerror = null;
+        try {
+            socket.close();
+        } catch (error) {
+            // Ignore close failures.
+        }
+    };
+
+    const buildQrOrderSocketUrl = (orderId) => {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const params = new URLSearchParams({ table_code: tableCode, token });
+        return `${wsProtocol}//${window.location.host}/ws/public/qr/order/${orderId}/?${params.toString()}`;
+    };
+
+    const scheduleQrOrderSocketReconnect = (orderId) => {
+        if (!orderId || qrOrderSocketReconnectTimer) return;
+        startQrOrderFallbackPolling();
+        qrOrderSocketReconnectTimer = setTimeout(() => {
+            qrOrderSocketReconnectTimer = null;
+            connectQrOrderSocket(orderId);
+        }, qrOrderReconnectDelayMs);
+        qrOrderReconnectDelayMs = Math.min(qrOrderReconnectDelayMs * 2, QR_WS_RECONNECT_MAX_MS);
+    };
+
+    const connectQrOrderSocket = (orderId) => {
+        if (!orderId) return;
+        if (!('WebSocket' in window)) {
+            startQrOrderFallbackPolling();
+            return;
+        }
+
+        if (
+            qrOrderSocket &&
+            Number(qrOrderSocketOrderId) === Number(orderId) &&
+            (qrOrderSocket.readyState === WebSocket.OPEN || qrOrderSocket.readyState === WebSocket.CONNECTING)
+        ) {
+            return;
+        }
+
+        clearQrOrderReconnectTimer();
+        stopQrOrderSocket();
+
+        const socket = new WebSocket(buildQrOrderSocketUrl(orderId));
+        qrOrderSocket = socket;
+        qrOrderSocketOrderId = Number(orderId);
+
+        socket.onopen = () => {
+            qrOrderReconnectDelayMs = QR_WS_RECONNECT_BASE_MS;
+            stopQrOrderFallbackPolling();
+        };
+
+        socket.onmessage = async (event) => {
+            let payload = null;
+            try {
+                payload = JSON.parse(event.data || '{}');
+            } catch (error) {
+                return;
+            }
+            if (!payload || payload.type !== 'qr.order.changed') return;
+            if (Number(payload.order_id) !== Number(getActiveOrderIdForRealtime())) return;
+            try {
+                await fetchOrderDetail(Number(payload.order_id), { fromPolling: true });
+            } catch (error) {
+                // Keep socket flow silent for transient failures.
+            }
+        };
+
+        socket.onerror = () => {
+            try {
+                socket.close();
+            } catch (error) {
+                // Ignore close failures.
+            }
+        };
+
+        socket.onclose = () => {
+            if (qrOrderSocket === socket) {
+                qrOrderSocket = null;
+                qrOrderSocketOrderId = null;
+            }
+            if (Number(getActiveOrderIdForRealtime()) === Number(orderId)) {
+                scheduleQrOrderSocketReconnect(orderId);
+            }
+        };
+    };
+
+    const syncOrderRealtimeBinding = () => {
+        const orderId = getActiveOrderIdForRealtime();
+        if (!orderId) {
+            stopQrOrderSocket();
+            stopQrOrderFallbackPolling();
+            return;
+        }
+        connectQrOrderSocket(orderId);
     };
 
         const submitOrder = async () => {
@@ -801,6 +951,7 @@
         editingPendingOrder = false;
         cart = [];
         document.getElementById('qr-order-note').value = '';
+        syncOrderRealtimeBinding();
         syncUi();
         showToast('Bạn có thể tạo đơn QR mới.', 'primary');
     };
@@ -816,16 +967,7 @@
                 showToast(error.message, 'danger');
             }
         }
-
-        setInterval(async () => {
-            const orderId = getActiveOrderId();
-            if (!orderId) return;
-            try {
-                await fetchOrderDetail(orderId, { fromPolling: true });
-            } catch (error) {
-                // keep polling silent for transient failures
-            }
-        }, 5000);
+        syncOrderRealtimeBinding();
     };
 
     document.getElementById('qr-search-input').addEventListener('input', (event) => {
@@ -843,6 +985,23 @@
     window.editPendingOrder = editPendingOrder;
     window.openCancelOrderModal = openCancelOrderModal;
     window.startNewOrder = startNewOrder;
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            const orderId = getActiveOrderIdForRealtime();
+            if (orderId) {
+                fetchOrderDetail(orderId, { fromPolling: true }).catch(() => null);
+                if (window.WebSocket && (!qrOrderSocket || qrOrderSocket.readyState === WebSocket.CLOSED)) {
+                    connectQrOrderSocket(orderId);
+                }
+            }
+        }
+    });
+
+    window.addEventListener('beforeunload', () => {
+        stopQrOrderSocket();
+        stopQrOrderFallbackPolling();
+    });
 
     bootstrapPage();
 })();

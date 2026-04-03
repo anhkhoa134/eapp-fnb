@@ -24,6 +24,7 @@ from App_Sales.models import (
     TableCartItem,
     TableCartItemTopping,
 )
+from App_Sales.realtime import notify_qr_order_changed
 from App_Sales.services import get_accessible_store_or_default, get_effective_unit_price
 from App_Tenant.services import get_user_accessible_stores
 
@@ -1101,6 +1102,12 @@ def api_qr_order_approve(request, order_id):
         order.resolved_at = timezone.now()
         order.save(update_fields=['status', 'approved_by', 'resolved_at', 'updated_at'])
 
+    notify_qr_order_changed(
+        store_id=order.store_id,
+        order_id=order.id,
+        status=order.status,
+        reason='approved',
+    )
     return JsonResponse({'detail': 'Đã duyệt đơn QR.', 'status': order.status, 'table_id': order.table_id})
 
 
@@ -1132,4 +1139,10 @@ def api_qr_order_reject(request, order_id):
         order.resolved_at = timezone.now()
         order.save(update_fields=['status', 'rejected_by', 'resolved_at', 'updated_at'])
 
+    notify_qr_order_changed(
+        store_id=order.store_id,
+        order_id=order.id,
+        status=order.status,
+        reason='rejected',
+    )
     return JsonResponse({'detail': 'Đã từ chối đơn QR.', 'status': order.status})

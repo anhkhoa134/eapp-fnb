@@ -13,6 +13,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from App_Catalog.models import Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, resolve_product_topping_links
 from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
+from App_Sales.realtime import notify_qr_order_changed
 from App_Sales.services import get_effective_unit_price
 from App_Tenant.models import Store, Tenant
 
@@ -407,6 +408,12 @@ def api_public_qr_orders(request):
         .prefetch_related('items', 'items__toppings')
         .get(pk=qr_order.pk)
     )
+    notify_qr_order_changed(
+        store_id=qr_order.store_id,
+        order_id=qr_order.id,
+        status=qr_order.status,
+        reason='created',
+    )
 
     return JsonResponse(
         {
@@ -478,6 +485,12 @@ def api_public_qr_order_detail(request, order_id):
         .prefetch_related('items', 'items__toppings')
         .get(pk=qr_order.pk)
     )
+    notify_qr_order_changed(
+        store_id=qr_order.store_id,
+        order_id=qr_order.id,
+        status=qr_order.status,
+        reason='updated',
+    )
     return JsonResponse({'detail': 'Đã cập nhật đơn QR.', 'order': _serialize_qr_order(qr_order)})
 
 
@@ -520,6 +533,12 @@ def api_public_qr_order_cancel(request, order_id):
         QROrder.objects.select_related('table', 'store')
         .prefetch_related('items', 'items__toppings')
         .get(pk=qr_order.pk)
+    )
+    notify_qr_order_changed(
+        store_id=qr_order.store_id,
+        order_id=qr_order.id,
+        status=qr_order.status,
+        reason='cancelled',
     )
 
     return JsonResponse({'detail': 'Đã hủy đơn QR.', 'order': _serialize_qr_order(qr_order)})
