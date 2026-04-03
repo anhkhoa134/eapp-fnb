@@ -1,0 +1,21 @@
+{% if active %}
+<span class="quanly-status-icon quanly-status-icon--active d-inline-flex align-items-center justify-content-center{% if extra_class %} {{ extra_class }}{% endif %}"
+      role="img"
+      aria-label="Hoạt động"
+      tabindex="0"
+      data-bs-toggle="tooltip"
+      data-bs-placement="top"
+      title="Hoạt động">
+    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+</span>
+{% else %}
+<span class="quanly-status-icon quanly-status-icon--inactive d-inline-flex align-items-center justify-content-center{% if extra_class %} {{ extra_class }}{% endif %}"
+      role="img"
+      aria-label="{{ inactive_label|default:'Tắt' }}"
+      tabindex="0"
+      data-bs-toggle="tooltip"
+      data-bs-placement="top"
+      title="{{ inactive_label|default:'Tắt' }}">
+    <i class="bi bi-pause-circle-fill" aria-hidden="true"></i>
+</span>
+{% endif %}

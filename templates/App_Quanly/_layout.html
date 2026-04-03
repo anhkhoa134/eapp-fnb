@@ -305,6 +305,43 @@
         font-weight: 600;
         font-size: 0.88rem;
     }
+    .quanly-status-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        box-sizing: border-box;
+        flex-shrink: 0;
+        border-radius: 50%;
+        line-height: 1;
+        border: 1px solid transparent;
+        cursor: default;
+    }
+    .quanly-status-icon > .bi {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.2rem;
+        height: 1.2rem;
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+    .quanly-status-icon:focus-visible {
+        outline: 2px solid rgba(37, 99, 235, 0.45);
+        outline-offset: 2px;
+    }
+    .quanly-status-icon--active {
+        color: #15803d;
+        background: rgba(22, 163, 74, 0.14);
+        border-color: rgba(22, 163, 74, 0.32);
+    }
+    .quanly-status-icon--inactive {
+        color: #64748b;
+        background: rgba(100, 116, 139, 0.12);
+        border-color: rgba(100, 116, 139, 0.28);
+    }
 </style>
 {% endblock %}
 
@@ -380,6 +417,12 @@
 </div>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+            document.querySelectorAll('.quanly-page [data-bs-toggle="tooltip"]').forEach((el) => {
+                bootstrap.Tooltip.getOrCreateInstance(el);
+            });
+        }
+
         const source = document.getElementById('quanlyMessageSource');
         const items = source ? Array.from(source.querySelectorAll('.js-quanly-message')) : [];
         const container = document.getElementById('toastContainer');

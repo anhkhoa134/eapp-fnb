@@ -9,7 +9,10 @@
 ```bash
 cd /Users/anhkhoa/Downloads/Project_django/eapp-fnb
 source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+pip install -r requirements.txt
 ```
+
+Ghi chú: `requirements.txt` gồm Django và `openpyxl` (import Excel danh mục/sản phẩm trên trang Quản lý).
 
 ## Cau hinh env
 File env duoc doc tai `Project/.env`.

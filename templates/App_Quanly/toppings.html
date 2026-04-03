@@ -29,7 +29,7 @@
                     <tr>
                         <th>Tên topping</th>
                         <th>Thứ tự</th>
-                        <th>Trạng thái</th>
+                        <th class="text-center">Trạng thái</th>
                         <th class="text-end">Thao tác</th>
                     </tr>
                 </thead>
@@ -38,12 +38,8 @@
                     <tr>
                         <td class="fw-semibold">{{ topping.name }}</td>
                         <td>{{ topping.display_order }}</td>
-                        <td>
-                            {% if topping.is_active %}
-                            <span class="badge bg-success">Hoạt động</span>
-                            {% else %}
-                            <span class="badge bg-secondary">Tắt</span>
-                            {% endif %}
+                        <td class="text-center">
+                            {% include 'App_Quanly/_status_icon.html' with active=topping.is_active %}
                         </td>
                         <td class="text-end">
                             <button
@@ -91,7 +87,7 @@
                         <th>Topping</th>
                         <th>Giá</th>
                         <th>Thứ tự</th>
-                        <th>Trạng thái</th>
+                        <th class="text-center">Trạng thái</th>
                         <th class="text-end">Thao tác</th>
                     </tr>
                 </thead>
@@ -102,12 +98,8 @@
                         <td>{{ mapping.topping.name }}</td>
                         <td>{{ mapping.price|thousand_sep }} đ</td>
                         <td>{{ mapping.display_order }}</td>
-                        <td>
-                            {% if mapping.is_active %}
-                            <span class="badge bg-success">Hoạt động</span>
-                            {% else %}
-                            <span class="badge bg-secondary">Tắt</span>
-                            {% endif %}
+                        <td class="text-center">
+                            {% include 'App_Quanly/_status_icon.html' with active=mapping.is_active %}
                         </td>
                         <td class="text-end">
                             <button

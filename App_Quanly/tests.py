@@ -1,6 +1,8 @@
+import io
 from datetime import timedelta
 from decimal import Decimal
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -485,3 +487,135 @@ class QuanlyQrTableCrudTests(TestCase):
         self.assertEqual(res['Content-Type'], 'application/pdf')
         content = b''.join(res.streaming_content)
         self.assertTrue(content.startswith(b'%PDF'))
+
+
+class CatalogExcelImportTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name='ImpTest', public_slug='imptest')
+        self.store = Store.objects.create(tenant=self.tenant, name='Cua 1', is_default=True)
+        self.manager = User.objects.create_user(
+            username='mgr_imp',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.MANAGER,
+        )
+        UserStoreAccess.objects.create(user=self.manager, store=self.store, is_default=True)
+        self.staff = User.objects.create_user(
+            username='stf_imp',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.STAFF,
+        )
+        UserStoreAccess.objects.create(user=self.staff, store=self.store, is_default=True)
+
+    def _build_min_workbook(self):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Huong_dan'
+        ws['A1'] = 'test'
+        specs = [
+            (
+                'Danh_muc',
+                ['ten_danh_muc', 'mo_ta', 'hoat_dong', 'cua_hang'],
+                [['Nước', 'Mô tả', 1, '*']],
+            ),
+            (
+                'San_pham',
+                ['ten_danh_muc', 'ten_san_pham', 'mo_ta_ngan', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
+                [['Nước', 'Trà đá', '', '', '', 1, '*']],
+            ),
+            (
+                'Don_vi',
+                ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'sku', 'thu_tu', 'hoat_dong'],
+                [['Nước', 'Trà đá', 'Ly', '10000', '', 0, 1]],
+            ),
+        ]
+        for title, headers, rows in specs:
+            nws = wb.create_sheet(title)
+            nws.append(headers)
+            for row in rows:
+                nws.append(row)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
+
+    def test_categories_page_shows_excel_import(self):
+        self.client.login(username='mgr_imp', password='123456')
+        res = self.client.get(reverse('App_Quanly:categories'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn(reverse('App_Quanly:catalog_import_template'), html)
+        self.assertIn(reverse('App_Quanly:catalog_import_upload'), html)
+
+    def test_manager_download_template(self):
+        self.client.login(username='mgr_imp', password='123456')
+        res = self.client.get(reverse('App_Quanly:catalog_import_template'))
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('spreadsheetml', res['Content-Type'])
+
+    def test_staff_forbidden_template_and_upload(self):
+        self.client.login(username='stf_imp', password='123456')
+        self.assertEqual(self.client.get(reverse('App_Quanly:catalog_import_template')).status_code, 403)
+        buf = self._build_min_workbook()
+        res = self.client.post(
+            reverse('App_Quanly:catalog_import_upload'),
+            {
+                'excel_file': SimpleUploadedFile(
+                    't.xlsx',
+                    buf.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ),
+            },
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_manager_import_creates_catalog(self):
+        self.client.login(username='mgr_imp', password='123456')
+        buf = self._build_min_workbook()
+        res = self.client.post(
+            reverse('App_Quanly:catalog_import_upload'),
+            {
+                'excel_file': SimpleUploadedFile(
+                    't.xlsx',
+                    buf.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ),
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        cat = Category.objects.get(tenant=self.tenant, name='Nước')
+        self.assertEqual(cat.description, 'Mô tả')
+        p = Product.objects.get(tenant=self.tenant, name='Trà đá')
+        self.assertEqual(p.category_id, cat.id)
+        u = ProductUnit.objects.get(product=p, name='Ly')
+        self.assertEqual(u.price, Decimal('10000'))
+
+    def test_import_duplicate_category_rows_rejected(self):
+        from openpyxl import Workbook
+
+        self.client.login(username='mgr_imp', password='123456')
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Huong_dan'
+        dm = wb.create_sheet('Danh_muc')
+        dm.append(['ten_danh_muc', 'mo_ta', 'hoat_dong', 'cua_hang'])
+        dm.append(['Trùng', 'a', 1, '*'])
+        dm.append(['Trùng', 'b', 1, '*'])
+        buf = io.BytesIO()
+        wb.save(buf)
+        raw = buf.getvalue()
+        res = self.client.post(
+            reverse('App_Quanly:catalog_import_upload'),
+            {
+                'excel_file': SimpleUploadedFile(
+                    't.xlsx',
+                    raw,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ),
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(Category.objects.filter(tenant=self.tenant, name='Trùng').exists())

@@ -21,6 +21,7 @@ from reportlab.pdfgen import canvas
 from App_Accounts.models import User
 from App_Accounts.permissions import manager_required
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Quanly.catalog_excel import MAX_UPLOAD_BYTES, import_catalog_from_upload, template_workbook_bytes
 from App_Quanly.forms import (
     CategoryForm,
     DiningTableForm,
@@ -383,6 +384,45 @@ def category_delete(request, pk):
     category = get_object_or_404(Category, pk=pk, tenant=tenant)
     category.delete()
     messages.success(request, 'Đã xóa danh mục.')
+    return redirect('App_Quanly:categories')
+
+
+@manager_required
+def catalog_import_template_download(request):
+    _tenant_or_404(request.user)
+    buf = BytesIO(template_workbook_bytes())
+    return FileResponse(
+        buf,
+        as_attachment=True,
+        filename='eapp_catalog_mau.xlsx',
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
+
+@manager_required
+@require_POST
+def catalog_import_upload(request):
+    tenant = _tenant_or_404(request.user)
+    upload = request.FILES.get('excel_file')
+    if not upload:
+        messages.error(request, 'Chưa chọn file Excel.')
+        return redirect('App_Quanly:categories')
+    if upload.size > MAX_UPLOAD_BYTES:
+        messages.error(request, 'File quá lớn (tối đa 5 MB).')
+        return redirect('App_Quanly:categories')
+    if not (upload.name or '').lower().endswith('.xlsx'):
+        messages.error(request, 'Chỉ chấp nhận file .xlsx')
+        return redirect('App_Quanly:categories')
+    result = import_catalog_from_upload(tenant, upload)
+    if result['ok']:
+        messages.success(request, result['message'])
+    else:
+        err_list = result['errors']
+        max_show = 40
+        for msg in err_list[:max_show]:
+            messages.error(request, msg)
+        if len(err_list) > max_show:
+            messages.error(request, f'… và thêm {len(err_list) - max_show} lỗi.')
     return redirect('App_Quanly:categories')
 
 

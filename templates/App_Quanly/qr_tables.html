@@ -38,7 +38,7 @@
                     <tr>
                         <th>Bàn</th>
                         <th>Cửa hàng</th>
-                        <th>Trạng thái</th>
+                        <th class="text-center">Trạng thái</th>
                         <th>QR URL</th>
                         <th class="text-end">Thao tác</th>
                     </tr>
@@ -52,12 +52,8 @@
                             <div class="small text-muted text-break">Token: {{ row.table.qr_token }}</div>
                         </td>
                         <td>{{ row.table.store.name }}</td>
-                        <td>
-                            {% if row.table.is_active %}
-                            <span class="badge bg-success">Hoạt động</span>
-                            {% else %}
-                            <span class="badge bg-secondary">Tắt</span>
-                            {% endif %}
+                        <td class="text-center">
+                            {% include 'App_Quanly/_status_icon.html' with active=row.table.is_active %}
                             <div class="small text-muted mt-1">Thứ tự: {{ row.table.display_order }}</div>
                         </td>
                         <td>

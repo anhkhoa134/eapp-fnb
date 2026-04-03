@@ -24,11 +24,7 @@
                     <div class="small text-muted">{{ row.available_store_names|default:'Chưa gán cửa hàng' }}</div>
                 </div>
                 <div class="d-flex flex-wrap gap-2 justify-content-end">
-                    {% if product.is_active %}
-                    <span class="badge bg-success align-self-center">Hoạt động</span>
-                    {% else %}
-                    <span class="badge bg-secondary align-self-center">Tạm tắt</span>
-                    {% endif %}
+                    {% include 'App_Quanly/_status_icon.html' with active=product.is_active inactive_label='Tạm tắt' extra_class='align-self-center' %}
                     <button
                         class="btn btn-sm btn-outline-success js-add-unit"
                         type="button"
@@ -76,7 +72,7 @@
                             <th>Giá</th>
                             <th>SKU</th>
                             <th>Thứ tự</th>
-                            <th>Trạng thái</th>
+                            <th class="text-center">Trạng thái</th>
                             <th class="text-end">Thao tác</th>
                         </tr>
                     </thead>
@@ -87,12 +83,8 @@
                             <td>{{ unit.price|thousand_sep }} đ</td>
                             <td>{{ unit.sku|default:'-' }}</td>
                             <td>{{ unit.display_order }}</td>
-                            <td>
-                                {% if unit.is_active %}
-                                <span class="badge bg-success">Hoạt động</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Tắt</span>
-                                {% endif %}
+                            <td class="text-center">
+                                {% include 'App_Quanly/_status_icon.html' with active=unit.is_active %}
                             </td>
                             <td class="text-end">
                                 <button
