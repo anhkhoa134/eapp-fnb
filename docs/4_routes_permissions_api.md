@@ -8,6 +8,11 @@
 - `POST /accounts/logout/` -> logout.
 - `GET /<public_slug>/` -> public catalog.
 - `GET /<public_slug>/qr/?table_code=&token=` -> public QR ordering UI.
+- `GET /manifest.webmanifest` -> Web App Manifest (PWA).
+- `GET /sw.js` -> service worker (PWA).
+- `GET /offline/` -> trang fallback khi ngoại tuyến (PWA).
+
+Chi tiết: `docs/10_pwa.md`.
 
 ## Security notes
 - `GET /accounts/logout/` => 405.

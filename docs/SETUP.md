@@ -52,6 +52,7 @@ redis-server
 - Đăng nhập: `/accounts/login/`
 - Public catalog: `/<public_slug>/`
 - Public QR ordering: `/<public_slug>/qr/?table_code=<CODE>&token=<TOKEN>`
+- PWA: manifest `/manifest.webmanifest`, service worker `/sw.js`, trang offline `/offline/` — chi tiết xem `docs/10_pwa.md`
 
 ## 6) API QR chính
 - Staff pending: `/api/pos/qr/orders?store_id=<id>&status=pending`

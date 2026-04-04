@@ -3,9 +3,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from App_Core import views as core_views
 from App_Core.admin_views import demo_seed_reset_confirm
 
 urlpatterns = [
+    path('manifest.webmanifest', core_views.manifest_view, name='pwa_manifest'),
+    path('sw.js', core_views.service_worker_view, name='pwa_service_worker'),
+    path('offline/', core_views.offline_view, name='pwa_offline'),
     path(
         f'{settings.REAL_ADMIN_PATH}demo-seed-reset/',
         admin.site.admin_view(demo_seed_reset_confirm),

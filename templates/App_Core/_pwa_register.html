@@ -1,0 +1,9 @@
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker
+            .register('{% url "pwa_service_worker" %}', { scope: '/' })
+            .catch(function () {});
+    });
+}
+</script>

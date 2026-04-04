@@ -1,0 +1,77 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#10b981">
+    <title>Không có kết nối — eApp FnB</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 45%, #e0f2fe 100%);
+            color: #0f172a;
+        }
+        .card {
+            max-width: 420px;
+            width: 100%;
+            background: #fff;
+            border-radius: 20px;
+            padding: 2rem 1.75rem;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
+            text-align: center;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        .icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 16px;
+            margin: 0 auto 1rem;
+            display: block;
+            object-fit: cover;
+        }
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem;
+        }
+        p {
+            margin: 0 0 1.25rem;
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            padding: 0.65rem 1.25rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            background: #10b981;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover { background: #059669; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img class="icon" src="{% static 'pwa/icons/icon-192x192.png' %}" width="72" height="72" alt="">
+        <h1>Bạn đang ngoại tuyến</h1>
+        <p>Kiểm tra kết nối mạng rồi thử tải lại trang. Dữ liệu POS cần internet để đồng bộ.</p>
+        <a class="btn" href="/">Về trang chủ</a>
+    </div>
+</body>
+</html>
