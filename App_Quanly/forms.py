@@ -179,7 +179,17 @@ class ProductToppingForm(forms.ModelForm):
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
+STORE_PAYMENT_QR_MAX_BYTES = 2 * 1024 * 1024
+
+
 class StorePaymentForm(forms.ModelForm):
+    remove_payment_qr = forms.BooleanField(
+        required=False,
+        initial=False,
+        label='Xóa ảnh QR hiện tại',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
     class Meta:
         model = Store
         fields = ['payment_qr', 'payment_bank_name', 'payment_account_name', 'payment_account_number']
@@ -200,6 +210,38 @@ class StorePaymentForm(forms.ModelForm):
         self.fields['payment_qr'].required = False
         self.fields['payment_qr'].help_text = 'Ảnh QR để khách quét chuyển khoản (khuyến nghị PNG/JPG, dưới 2MB).'
         _apply_bootstrap_classes(self)
+        self.order_fields(
+            [
+                'payment_qr',
+                'remove_payment_qr',
+                'payment_bank_name',
+                'payment_account_name',
+                'payment_account_number',
+            ]
+        )
+
+    def clean(self):
+        data = super().clean()
+        if data.get('remove_payment_qr') and data.get('payment_qr'):
+            raise ValidationError('Chọn một: tải ảnh mới hoặc xóa ảnh QR hiện tại.')
+        return data
+
+    def clean_payment_qr(self):
+        f = self.cleaned_data.get('payment_qr')
+        if not f:
+            return f
+        if f.size > STORE_PAYMENT_QR_MAX_BYTES:
+            raise ValidationError('Ảnh QR tối đa 2 MB.')
+        return f
+
+    def save(self, commit=True):
+        remove = self.cleaned_data.get('remove_payment_qr')
+        instance = super().save(commit=False)
+        if remove:
+            instance.payment_qr = None
+        if commit:
+            instance.save()
+        return instance
 
 
 class DiningTableForm(forms.ModelForm):
