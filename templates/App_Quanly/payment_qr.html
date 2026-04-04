@@ -1,0 +1,68 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar mb-3">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-credit-card-2-front"></i>
+                QR thanh toán (POS)
+            </h2>
+        </div>
+
+        {% if not selected_store %}
+        <p class="text-muted mb-0">Chưa có cửa hàng để cấu hình.</p>
+        {% else %}
+        <p class="text-muted small mb-3">
+            Thông tin và ảnh QR hiển thị cho nhân viên khi khách chọn <strong>Thẻ/QR</strong> trong modal thanh toán tại POS.
+        </p>
+
+        <form method="get" class="row g-2 align-items-end mb-4">
+            <div class="col-12 col-md-5">
+                <label class="form-label small text-muted mb-1">Cửa hàng</label>
+                <select name="store" class="form-select" onchange="this.form.submit()">
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store.id == store.id %}selected{% endif %}>{{ store.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+
+        <form method="post" enctype="multipart/form-data" class="row g-3">
+            {% csrf_token %}
+            <input type="hidden" name="store" value="{{ selected_store.id }}">
+
+            <div class="col-12 col-lg-6">
+                {% if selected_store.payment_qr %}
+                <div class="mb-3">
+                    <div class="form-label small text-muted">Ảnh hiện tại</div>
+                    <div class="border rounded p-2 bg-white d-inline-block">
+                        <img src="{{ selected_store.payment_qr.url }}" alt="QR thanh toán" class="img-fluid" style="max-width: 220px; max-height: 220px; object-fit: contain;">
+                    </div>
+                </div>
+                {% endif %}
+
+                {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}
+                    <div class="form-text">{{ field.help_text }}</div>
+                    {% endif %}
+                    {% for error in field.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check2-circle me-1"></i>Lưu cấu hình
+                </button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

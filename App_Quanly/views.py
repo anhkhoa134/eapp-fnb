@@ -31,6 +31,7 @@ from App_Quanly.forms import (
     ProductUnitForm,
     StaffCreateForm,
     StaffPasswordResetForm,
+    StorePaymentForm,
     ToppingForm,
 )
 from App_Sales.models import DiningTable, Order, OrderItem, generate_qr_token
@@ -455,7 +456,10 @@ def product_list_create(request):
         .prefetch_related('units', 'store_links__store')
         .order_by('name')
     )
-    form = ProductForm(request.POST or None, tenant=tenant)
+    if request.method == 'POST':
+        form = ProductForm(request.POST, request.FILES, tenant=tenant)
+    else:
+        form = ProductForm(tenant=tenant)
 
     if request.method == 'POST' and form.is_valid():
         product = form.save(commit=False)
@@ -504,7 +508,13 @@ def product_edit(request, pk):
     if request.method != 'POST':
         return redirect('App_Quanly:products')
 
-    form = ProductForm(request.POST, instance=product, tenant=tenant, initial={'store_ids': initial_store_ids})
+    form = ProductForm(
+        request.POST,
+        request.FILES,
+        instance=product,
+        tenant=tenant,
+        initial={'store_ids': initial_store_ids},
+    )
     if form.is_valid():
         product = form.save()
         selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
@@ -671,6 +681,47 @@ def product_topping_delete(request, pk):
     mapping.delete()
     messages.success(request, 'Đã xóa gán topping khỏi sản phẩm.')
     return redirect('App_Quanly:toppings')
+
+
+@manager_required
+def payment_qr_settings(request):
+    tenant = _tenant_or_404(request.user)
+    stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+    if not stores.exists():
+        return render(
+            request,
+            'App_Quanly/payment_qr.html',
+            {'stores': stores, 'selected_store': None, 'form': None},
+        )
+
+    store_id_raw = (request.GET.get('store') or '').strip()
+    if request.method == 'POST':
+        store_id_raw = (request.POST.get('store') or '').strip()
+
+    if store_id_raw.isdigit():
+        selected_store = get_object_or_404(Store, pk=int(store_id_raw), tenant=tenant, is_active=True)
+    else:
+        selected_store = stores.first()
+
+    if request.method == 'POST':
+        form = StorePaymentForm(request.POST, request.FILES, instance=selected_store)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Đã cập nhật QR thanh toán cho "{selected_store.name}".')
+            return redirect(f'{reverse("App_Quanly:payment_qr_settings")}?store={selected_store.id}')
+        messages.error(request, 'Không thể lưu, vui lòng kiểm tra dữ liệu.')
+    else:
+        form = StorePaymentForm(instance=selected_store)
+
+    return render(
+        request,
+        'App_Quanly/payment_qr.html',
+        {
+            'stores': stores,
+            'selected_store': selected_store,
+            'form': form,
+        },
+    )
 
 
 def _build_table_qr_url(request, *, tenant_slug, table):

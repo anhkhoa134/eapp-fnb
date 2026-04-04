@@ -139,7 +139,7 @@
     {% for product in products %}
     <div class="col-6 col-md-4 col-lg-3">
         <div class="public-product-card">
-            <img src="{{ product.image_url|default:'https://placehold.co/600x600/png?text=Product' }}" alt="{{ product.name }}">
+            <img src="{% if product.catalog_image_url %}{{ product.catalog_image_url }}{% else %}https://placehold.co/600x600/png?text=Product{% endif %}" alt="{{ product.name }}">
             <div class="p-3">
                 <h2 class="h6 mb-2 fw-bold text-truncate" title="{{ product.name }}">{{ product.name }}</h2>
                 <div class="mb-2">

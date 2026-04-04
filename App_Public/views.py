@@ -29,6 +29,15 @@ def _parse_json_request(request):
         return None
 
 
+def _qr_product_image_url(request, product):
+    raw = product.get_catalog_image_url()
+    if not raw:
+        return 'https://placehold.co/600x600/png?text=Product'
+    if raw.startswith('http'):
+        return raw
+    return request.build_absolute_uri(raw)
+
+
 def _get_table_by_credentials(*, table_code, token, tenant=None):
     filters = {
         'code': (table_code or '').strip().upper(),
@@ -187,7 +196,7 @@ def _replace_qr_order_items(*, qr_order, prepared_items):
         )
 
 
-def _build_qr_products_payload(*, table):
+def _build_qr_products_payload(*, table, request):
     queryset = (
         Product.objects.filter(
             tenant=table.tenant,
@@ -249,7 +258,7 @@ def _build_qr_products_payload(*, table):
             {
                 'id': product.id,
                 'name': product.name,
-                'image': product.image_url or 'https://placehold.co/600x600/png?text=Product',
+                'image': _qr_product_image_url(request, product),
                 'category_id': str(product.category_id or ''),
                 'category_name': product.category.name if product.category else 'Khác',
                 'units': units_payload,
@@ -343,7 +352,7 @@ def tenant_qr_ordering(request, public_slug):
         if not table:
             qr_error = 'QR không hợp lệ hoặc đã hết hiệu lực.'
         else:
-            categories, products = _build_qr_products_payload(table=table)
+            categories, products = _build_qr_products_payload(table=table, request=request)
 
     qr_bootstrap_data = {
         'tenant_slug': tenant.public_slug,

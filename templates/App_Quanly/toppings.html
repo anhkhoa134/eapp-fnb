@@ -207,6 +207,7 @@
                         <div>
                             <label class="form-label fw-semibold" for="{{ mapping_form.price.id_for_label }}">Giá</label>
                             {{ mapping_form.price }}
+                            <div class="form-text">Số nguyên (đ), có thể gõ kèm dấu phân cách phần nghìn.</div>
                             {{ mapping_form.price.errors }}
                         </div>
                         <div>
@@ -319,7 +320,8 @@
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-mapping-price">Giá</label>
-                            <input class="form-control" id="edit-mapping-price" name="price" type="number" step="0.01" min="0" required>
+                            <input class="form-control js-price-vnd" id="edit-mapping-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <div class="form-text">Số nguyên (đ).</div>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-mapping-display-order">Thứ tự</label>
@@ -365,6 +367,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include 'App_Quanly/_price_vnd_input_script.html' %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const editToppingForm = document.getElementById('editToppingForm');
@@ -402,6 +405,9 @@
                 if (editMappingProduct) editMappingProduct.value = button.dataset.mappingProduct || '';
                 if (editMappingTopping) editMappingTopping.value = button.dataset.mappingTopping || '';
                 if (editMappingPrice) editMappingPrice.value = button.dataset.mappingPrice || '0';
+                if (typeof window.quanlyFormatPriceVndInput === 'function') {
+                    window.quanlyFormatPriceVndInput(editMappingPrice);
+                }
                 if (editMappingDisplayOrder) editMappingDisplayOrder.value = button.dataset.mappingDisplayOrder || '0';
                 if (editMappingActive) editMappingActive.checked = button.dataset.mappingActive === '1';
                 if (editMappingLabel) editMappingLabel.textContent = button.dataset.mappingLabel || '';

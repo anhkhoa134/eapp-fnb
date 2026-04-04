@@ -33,6 +33,15 @@ def _json_error(detail, status=400):
     return JsonResponse({'detail': detail}, status=status)
 
 
+def _pos_product_image_url(request, product):
+    raw = product.get_catalog_image_url()
+    if not raw:
+        return 'https://placehold.co/600x600/png?text=Product'
+    if raw.startswith('http'):
+        return raw
+    return request.build_absolute_uri(raw)
+
+
 def _parse_json_request(request):
     try:
         return json.loads(request.body.decode('utf-8'))
@@ -419,16 +428,27 @@ def api_products(request):
                 'name': product.name,
                 'category': product.category.name if product.category else 'Khác',
                 'category_id': str(product.category_id or ''),
-                'image': product.image_url or 'https://placehold.co/600x600/png?text=Product',
+                'image': _pos_product_image_url(request, product),
                 'units': units_payload,
                 'base_price': units_payload[0]['price'],
                 'toppings': toppings_payload,
             }
         )
 
+    payment_qr_url = None
+    if store.payment_qr:
+        payment_qr_url = request.build_absolute_uri(store.payment_qr.url)
+
     return JsonResponse(
         {
-            'store': {'id': store.id, 'name': store.name},
+            'store': {
+                'id': store.id,
+                'name': store.name,
+                'payment_qr_url': payment_qr_url,
+                'payment_bank_name': store.payment_bank_name or '',
+                'payment_account_name': store.payment_account_name or '',
+                'payment_account_number': store.payment_account_number or '',
+            },
             'categories': categories,
             'products': products,
         }

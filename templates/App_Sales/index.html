@@ -1001,6 +1001,17 @@
                                 </div>
                             </div>
 
+                            <div class="mb-3 d-none" id="payment-card-qr-panel">
+                                <label class="form-label text-muted">Quét mã QR chuyển khoản</label>
+                                <div class="border rounded-3 p-3 bg-white text-center shadow-sm">
+                                    <div id="payment-card-qr-image-wrap" class="mb-2">
+                                        <img id="payment-card-qr-img" src="" alt="QR thanh toán" class="img-fluid rounded border" style="max-width: 220px; max-height: 220px; object-fit: contain; display: none;">
+                                        <p id="payment-card-qr-missing" class="text-muted small mb-0">Chưa cấu hình ảnh QR. Vào Quản lý → QR thanh toán để tải ảnh.</p>
+                                    </div>
+                                    <div id="payment-card-bank-details" class="text-start small"></div>
+                                </div>
+                            </div>
+
                             <div class="mb-3" id="quick-cash-wrapper">
                                 <label class="form-label text-muted">Gợi ý số tiền khách đưa:</label>
                                 <div class="d-flex flex-wrap gap-2" id="quick-cash-container">
@@ -1259,6 +1270,7 @@
         let posQrSocket = null;
         let posQrSocketReconnectTimer = null;
         let posQrReconnectDelayMs = POS_WS_RECONNECT_BASE_MS;
+        let storePaymentInfo = null;
 
         const themes = {
             green: { primary: '#10b981', hover: '#059669' },
@@ -1711,10 +1723,50 @@
             }
         };
 
+        const updatePaymentCardQrDisplay = () => {
+            const info = storePaymentInfo || {};
+            const img = document.getElementById('payment-card-qr-img');
+            const missing = document.getElementById('payment-card-qr-missing');
+            const details = document.getElementById('payment-card-bank-details');
+            if (!img || !missing || !details) return;
+            const hasQr = Boolean(info.payment_qr_url);
+            if (hasQr) {
+                img.src = info.payment_qr_url;
+                img.style.display = '';
+                missing.classList.add('d-none');
+            } else {
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                missing.classList.remove('d-none');
+            }
+            const lines = [];
+            if (info.payment_bank_name) {
+                lines.push(`<div class="mb-1"><span class="text-secondary">Ngân hàng:</span> <span class="text-dark fw-semibold">${escapeHtml(info.payment_bank_name)}</span></div>`);
+            }
+            if (info.payment_account_name) {
+                lines.push(`<div class="mb-1"><span class="text-secondary">Chủ TK:</span> <span class="text-dark fw-semibold">${escapeHtml(info.payment_account_name)}</span></div>`);
+            }
+            if (info.payment_account_number) {
+                lines.push(`<div class="mb-0"><span class="text-secondary">Số TK:</span> <span class="text-dark fw-semibold font-monospace">${escapeHtml(info.payment_account_number)}</span></div>`);
+            }
+            details.innerHTML = lines.length
+                ? lines.join('')
+                : '<div class="text-muted fst-italic text-center">Chưa nhập thông tin tài khoản (Quản lý → QR thanh toán).</div>';
+        };
+
         const loadProductsFromApi = async () => {
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId });
             const payload = await fetchJson(`${API_PRODUCTS_URL}?${params.toString()}`);
+
+            const st = payload.store || {};
+            storePaymentInfo = {
+                payment_qr_url: st.payment_qr_url || null,
+                payment_bank_name: st.payment_bank_name || '',
+                payment_account_name: st.payment_account_name || '',
+                payment_account_number: st.payment_account_number || '',
+            };
+            updatePaymentCardQrDisplay();
 
             categories = [{ id: 'all', name: 'Tất cả' }];
             (payload.categories || []).forEach((row) => {
@@ -2408,6 +2460,10 @@
         const syncPaymentMethodUi = () => {
             const method = getSelectedPaymentMethod();
             const showCash = method === 'cash';
+            const cardPanel = document.getElementById('payment-card-qr-panel');
+            if (cardPanel) {
+                cardPanel.classList.toggle('d-none', showCash);
+            }
             document.getElementById('quick-cash-wrapper').style.display = showCash ? '' : 'none';
             document.getElementById('cash-input-wrapper').style.display = showCash ? '' : 'none';
             document.getElementById('change-wrapper').style.display = showCash ? '' : 'none';
@@ -2455,6 +2511,7 @@
                 btnContainer.insertAdjacentHTML('beforeend', `<button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="setCashReceived(${amount})">${formatCurrency(amount)} ${badge}</button>`);
             });
 
+            updatePaymentCardQrDisplay();
             syncPaymentMethodUi();
             paymentModalInstance.show();
         };

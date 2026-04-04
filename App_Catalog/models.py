@@ -49,6 +49,8 @@ class Product(TimeStampedModel):
     slug = models.SlugField(max_length=180)
     description = models.TextField('Mô tả', blank=True)
     image_url = models.URLField(blank=True)
+    image_file = models.ImageField('Ảnh upload', upload_to='products/%Y/%m/', blank=True)
+    image_thumbnail = models.ImageField('Thumbnail', upload_to='products/%Y/%m/thumbs/', blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -76,6 +78,31 @@ class Product(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+    def get_catalog_image_url(self) -> str:
+        """URL for grid/list: prefer small WebP, then uploaded main, then external URL."""
+        if self.image_thumbnail:
+            return self.image_thumbnail.url
+        if self.image_file:
+            return self.image_file.url
+        return (self.image_url or '').strip()
+
+    @property
+    def catalog_image_url(self) -> str:
+        return self.get_catalog_image_url()
+
+    def get_detail_image_url(self) -> str:
+        """URL for larger view: full upload, then external URL."""
+        if self.image_file:
+            return self.image_file.url
+        return (self.image_url or '').strip()
+
+    def delete(self, *args, **kwargs):
+        if self.image_file:
+            self.image_file.delete(save=False)
+        if self.image_thumbnail:
+            self.image_thumbnail.delete(save=False)
+        super().delete(*args, **kwargs)
 
 
 class ProductUnit(TimeStampedModel):

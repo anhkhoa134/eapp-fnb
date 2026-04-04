@@ -31,6 +31,7 @@ urlpatterns = [
     path('qr-tables/<int:pk>/reset-token/', views.qr_table_reset_token, name='qr_table_reset_token'),
     path('qr-tables/<int:pk>/png/', views.qr_table_png, name='qr_table_png'),
     path('qr-tables/print-pdf/', views.qr_tables_store_pdf, name='qr_tables_print_pdf'),
+    path('payment-qr/', views.payment_qr_settings, name='payment_qr_settings'),
     path('staffs/', views.staff_list_create, name='staffs'),
     path('staffs/<int:pk>/password/', views.staff_password_reset, name='staff_password_reset'),
 ]

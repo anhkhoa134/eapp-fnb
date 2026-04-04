@@ -55,6 +55,10 @@ class Store(TimeStampedModel):
     address = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
     is_default = models.BooleanField(default=False)
+    payment_qr = models.ImageField(upload_to='store_payment_qr/', blank=True, null=True)
+    payment_bank_name = models.CharField(max_length=120, blank=True)
+    payment_account_name = models.CharField(max_length=120, blank=True)
+    payment_account_number = models.CharField(max_length=32, blank=True)
 
     class Meta:
         ordering = ['tenant__name', 'name']

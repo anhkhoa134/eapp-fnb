@@ -1,0 +1,71 @@
+<script>
+(function () {
+    function parsePriceToInt(str) {
+        const s = String(str ?? '').trim().replace(/\s/g, '');
+        if (!s) return null;
+        const dotParts = s.split('.');
+        if (dotParts.length === 2 && /^\d+$/.test(dotParts[0]) && /^\d{1,2}$/.test(dotParts[1])) {
+            return Math.round(Number(`${dotParts[0]}.${dotParts[1]}`));
+        }
+        const digits = s.replace(/\D/g, '');
+        if (!digits) return null;
+        const n = parseInt(digits, 10);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function formatVndInt(n) {
+        return new Intl.NumberFormat('vi-VN').format(n);
+    }
+
+    function normalizeForSubmit(el) {
+        const n = parsePriceToInt(el.value);
+        el.value = n === null ? '' : String(n);
+    }
+
+    window.quanlyParsePriceToInt = parsePriceToInt;
+
+    window.quanlyFormatPriceVndInput = function (el) {
+        if (!el) return;
+        const n = parsePriceToInt(el.value);
+        el.value = n === null ? '' : formatVndInt(n);
+    };
+
+    window.quanlyBindPriceVndInputs = function (root) {
+        const scope = root && root.querySelectorAll ? root : document;
+        const nodes = root && root.classList && root.classList.contains('js-price-vnd')
+            ? [root]
+            : scope.querySelectorAll('.js-price-vnd');
+        nodes.forEach((el) => {
+            if (!el || el.dataset.priceVndBound === '1') return;
+            el.dataset.priceVndBound = '1';
+            el.setAttribute('inputmode', 'numeric');
+            el.setAttribute('autocomplete', 'off');
+            if (el.type === 'number') el.type = 'text';
+
+            const form = el.closest('form');
+            const onInput = () => {
+                const n = parsePriceToInt(el.value);
+                el.value = n === null ? '' : formatVndInt(n);
+            };
+            el.addEventListener('focus', () => {
+                const n = parsePriceToInt(el.value);
+                el.value = n === null ? '' : String(n);
+            });
+            el.addEventListener('blur', () => {
+                window.quanlyFormatPriceVndInput(el);
+            });
+            el.addEventListener('input', onInput);
+            if (form) {
+                form.addEventListener('submit', () => {
+                    normalizeForSubmit(el);
+                });
+            }
+            window.quanlyFormatPriceVndInput(el);
+        });
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.quanlyBindPriceVndInputs(document);
+    });
+})();
+</script>

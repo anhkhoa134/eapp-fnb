@@ -380,6 +380,9 @@
                     <a class="admin-nav-link {% if '/quanly/qr-tables/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:qr_tables' %}">
                         <i class="bi bi-qr-code-scan"></i> QR bàn
                     </a>
+                    <a class="admin-nav-link {% if '/quanly/payment-qr/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:payment_qr_settings' %}">
+                        <i class="bi bi-credit-card-2-front"></i> QR thanh toán
+                    </a>
                     <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}">
                         <i class="bi bi-people"></i> Nhân viên
                     </a>

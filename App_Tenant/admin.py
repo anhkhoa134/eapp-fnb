@@ -110,6 +110,10 @@ class StoreAdmin(admin.ModelAdmin):
     list_filter = ('tenant', 'is_active', 'is_default')
     search_fields = ('name', 'tenant__name')
     prepopulated_fields = {'slug': ('name',)}
+    fieldsets = (
+        (None, {'fields': ('tenant', 'name', 'slug', 'address', 'is_active', 'is_default')}),
+        ('QR thanh toán (POS)', {'fields': ('payment_qr', 'payment_bank_name', 'payment_account_name', 'payment_account_number')}),
+    )
 
 
 @admin.register(UserStoreAccess)

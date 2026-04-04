@@ -45,6 +45,7 @@
                         data-product-category="{{ product.category_id|default:'' }}"
                         data-product-description="{{ product.description|default:''|escape }}"
                         data-product-image-url="{{ product.image_url|default:''|escape }}"
+                        data-product-preview-image="{{ product.catalog_image_url|default:''|escape }}"
                         data-product-active="{% if product.is_active %}1{% else %}0{% endif %}"
                         data-product-store-ids="{{ row.available_store_ids_csv }}"
                     >
@@ -137,7 +138,7 @@
                 <h5 class="modal-title"><i class="bi bi-plus-circle me-2 text-primary"></i>Tạo sản phẩm</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="{% url 'App_Quanly:products' %}">
+            <form method="post" action="{% url 'App_Quanly:products' %}" enctype="multipart/form-data">
                 <div class="modal-body">
                     {% csrf_token %}
                     {{ form.non_field_errors }}
@@ -161,6 +162,12 @@
                             <label class="form-label fw-semibold" for="{{ form.image_url.id_for_label }}">Image URL</label>
                             {{ form.image_url }}
                             {{ form.image_url.errors }}
+                            <div class="form-text">Hoặc tải ảnh từ máy (WebP + thumbnail tự động).</div>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.image_upload.id_for_label }}">Ảnh từ máy</label>
+                            {{ form.image_upload }}
+                            {{ form.image_upload.errors }}
                         </div>
                         <div class="full">
                             <div class="form-section-title">Bán tại cửa hàng</div>
@@ -198,7 +205,7 @@
                 <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa sản phẩm</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" id="editProductForm" action="">
+            <form method="post" id="editProductForm" action="" enctype="multipart/form-data">
                 <div class="modal-body">
                     {% csrf_token %}
                     <div class="crud-form-grid">
@@ -222,6 +229,15 @@
                         <div class="full">
                             <label class="form-label fw-semibold" for="edit-product-image-url">Image URL</label>
                             <input class="form-control" id="edit-product-image-url" name="image_url" type="url">
+                            <div class="form-text">Hoặc tải ảnh mới từ máy (WebP + thumbnail).</div>
+                        </div>
+                        <div class="full" id="edit-product-upload-preview-wrap">
+                            <div class="small text-muted mb-1">Ảnh hiện tại (xem nhanh)</div>
+                            <img src="" alt="" id="edit-product-upload-preview-img" class="img-fluid rounded border d-none" style="max-height: 140px;">
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-product-image-upload">Ảnh từ máy</label>
+                            <input class="form-control" id="edit-product-image-upload" name="image_upload" type="file" accept="image/*">
                         </div>
                         <div class="full">
                             <div class="form-section-title">Bán tại cửa hàng</div>
@@ -290,7 +306,8 @@
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="add-unit-price">Giá</label>
-                            <input class="form-control" id="add-unit-price" name="price" type="number" step="0.01" min="0" required>
+                            <input class="form-control js-price-vnd" id="add-unit-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <div class="form-text">Số nguyên (đ), có thể gõ kèm dấu phân cách phần nghìn.</div>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="add-unit-sku">SKU</label>
@@ -335,7 +352,8 @@
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-price">Giá</label>
-                            <input class="form-control" id="edit-unit-price" name="price" type="number" step="0.01" min="0" required>
+                            <input class="form-control js-price-vnd" id="edit-unit-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <div class="form-text">Số nguyên (đ).</div>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-sku">SKU</label>
@@ -385,6 +403,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include 'App_Quanly/_price_vnd_input_script.html' %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const editProductForm = document.getElementById('editProductForm');
@@ -392,6 +411,8 @@
         const editProductCategory = document.getElementById('edit-product-category');
         const editProductDescription = document.getElementById('edit-product-description');
         const editProductImageUrl = document.getElementById('edit-product-image-url');
+        const editProductImageUpload = document.getElementById('edit-product-image-upload');
+        const editProductUploadPreviewImg = document.getElementById('edit-product-upload-preview-img');
         const editProductActive = document.getElementById('edit-product-active');
         const editProductStores = Array.from(document.querySelectorAll('.js-edit-product-store'));
 
@@ -406,6 +427,17 @@
                 if (editProductCategory) editProductCategory.value = button.dataset.productCategory || '';
                 if (editProductDescription) editProductDescription.value = button.dataset.productDescription || '';
                 if (editProductImageUrl) editProductImageUrl.value = button.dataset.productImageUrl || '';
+                if (editProductImageUpload) editProductImageUpload.value = '';
+                const previewUrl = (button.dataset.productPreviewImage || '').trim();
+                if (editProductUploadPreviewImg) {
+                    if (previewUrl) {
+                        editProductUploadPreviewImg.src = previewUrl;
+                        editProductUploadPreviewImg.classList.remove('d-none');
+                    } else {
+                        editProductUploadPreviewImg.removeAttribute('src');
+                        editProductUploadPreviewImg.classList.add('d-none');
+                    }
+                }
                 if (editProductActive) editProductActive.checked = button.dataset.productActive === '1';
                 editProductStores.forEach((checkbox) => {
                     checkbox.checked = storeIds.includes(checkbox.value);
@@ -444,6 +476,9 @@
                 if (editUnitProductName) editUnitProductName.textContent = button.dataset.productName || '';
                 if (editUnitName) editUnitName.value = button.dataset.unitName || '';
                 if (editUnitPrice) editUnitPrice.value = button.dataset.unitPrice || '';
+                if (typeof window.quanlyFormatPriceVndInput === 'function') {
+                    window.quanlyFormatPriceVndInput(editUnitPrice);
+                }
                 if (editUnitSku) editUnitSku.value = button.dataset.unitSku || '';
                 if (editUnitDisplayOrder) editUnitDisplayOrder.value = button.dataset.unitDisplayOrder || '0';
                 if (editUnitActive) editUnitActive.checked = button.dataset.unitActive === '1';

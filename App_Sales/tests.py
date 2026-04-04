@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
@@ -87,6 +88,37 @@ class SalesApiTests(TestCase):
         payload = res.json()
         self.assertEqual(payload['store']['id'], self.store_1.id)
         self.assertEqual(len(payload['products']), 1)
+
+    def test_api_products_includes_store_payment_metadata(self):
+        url = reverse('App_Sales_API:products')
+        res = self.client.get(url, {'store_id': self.store_1.id})
+        self.assertEqual(res.status_code, 200)
+        store_payload = res.json()['store']
+        self.assertIn('payment_qr_url', store_payload)
+        self.assertIsNone(store_payload['payment_qr_url'])
+        self.assertEqual(store_payload['payment_bank_name'], '')
+        self.assertEqual(store_payload['payment_account_name'], '')
+        self.assertEqual(store_payload['payment_account_number'], '')
+
+        tiny_png = (
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+            b'\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05'
+            b'\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+        self.store_1.payment_qr = SimpleUploadedFile('qr.png', tiny_png, content_type='image/png')
+        self.store_1.payment_bank_name = 'Vietcombank'
+        self.store_1.payment_account_name = 'CUA HANG DEMO'
+        self.store_1.payment_account_number = '0123456789'
+        self.store_1.save()
+
+        res2 = self.client.get(url, {'store_id': self.store_1.id})
+        self.assertEqual(res2.status_code, 200)
+        store2 = res2.json()['store']
+        self.assertTrue(store2['payment_qr_url'])
+        self.assertIn('/media/store_payment_qr/', store2['payment_qr_url'])
+        self.assertEqual(store2['payment_bank_name'], 'Vietcombank')
+        self.assertEqual(store2['payment_account_name'], 'CUA HANG DEMO')
+        self.assertEqual(store2['payment_account_number'], '0123456789')
 
     def test_api_products_returns_toppings_contract(self):
         url = reverse('App_Sales_API:products')
