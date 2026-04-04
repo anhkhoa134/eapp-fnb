@@ -115,7 +115,7 @@ class SalesApiTests(TestCase):
         self.assertEqual(res2.status_code, 200)
         store2 = res2.json()['store']
         self.assertTrue(store2['payment_qr_url'])
-        self.assertIn(f'/media/store_payment_qr/tenant_{self.tenant.id}/', store2['payment_qr_url'])
+        self.assertIn(f'/media/tenant_{self.tenant.id}/store_payment_qr/', store2['payment_qr_url'])
         self.assertEqual(store2['payment_bank_name'], 'Vietcombank')
         self.assertEqual(store2['payment_account_name'], 'CUA HANG DEMO')
         self.assertEqual(store2['payment_account_number'], '0123456789')

@@ -1,5 +1,3 @@
-import uuid
-
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -7,17 +5,7 @@ from django.db.models import Q
 from django.utils.text import slugify
 
 from App_Core.models import TimeStampedModel
-
-
-def store_payment_qr_upload_to(instance, filename):
-    """Lưu ảnh QR theo tenant: ``store_payment_qr/tenant_{id}/``."""
-    tid = instance.tenant_id
-    if not tid:
-        tid = 'unknown'
-    ext = (filename.rsplit('.', 1)[-1] if '.' in filename else 'png').lower()[:8]
-    if ext not in ('png', 'jpg', 'jpeg', 'webp', 'gif'):
-        ext = 'png'
-    return f'store_payment_qr/tenant_{tid}/qr_{uuid.uuid4().hex}.{ext}'
+from App_Core.tenant_media_paths import store_payment_qr_upload_to
 
 RESERVED_PUBLIC_SLUGS = {
     'admin',

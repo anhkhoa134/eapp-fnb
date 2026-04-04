@@ -5,6 +5,7 @@ from django.db import models
 from django.utils.text import slugify
 
 from App_Core.models import TimeStampedModel
+from App_Core.tenant_media_paths import product_image_file_upload_to, product_image_thumbnail_upload_to
 
 
 def _build_unique_slug(queryset, source_name, fallback='item'):
@@ -49,8 +50,8 @@ class Product(TimeStampedModel):
     slug = models.SlugField(max_length=180)
     description = models.TextField('Mô tả', blank=True)
     image_url = models.URLField(blank=True)
-    image_file = models.ImageField('Ảnh upload', upload_to='products/_by_tenant/', blank=True)
-    image_thumbnail = models.ImageField('Thumbnail', upload_to='products/_by_tenant/thumbs/', blank=True)
+    image_file = models.ImageField('Ảnh upload', upload_to=product_image_file_upload_to, blank=True)
+    image_thumbnail = models.ImageField('Thumbnail', upload_to=product_image_thumbnail_upload_to, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:

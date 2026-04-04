@@ -1,6 +1,6 @@
 """Convert uploaded product images to WebP + smaller thumbnail for bandwidth.
 
-Files are stored under ``media/products/tenant_{tenant_id}/`` (and ``.../thumbs/``) so each tenant is isolated.
+Files are stored under ``media/tenant_{tenant_id}/products/`` (and ``.../thumbs/``).
 """
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import uuid
 from io import BytesIO
 
 from django.core.files.base import ContentFile
+
+from App_Core.tenant_media_paths import tenant_dir
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_MAIN_SIDE = 1400
@@ -58,7 +60,7 @@ def build_webp_pair_from_upload(uploaded_file) -> tuple[bytes, bytes]:
 
 
 def apply_product_image_upload(instance, uploaded_file) -> None:
-    """Attach WebP main + thumbnail under `products/tenant_{tenant_id}/` (save not called). Thay thế file cũ nếu có."""
+    """Attach WebP main + thumbnail under ``tenant_{id}/products/`` (save not called). Thay thế file cũ nếu có."""
     from App_Catalog.models import Product
 
     if not isinstance(instance, Product):
@@ -73,8 +75,9 @@ def apply_product_image_upload(instance, uploaded_file) -> None:
 
     main_bytes, thumb_bytes = build_webp_pair_from_upload(uploaded_file)
     base = uuid.uuid4().hex
-    rel_main = f'products/tenant_{tenant_id}/{base}.webp'
-    rel_thumb = f'products/tenant_{tenant_id}/thumbs/{base}.webp'
+    root = tenant_dir(tenant_id)
+    rel_main = f'{root}/products/{base}.webp'
+    rel_thumb = f'{root}/products/thumbs/{base}.webp'
 
     instance.image_file.save(rel_main, ContentFile(main_bytes), save=False)
     instance.image_thumbnail.save(rel_thumb, ContentFile(thumb_bytes), save=False)
