@@ -3,7 +3,14 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from App_Core.admin_views import demo_seed_reset_confirm
+
 urlpatterns = [
+    path(
+        f'{settings.REAL_ADMIN_PATH}demo-seed-reset/',
+        admin.site.admin_view(demo_seed_reset_confirm),
+        name='admin_demo_seed_reset',
+    ),
     path(settings.REAL_ADMIN_PATH, admin.site.urls),
     path('accounts/', include(('App_Accounts.urls', 'App_Accounts'), namespace='App_Accounts')),
     path('api/pos/', include(('App_Sales.api_urls', 'App_Sales_API'), namespace='App_Sales_API')),

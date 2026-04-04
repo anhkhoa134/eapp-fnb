@@ -50,6 +50,9 @@ if not REAL_ADMIN_PATH:
     REAL_ADMIN_PATH = 'admin'
 REAL_ADMIN_PATH = f'{REAL_ADMIN_PATH}/'
 
+# Mật khẩu đặt lại khi phục hồi tenant demo từ Jazzmin (App_Core.admin_views).
+DEMO_SEED_DEFAULT_PASSWORD = env('DEMO_SEED_DEFAULT_PASSWORD', default='123456')
+
 
 def env_required(key):
     value = env(key, default='').strip()
@@ -94,6 +97,7 @@ JAZZMIN_SETTINGS = {
     'topmenu_links': [
         {'name': 'POS', 'url': 'App_Sales:pos'},
         {'name': 'Dashboard quản lý', 'url': 'App_Quanly:dashboard'},
+        {'name': 'Phục hồi dữ liệu demo', 'url': f'/{REAL_ADMIN_PATH}demo-seed-reset/'},
         {'app': 'App_Tenant'},
     ],
     'icons': {
