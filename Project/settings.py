@@ -117,8 +117,9 @@ JAZZMIN_SETTINGS = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
+    # Trước CommonMiddleware để APPEND_SLASH (404→301) chạy trước khi đổi 404→redirect.
     'App_Core.middleware.NotFoundRedirectMiddleware',
+    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
