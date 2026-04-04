@@ -6,6 +6,10 @@ app_name = 'App_Quanly'
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('stores/', views.store_list_create, name='stores'),
+    path('stores/<int:pk>/edit/', views.store_edit, name='store_edit'),
+    path('stores/<int:pk>/delete/', views.store_delete, name='store_delete'),
+    path('account/', views.account_settings, name='account'),
     path('orders/', views.order_history, name='orders'),
     path('orders/<int:pk>/delete/', views.order_delete, name='order_delete'),
     path('categories/', views.category_list_create, name='categories'),
@@ -33,5 +37,7 @@ urlpatterns = [
     path('qr-tables/print-pdf/', views.qr_tables_store_pdf, name='qr_tables_print_pdf'),
     path('payment-qr/', views.payment_qr_settings, name='payment_qr_settings'),
     path('staffs/', views.staff_list_create, name='staffs'),
+    path('staffs/<int:pk>/edit/', views.staff_edit, name='staff_edit'),
+    path('staffs/<int:pk>/delete/', views.staff_delete, name='staff_delete'),
     path('staffs/<int:pk>/password/', views.staff_password_reset, name='staff_password_reset'),
 ]

@@ -1,14 +1,14 @@
 {% extends "admin/base_site.html" %}
 {% block content %}
-<h1>Phục hồi dữ liệu tenant demo</h1>
+<h1>Phục hồi dữ liệu doanh nghiệp demo</h1>
 <p>
-  Thao tác này chạy lại bộ seed cho tenant có slug <strong>demo</strong> (idempotent):
+  Thao tác này chạy lại bộ seed cho doanh nghiệp có mã (slug) <strong>demo</strong> (idempotent):
   đặt lại mật khẩu các tài khoản seed về <strong>{{ default_password }}</strong>,
   khôi phục danh mục/sản phẩm/topping/bàn/đơn QR mẫu,
   xóa ảnh upload sản phẩm (dùng lại ảnh URL mẫu),
   xóa QR thanh toán và thông tin tài khoản ngân hàng trên các cửa hàng seed.
 </p>
-<p><strong>Cảnh báo:</strong> mọi thay đổi thử nghiệm trên tenant demo (sản phẩm, ảnh, mật khẩu, QR cửa hàng, …) sẽ bị ghi đè.</p>
+<p><strong>Cảnh báo:</strong> mọi thay đổi thử nghiệm trên doanh nghiệp demo (sản phẩm, ảnh, mật khẩu, QR cửa hàng, …) sẽ bị ghi đè.</p>
 <form method="post">
   {% csrf_token %}
   <input type="submit" class="default" value="Xác nhận phục hồi">

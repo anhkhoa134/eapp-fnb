@@ -67,7 +67,7 @@ class ProductAdminForm(forms.ModelForm):
         if tenant and category and category.tenant_id != tenant.id:
             self.add_error(
                 'category',
-                'Danh mục phải thuộc cùng tenant với sản phẩm (chọn tenant trước, chỉ chọn danh mục của tenant đó).',
+                'Danh mục phải thuộc cùng doanh nghiệp với sản phẩm (chọn doanh nghiệp trước, chỉ chọn danh mục của doanh nghiệp đó).',
             )
         return cleaned_data
 
@@ -168,7 +168,7 @@ class StoreCategoryAdminForm(forms.ModelForm):
         store = cleaned_data.get('store')
         category = cleaned_data.get('category')
         if store and category and store.tenant_id != category.tenant_id:
-            self.add_error('category', 'Danh mục phải cùng tenant với cửa hàng.')
+            self.add_error('category', 'Danh mục phải cùng doanh nghiệp với cửa hàng.')
         return cleaned_data
 
 
@@ -201,7 +201,7 @@ class StoreProductAdminForm(forms.ModelForm):
         store = cleaned_data.get('store')
         product = cleaned_data.get('product')
         if store and product and store.tenant_id != product.tenant_id:
-            self.add_error('product', 'Sản phẩm phải cùng tenant với cửa hàng.')
+            self.add_error('product', 'Sản phẩm phải cùng doanh nghiệp với cửa hàng.')
         return cleaned_data
 
 
@@ -234,7 +234,7 @@ class ProductToppingAdminForm(forms.ModelForm):
         product = cleaned_data.get('product')
         topping = cleaned_data.get('topping')
         if product and topping and product.tenant_id != topping.tenant_id:
-            self.add_error('topping', 'Topping phải cùng tenant với sản phẩm.')
+            self.add_error('topping', 'Topping phải cùng doanh nghiệp với sản phẩm.')
         return cleaned_data
 
 

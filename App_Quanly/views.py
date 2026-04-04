@@ -5,7 +5,10 @@ from urllib.parse import urlencode
 
 import qrcode
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.http import FileResponse, Http404, HttpResponse
@@ -20,7 +23,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from App_Accounts.models import User
-from App_Accounts.permissions import manager_required
+from App_Accounts.forms import POSPasswordChangeForm
+from App_Accounts.permissions import manager_required, staff_or_manager_required
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Quanly.catalog_excel import MAX_UPLOAD_BYTES, import_catalog_from_upload, template_workbook_bytes
 from App_Quanly.forms import (
@@ -30,7 +34,9 @@ from App_Quanly.forms import (
     ProductToppingForm,
     ProductUnitForm,
     StaffCreateForm,
+    StaffEditForm,
     StaffPasswordResetForm,
+    StoreForm,
     StorePaymentForm,
     ToppingForm,
 )
@@ -40,7 +46,7 @@ from App_Tenant.models import Store, UserStoreAccess
 
 def _tenant_or_404(user):
     if not user.tenant_id:
-        raise Http404('User chưa được gán tenant')
+        raise Http404('Tài khoản chưa được gán doanh nghiệp')
     return user.tenant
 
 
@@ -947,9 +953,74 @@ def staff_list_create(request):
         {
             'staffs': staffs,
             'form': form,
+            'edit_form': StaffEditForm(tenant=tenant),
+            'edit_staff': None,
             'open_create_modal': request.method == 'POST' and form.errors,
+            'open_edit_modal': False,
         },
     )
+
+
+def _sync_staff_store_access(*, staff_user, selected_stores, default_store):
+    with transaction.atomic():
+        UserStoreAccess.objects.filter(user=staff_user).delete()
+        for store in selected_stores:
+            UserStoreAccess.objects.create(
+                user=staff_user,
+                store=store,
+                is_default=(store.id == default_store.id),
+            )
+
+
+@manager_required
+def staff_edit(request, pk):
+    tenant = _tenant_or_404(request.user)
+    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
+    if request.method != 'POST':
+        return redirect('App_Quanly:staffs')
+
+    form = StaffEditForm(request.POST, tenant=tenant, user=staff_user)
+    if form.is_valid():
+        selected_stores = list(form.cleaned_data['store_ids'])
+        default_store = form.cleaned_data['default_store']
+        _sync_staff_store_access(
+            staff_user=staff_user,
+            selected_stores=selected_stores,
+            default_store=default_store,
+        )
+        staff_user.is_active = form.cleaned_data['is_active']
+        staff_user.save(update_fields=['is_active'])
+        messages.success(request, f'Đã cập nhật nhân viên "{staff_user.username}".')
+        return redirect('App_Quanly:staffs')
+
+    staffs = (
+        User.objects.filter(tenant=tenant, role=User.Role.STAFF)
+        .prefetch_related('store_accesses__store')
+        .order_by('username')
+    )
+    return render(
+        request,
+        'App_Quanly/staffs.html',
+        {
+            'staffs': staffs,
+            'form': StaffCreateForm(tenant=tenant),
+            'edit_form': form,
+            'edit_staff': staff_user,
+            'open_create_modal': False,
+            'open_edit_modal': True,
+        },
+    )
+
+
+@manager_required
+@require_POST
+def staff_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
+    username = staff_user.username
+    staff_user.delete()
+    messages.success(request, f'Đã xóa nhân viên "{username}".')
+    return redirect('App_Quanly:staffs')
 
 
 @manager_required
@@ -972,5 +1043,101 @@ def staff_password_reset(request, pk):
         {
             'staff_user': staff_user,
             'form': form,
+        },
+    )
+
+
+def _save_store_and_sync_default(*, tenant, store, is_default: bool):
+    """Lưu cửa hàng; nếu là mặc định thì gỡ mặc định ở các cửa khác cùng doanh nghiệp."""
+    with transaction.atomic():
+        store.save()
+        if is_default:
+            Store.objects.filter(tenant=tenant).exclude(pk=store.pk).update(is_default=False)
+
+
+@manager_required
+def store_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    stores = Store.objects.filter(tenant=tenant).order_by('name')
+    form = StoreForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        store = form.save(commit=False)
+        store.tenant = tenant
+        _save_store_and_sync_default(tenant=tenant, store=store, is_default=form.cleaned_data['is_default'])
+        messages.success(request, f'Đã tạo cửa hàng "{store.name}".')
+        return redirect('App_Quanly:stores')
+
+    return render(
+        request,
+        'App_Quanly/stores.html',
+        {
+            'stores': stores,
+            'form': form,
+            'open_create_modal': request.method == 'POST' and form.errors,
+        },
+    )
+
+
+@manager_required
+def store_edit(request, pk):
+    tenant = _tenant_or_404(request.user)
+    store = get_object_or_404(Store, pk=pk, tenant=tenant)
+    if request.method != 'POST':
+        return redirect('App_Quanly:stores')
+
+    form = StoreForm(request.POST, instance=store)
+    if form.is_valid():
+        store = form.save(commit=False)
+        _save_store_and_sync_default(tenant=tenant, store=store, is_default=form.cleaned_data['is_default'])
+        messages.success(request, f'Đã cập nhật cửa hàng "{store.name}".')
+    else:
+        messages.error(request, 'Không thể cập nhật cửa hàng, vui lòng kiểm tra lại dữ liệu.')
+    return redirect('App_Quanly:stores')
+
+
+@manager_required
+@require_POST
+def store_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    store = get_object_or_404(Store, pk=pk, tenant=tenant)
+    name = store.name
+    try:
+        store.delete()
+    except ProtectedError:
+        messages.error(
+            request,
+            f'Không thể xóa "{name}" vì còn đơn hàng hoặc dữ liệu liên quan. Vui lòng xử lý trước hoặc tắt "Đang hoạt động".',
+        )
+        return redirect('App_Quanly:stores')
+    messages.success(request, f'Đã xóa cửa hàng "{name}".')
+    return redirect('App_Quanly:stores')
+
+
+@staff_or_manager_required
+def account_settings(request):
+    user = request.user
+    if not user.tenant_id:
+        raise Http404('Tài khoản chưa được gán doanh nghiệp')
+
+    role_label = 'Quản lý' if user.role == User.Role.MANAGER else 'Nhân viên'
+
+    if request.method == 'POST':
+        form = POSPasswordChangeForm(user, request.POST)
+        if form.is_valid():
+            form.save()
+            update_session_auth_hash(request, user)
+            messages.success(request, 'Đã đổi mật khẩu.')
+            return redirect('App_Quanly:account')
+        messages.error(request, 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại.')
+    else:
+        form = POSPasswordChangeForm(user)
+
+    return render(
+        request,
+        'App_Quanly/account.html',
+        {
+            'form': form,
+            'role_label': role_label,
         },
     )

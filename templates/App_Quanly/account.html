@@ -1,0 +1,51 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<div class="row g-3">
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="admin-card-title h5 mb-3">
+                    <i class="bi bi-person-badge"></i>
+                    Thông tin tài khoản
+                </h2>
+                <dl class="row mb-0 small">
+                    <dt class="col-sm-4 text-muted">Tên đăng nhập</dt>
+                    <dd class="col-sm-8 fw-semibold">{{ user.username }}</dd>
+                    <dt class="col-sm-4 text-muted">Email</dt>
+                    <dd class="col-sm-8">{{ user.email|default:'—' }}</dd>
+                    <dt class="col-sm-4 text-muted">Vai trò</dt>
+                    <dd class="col-sm-8">{{ role_label }}</dd>
+                    <dt class="col-sm-4 text-muted">Doanh nghiệp</dt>
+                    <dd class="col-sm-8">{{ user.tenant.name|default:'—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="admin-card-title h5 mb-3">
+                    <i class="bi bi-shield-lock"></i>
+                    Đổi mật khẩu
+                </h2>
+                <form method="post" class="quanly-account-password-form">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                        <div class="invalid-feedback d-block">{{ field.errors|join:' ' }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2 me-1"></i>Lưu mật khẩu mới
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

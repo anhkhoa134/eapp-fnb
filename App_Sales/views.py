@@ -349,7 +349,7 @@ def orders_today_page(request):
 def api_products(request):
     user = request.user
     if not user.tenant_id:
-        return _json_error('User chưa được gán tenant.', 400)
+        return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
 
     store = get_accessible_store_or_default(user, request.GET.get('store_id'))
     if not store:
@@ -461,7 +461,7 @@ def api_products(request):
 def api_checkout(request):
     user = request.user
     if not user.tenant_id:
-        return _json_error('User chưa được gán tenant.', 400)
+        return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
 
     payload = _parse_json_request(request)
     if payload is None:

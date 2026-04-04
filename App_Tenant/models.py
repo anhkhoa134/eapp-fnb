@@ -36,10 +36,12 @@ def validate_public_slug(value):
 class Tenant(TimeStampedModel):
     name = models.CharField(max_length=150)
     public_slug = models.SlugField(max_length=120, unique=True, validators=[validate_public_slug])
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
 
     class Meta:
         ordering = ['name']
+        verbose_name = 'Doanh nghiệp'
+        verbose_name_plural = 'Doanh nghiệp'
 
     def clean(self):
         self.public_slug = (self.public_slug or '').strip().lower()
@@ -54,7 +56,7 @@ class Store(TimeStampedModel):
     name = models.CharField(max_length=150)
     slug = models.SlugField(max_length=120)
     address = models.CharField(max_length=255, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
     is_default = models.BooleanField(default=False)
     payment_qr = models.ImageField(upload_to=store_payment_qr_upload_to, blank=True, null=True)
     payment_bank_name = models.CharField(max_length=120, blank=True)
@@ -124,7 +126,7 @@ class UserStoreAccess(TimeStampedModel):
         if not self.user_id or not self.store_id:
             return
         if self.user.tenant_id != self.store.tenant_id:
-            raise ValidationError('Store phải cùng tenant với user.')
+            raise ValidationError('Cửa hàng phải cùng doanh nghiệp với tài khoản.')
 
     def save(self, *args, **kwargs):
         self.full_clean()

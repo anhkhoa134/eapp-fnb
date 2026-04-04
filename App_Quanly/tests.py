@@ -10,6 +10,7 @@ from django.utils import timezone
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
 from App_Sales.models import DiningTable, Order, OrderItem, OrderItemTopping
+from App_Quanly.forms import StaffCreateForm
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -131,10 +132,98 @@ class QuanlyPermissionTests(TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.content.decode('utf-8')
         self.assertIn('id="createStaffModal"', html)
+        self.assertIn('id="editStaffModal"', html)
+        self.assertIn('id="deleteStaffModal"', html)
         self.assertIn('id="resetStaffPasswordModal"', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:staff_password_reset", kwargs={"pk": self.staff.id})}"',
             html,
+        )
+
+    def test_staff_edit_get_redirects_to_list(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:staff_edit', kwargs={'pk': self.staff.id}))
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(res.url, reverse('App_Quanly:staffs'))
+
+    def test_manager_can_update_staff_access_and_active(self):
+        self.client.login(username='manager_demo', password='123456')
+        store2 = Store.objects.create(tenant=self.tenant, name='Store 2', is_default=False)
+        u = User.objects.create_user(
+            username='staff_edit_me',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.STAFF,
+        )
+        UserStoreAccess.objects.create(user=u, store=self.store, is_default=True)
+        res = self.client.post(
+            reverse('App_Quanly:staff_edit', kwargs={'pk': u.id}),
+            data={
+                'store_ids': [str(self.store.id), str(store2.id)],
+                'default_store': str(store2.id),
+                'is_active': 'on',
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        u.refresh_from_db()
+        self.assertTrue(u.is_active)
+        self.assertEqual(u.store_accesses.count(), 2)
+        self.assertTrue(u.store_accesses.filter(store=store2, is_default=True).exists())
+
+    def test_manager_can_delete_staff(self):
+        self.client.login(username='manager_demo', password='123456')
+        to_delete = User.objects.create_user(
+            username='staff_to_delete',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.STAFF,
+        )
+        UserStoreAccess.objects.create(user=to_delete, store=self.store, is_default=True)
+        pk = to_delete.id
+        res = self.client.post(reverse('App_Quanly:staff_delete', kwargs={'pk': pk}))
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(User.objects.filter(pk=pk).exists())
+
+    def test_staff_create_form_requires_tenant_username_prefix(self):
+        form_bad = StaffCreateForm(
+            data={
+                'username': 'no_prefix_user',
+                'password1': 'Test@123456',
+                'password2': 'Test@123456',
+                'store_ids': [str(self.store.id)],
+                'default_store': str(self.store.id),
+            },
+            tenant=self.tenant,
+        )
+        self.assertFalse(form_bad.is_valid())
+        self.assertIn('username', form_bad.errors)
+
+        form_ok = StaffCreateForm(
+            data={
+                'username': 'demo_new_staff',
+                'password1': 'Test@123456',
+                'password2': 'Test@123456',
+                'store_ids': [str(self.store.id)],
+                'default_store': str(self.store.id),
+            },
+            tenant=self.tenant,
+        )
+        self.assertTrue(form_ok.is_valid(), form_ok.errors)
+
+    def test_staff_cannot_post_staff_edit_or_delete(self):
+        self.client.login(username='staff_demo', password='123456')
+        r = self.client.post(
+            reverse('App_Quanly:staff_edit', kwargs={'pk': self.staff.id}),
+            data={
+                'store_ids': [str(self.store.id)],
+                'default_store': str(self.store.id),
+                'is_active': 'on',
+            },
+        )
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(
+            self.client.post(reverse('App_Quanly:staff_delete', kwargs={'pk': self.staff.id})).status_code,
+            403,
         )
 
     def test_category_edit_get_redirects_back_to_list(self):

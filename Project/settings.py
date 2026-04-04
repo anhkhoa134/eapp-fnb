@@ -83,7 +83,7 @@ JAZZMIN_SETTINGS = {
     'site_title': 'eApp FnB Admin',
     'site_header': 'eApp FnB Control Center',
     'site_brand': 'eApp FnB',
-    'welcome_sign': 'Superadmin quản trị tenant và hệ thống',
+    'welcome_sign': 'Superadmin quản trị doanh nghiệp và hệ thống',
     'copyright': 'eApp FnB',
     'show_ui_builder': False,
     'order_with_respect_to': [

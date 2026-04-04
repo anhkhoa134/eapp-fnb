@@ -143,12 +143,14 @@
 </head>
 <body class="bg-light {% block body_class %}{% endblock %}">
 <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
-    <div class="container-fluid">
-        <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{% if user.is_authenticated %}{% url 'App_Sales:pos' %}{% else %}{% url 'App_Accounts:login' %}{% endif %}">
+    <div class="container-fluid d-flex align-items-center flex-wrap gap-2">
+        <a class="navbar-brand fw-bold d-flex align-items-center gap-2 mb-0" href="{% if user.is_authenticated %}{% url 'App_Sales:pos' %}{% else %}{% url 'App_Accounts:login' %}{% endif %}">
             <img src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB" style="height: 30px; width: 30px; object-fit: cover; border-radius: 6px;">
             <span>eApp FnB</span>
         </a>
+        {% block navbar_start %}{% endblock %}
         <div class="ms-auto d-flex align-items-center gap-2">
+            {% block navbar_tools %}{% endblock %}
             <div class="dropdown">
                 <button class="btn account-trigger dropdown-toggle d-flex align-items-center gap-2 px-2 py-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                     {% if user.is_authenticated %}
@@ -291,7 +293,7 @@
                     <input class="form-control" value="Quản lý" disabled>
                 </div>
                 <div class="mb-2">
-                    <label class="form-label small text-muted mb-1">Tenant</label>
+                    <label class="form-label small text-muted mb-1">Doanh nghiệp</label>
                     <input class="form-control" value="{{ user.tenant.name|default:'-' }}" disabled>
                 </div>
                 <div>

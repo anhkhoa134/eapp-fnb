@@ -23,7 +23,7 @@ class Category(TimeStampedModel):
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=140)
     description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
 
     class Meta:
         constraints = [
@@ -52,7 +52,7 @@ class Product(TimeStampedModel):
     image_url = models.URLField(blank=True)
     image_file = models.ImageField('Ảnh upload', upload_to=product_image_file_upload_to, blank=True)
     image_thumbnail = models.ImageField('Thumbnail', upload_to=product_image_thumbnail_upload_to, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
 
     class Meta:
         constraints = [
@@ -69,13 +69,13 @@ class Product(TimeStampedModel):
             return
         if not self.tenant_id:
             # Không dùng key 'tenant': ModelForm quản lý (vd. ProductForm) thường không có field tenant.
-            raise ValidationError('Sản phẩm phải có tenant trước khi gán danh mục.')
+            raise ValidationError('Sản phẩm phải thuộc một doanh nghiệp trước khi gán danh mục.')
         # So khớp tenant theo DB (tránh object category trong memory lệch tenant).
         cat_tenant_id = (
             Category.objects.filter(pk=self.category_id).values_list('tenant_id', flat=True).first()
         )
         if cat_tenant_id != self.tenant_id:
-            raise ValidationError({'category': 'Danh mục phải cùng tenant với sản phẩm.'})
+            raise ValidationError({'category': 'Danh mục phải cùng doanh nghiệp với sản phẩm.'})
 
     def save(self, *args, **kwargs):
         self.slug = _build_unique_slug(
@@ -119,7 +119,7 @@ class ProductUnit(TimeStampedModel):
     name = models.CharField(max_length=120)
     price = models.DecimalField(max_digits=14, decimal_places=2)
     sku = models.CharField(max_length=120, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -136,7 +136,7 @@ class Topping(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='toppings')
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=140)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -161,7 +161,7 @@ class ProductTopping(TimeStampedModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='topping_links')
     topping = models.ForeignKey(Topping, on_delete=models.CASCADE, related_name='product_links')
     price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -179,7 +179,7 @@ class ProductTopping(TimeStampedModel):
         if not self.product_id or not self.topping_id:
             return
         if self.product.tenant_id != self.topping.tenant_id:
-            raise ValidationError('Product và topping phải cùng tenant.')
+            raise ValidationError('Sản phẩm và topping phải cùng doanh nghiệp.')
         if self.price < Decimal('0'):
             raise ValidationError('Giá topping phải >= 0.')
 
@@ -200,7 +200,7 @@ class StoreCategory(TimeStampedModel):
 
     def clean(self):
         if self.store.tenant_id != self.category.tenant_id:
-            raise ValidationError('Store và category phải cùng tenant.')
+            raise ValidationError('Cửa hàng và danh mục phải cùng doanh nghiệp.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -223,7 +223,7 @@ class StoreProduct(TimeStampedModel):
 
     def clean(self):
         if self.store.tenant_id != self.product.tenant_id:
-            raise ValidationError('Store và product phải cùng tenant.')
+            raise ValidationError('Cửa hàng và sản phẩm phải cùng doanh nghiệp.')
         if self.custom_price is not None and self.custom_price < Decimal('0'):
             raise ValidationError('Giá tùy chỉnh phải >= 0.')
 

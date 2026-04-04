@@ -18,6 +18,7 @@
                 <thead>
                     <tr>
                         <th>Tài khoản</th>
+                        <th>Trạng thái</th>
                         <th>Cửa hàng được cấp quyền</th>
                         <th class="text-end">Thao tác</th>
                     </tr>
@@ -26,6 +27,13 @@
                     {% for staff in staffs %}
                     <tr>
                         <td class="fw-semibold">{{ staff.username }}</td>
+                        <td>
+                            {% if staff.is_active %}
+                            <span class="badge text-bg-success">Hoạt động</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary">Tạm khóa</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% for access in staff.store_accesses.all %}
                             <span class="badge text-bg-light border me-1 mb-1">
@@ -36,21 +44,46 @@
                             {% endfor %}
                         </td>
                         <td class="text-end">
-                            <button
-                                class="btn btn-sm btn-outline-primary js-reset-staff-password"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#resetStaffPasswordModal"
-                                data-action="{% url 'App_Quanly:staff_password_reset' staff.id %}"
-                                data-staff-username="{{ staff.username|escape }}"
-                            >
-                                <i class="bi bi-key me-1"></i>Đặt lại mật khẩu
-                            </button>
+                            <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                <button
+                                    class="btn btn-sm btn-outline-secondary js-edit-staff"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editStaffModal"
+                                    data-edit-url="{% url 'App_Quanly:staff_edit' staff.id %}"
+                                    data-username="{{ staff.username|escape }}"
+                                    data-store-ids="{% for a in staff.store_accesses.all %}{{ a.store_id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                    data-default-store-id="{% for a in staff.store_accesses.all %}{% if a.is_default %}{{ a.store_id }}{% endif %}{% endfor %}"
+                                    data-is-active="{% if staff.is_active %}1{% else %}0{% endif %}"
+                                >
+                                    <i class="bi bi-pencil me-1"></i>Sửa
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-primary js-reset-staff-password"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#resetStaffPasswordModal"
+                                    data-action="{% url 'App_Quanly:staff_password_reset' staff.id %}"
+                                    data-staff-username="{{ staff.username|escape }}"
+                                >
+                                    <i class="bi bi-key me-1"></i>Mật khẩu
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-danger js-delete-staff"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteStaffModal"
+                                    data-delete-url="{% url 'App_Quanly:staff_delete' staff.id %}"
+                                    data-username="{{ staff.username|escape }}"
+                                >
+                                    <i class="bi bi-trash me-1"></i>Xóa
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="3" class="text-center text-muted">Chưa có nhân viên.</td>
+                        <td colspan="4" class="text-center text-muted">Chưa có nhân viên.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -74,6 +107,9 @@
                         <div>
                             <label class="form-label fw-semibold" for="{{ form.username.id_for_label }}">Tên đăng nhập</label>
                             {{ form.username }}
+                            {% if form.username.help_text %}
+                            <p class="form-text small text-muted mb-0">{{ form.username.help_text }}</p>
+                            {% endif %}
                             {{ form.username.errors }}
                         </div>
                         <div>
@@ -107,6 +143,74 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
                     <button class="btn btn-primary" type="submit">Lưu nhân viên</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editStaffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2 text-primary"></i>Sửa nhân viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editStaffForm" action="{% if edit_staff %}{% url 'App_Quanly:staff_edit' edit_staff.id %}{% else %}#{% endif %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ edit_form.non_field_errors }}
+                    <p class="small text-muted mb-3">Tài khoản: <strong id="editStaffUsernameLabel">{% if edit_staff %}{{ edit_staff.username }}{% endif %}</strong></p>
+                    <div class="mb-3">
+                        <label class="form-check-label d-flex align-items-center gap-2" for="{{ edit_form.is_active.id_for_label }}">
+                            {{ edit_form.is_active }}
+                            <span>{{ edit_form.is_active.label }}</span>
+                        </label>
+                        {{ edit_form.is_active.errors }}
+                    </div>
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ edit_form.default_store.id_for_label }}">Cửa hàng mặc định</label>
+                            {{ edit_form.default_store }}
+                            {{ edit_form.default_store.errors }}
+                        </div>
+                        <div class="full">
+                            <div class="form-section-title">Cấp quyền cửa hàng</div>
+                            <div class="check-grid" id="editStaffStoreGrid">
+                                {% for checkbox in edit_form.store_ids %}
+                                <label class="check-chip">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có cửa hàng hoạt động.</span>
+                                {% endfor %}
+                            </div>
+                            {{ edit_form.store_ids.errors }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteStaffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa nhân viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="deleteStaffForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Bạn chắc chắn muốn xóa tài khoản <strong id="deleteStaffUsername"></strong>? Hành động này không thể hoàn tác.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit">Xóa</button>
                 </div>
             </form>
         </div>
@@ -161,10 +265,43 @@
             });
         });
 
+        const editForm = document.getElementById('editStaffForm');
+        const editUsernameLabel = document.getElementById('editStaffUsernameLabel');
+        document.querySelectorAll('.js-edit-staff').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!editForm) return;
+                editForm.action = button.dataset.editUrl || '#';
+                if (editUsernameLabel) editUsernameLabel.textContent = button.dataset.username || '';
+                const ids = (button.dataset.storeIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+                editForm.querySelectorAll('input[name="store_ids"]').forEach((input) => {
+                    input.checked = ids.includes(input.value);
+                });
+                const sel = editForm.querySelector('select[name="default_store"]');
+                if (sel) sel.value = button.dataset.defaultStoreId || '';
+                const ia = editForm.querySelector('input[name="is_active"]');
+                if (ia) ia.checked = button.dataset.isActive === '1';
+            });
+        });
+
+        const deleteForm = document.getElementById('deleteStaffForm');
+        const deleteStaffUsername = document.getElementById('deleteStaffUsername');
+        document.querySelectorAll('.js-delete-staff').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (deleteForm) deleteForm.action = button.dataset.deleteUrl || '';
+                if (deleteStaffUsername) deleteStaffUsername.textContent = button.dataset.username || '';
+            });
+        });
+
         {% if open_create_modal %}
         const createModalEl = document.getElementById('createStaffModal');
         if (createModalEl) {
             bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        }
+        {% endif %}
+        {% if open_edit_modal %}
+        const editModalEl = document.getElementById('editStaffModal');
+        if (editModalEl) {
+            bootstrap.Modal.getOrCreateInstance(editModalEl).show();
         }
         {% endif %}
     });

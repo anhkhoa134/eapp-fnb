@@ -70,7 +70,7 @@ def manifest_view(request):
     data = {
         'name': 'eApp FnB',
         'short_name': 'FnB',
-        'description': 'Ứng dụng bán hàng & quản lý F&B đa tenant.',
+        'description': 'Ứng dụng bán hàng & quản lý F&B đa cửa hàng, đa doanh nghiệp.',
         'start_url': '/',
         'scope': '/',
         'display': 'standalone',

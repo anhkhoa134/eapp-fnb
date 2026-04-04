@@ -440,7 +440,7 @@ def run_seed_initial_data(
         _seed_pending_qr_orders(tenant=tenant, store_map=store_map)
 
     _write_success(stdout, style, 'Seed dữ liệu thành công.')
-    _write_line(stdout, f'Tenant: {tenant.public_slug} ({tenant.name})')
+    _write_line(stdout, f'Doanh nghiệp: {tenant.public_slug} ({tenant.name})')
     _write_line(stdout, f'Manager: {manager.username}')
     _write_line(stdout, f'Staff: {", ".join(u.username for u in staff_users)}')
     _write_line(stdout, f'Tổng sản phẩm seed: {len(product_ids)}')

@@ -39,7 +39,7 @@ class DiningTableAdminForm(forms.ModelForm):
         tenant = cleaned_data.get('tenant')
         store = cleaned_data.get('store')
         if tenant and store and store.tenant_id != tenant.id:
-            self.add_error('store', 'Cửa hàng phải thuộc tenant đã chọn.')
+            self.add_error('store', 'Cửa hàng phải thuộc doanh nghiệp đã chọn.')
         return cleaned_data
 
 

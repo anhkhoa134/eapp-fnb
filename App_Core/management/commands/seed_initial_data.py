@@ -5,7 +5,7 @@ from App_Core.seed_initial_data_runner import add_seed_initial_data_arguments, r
 
 
 class Command(BaseCommand):
-    help = 'Seed dữ liệu tenant/store/user/catalog/table/qr mẫu (idempotent, compact-plus).'
+    help = 'Seed dữ liệu doanh nghiệp/cửa hàng/user/catalog/bàn/đơn QR mẫu (idempotent, compact-plus).'
 
     def add_arguments(self, parser):
         add_seed_initial_data_arguments(parser)

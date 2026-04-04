@@ -2,6 +2,22 @@
 {% load static %}
 
 {% block body_class %}quanly-page{% endblock %}
+
+{% block navbar_start %}
+<button
+    type="button"
+    id="quanlySidebarToggle"
+    class="btn btn-light border rounded-pill d-none d-lg-inline-flex align-items-center gap-2 px-2 px-xl-3 py-1 flex-shrink-0"
+    aria-pressed="false"
+    aria-controls="quanlyShell"
+    data-bs-toggle="tooltip"
+    data-bs-placement="bottom"
+    title="Thu nhỏ menu bên trái"
+>
+    <i class="bi bi-chevron-double-left" id="quanlySidebarToggleIcon" aria-hidden="true"></i>
+    <span class="small fw-semibold d-none d-xl-inline" id="quanlySidebarToggleLabel">Thu nhỏ menu</span>
+</button>
+{% endblock %}
 {% block container_class %}container-fluid py-4 px-3 px-xl-4{% endblock %}
 {% block messages_ui %}
     {% if messages %}
@@ -31,6 +47,11 @@
         background: rgba(255, 255, 255, 0.7) !important;
         border-bottom: 1px solid rgba(148, 163, 184, 0.25) !important;
         backdrop-filter: blur(14px);
+    }
+    @media (min-width: 992px) {
+        .quanly-page .navbar .container-fluid {
+            flex-wrap: nowrap;
+        }
     }
     .quanly-page .glass-panel,
     .quanly-page .card {
@@ -125,6 +146,9 @@
         border-radius: 16px;
         background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(79, 70, 229, 0.9), rgba(14, 165, 233, 0.85));
         color: #fff;
+    }
+    .admin-tenant-logo-wrap {
+        flex-shrink: 0;
     }
     .admin-tenant-logo {
         width: 44px;
@@ -342,49 +366,131 @@
         background: rgba(100, 116, 139, 0.12);
         border-color: rgba(100, 116, 139, 0.28);
     }
+
+    /* Sidebar thu nhỏ (desktop): chỉ icon */
+    @media (min-width: 992px) {
+        .quanly-shell .quanly-sidebar-col,
+        .quanly-shell .quanly-main-col {
+            transition: flex-basis 0.22s ease, max-width 0.22s ease, width 0.22s ease;
+        }
+        .quanly-shell.sidebar-collapsed .quanly-sidebar-col {
+            flex: 0 0 4.5rem !important;
+            width: 4.5rem !important;
+            max-width: 4.5rem !important;
+        }
+        .quanly-shell.sidebar-collapsed .quanly-main-col {
+            flex: 1 1 0 !important;
+            min-width: 0;
+            max-width: none !important;
+            width: auto !important;
+        }
+        .quanly-shell.sidebar-collapsed .glass-panel.p-3 {
+            padding: 0.65rem !important;
+        }
+        .quanly-shell.sidebar-collapsed .admin-tenant-card {
+            margin-bottom: 0.65rem !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .quanly-shell.sidebar-collapsed .admin-tenant-card .admin-tenant-text {
+            display: none !important;
+        }
+        .quanly-shell.sidebar-collapsed .admin-tenant-card .d-flex {
+            justify-content: center;
+        }
+        .quanly-shell.sidebar-collapsed .admin-tenant-logo-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.65rem;
+            height: 2.65rem;
+            border-radius: 12px;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.85));
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+        }
+        .quanly-shell.sidebar-collapsed .admin-tenant-logo {
+            width: 1.65rem;
+            height: 1.65rem;
+            border-radius: 8px;
+            border: none;
+            box-shadow: none;
+        }
+        .quanly-shell.sidebar-collapsed .admin-section-title {
+            display: none !important;
+        }
+        .quanly-shell.sidebar-collapsed .admin-nav-label {
+            display: none !important;
+        }
+        .quanly-shell.sidebar-collapsed .admin-nav-link {
+            justify-content: center;
+            gap: 0;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        .quanly-shell.sidebar-collapsed .admin-nav-link > .ms-auto {
+            display: none !important;
+        }
+        .quanly-shell.sidebar-collapsed .glass-panel hr {
+            margin-top: 0.65rem;
+            margin-bottom: 0.65rem;
+            opacity: 0.35;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row g-3 quanly-shell">
-    <div class="col-12 col-lg-3">
+<div class="row g-3 quanly-shell" id="quanlyShell">
+    <div class="col-12 col-lg-3 quanly-sidebar-col">
         <div class="glass-panel p-3">
             <div class="card-body">
                 <div class="admin-tenant-card mb-3">
                     <div class="d-flex align-items-center gap-2">
-                        <img class="admin-tenant-logo" src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB">
-                        <div>
+                        <div class="admin-tenant-logo-wrap">
+                            <img class="admin-tenant-logo" src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB">
+                        </div>
+                        <div class="admin-tenant-text min-w-0">
                             <div class="fw-bold">eApp FnB</div>
-                            <div class="small opacity-75">{{ user.tenant.name|default:'Tenant' }}</div>
+                            <div class="small opacity-75 text-truncate">{{ user.tenant.name|default:'Doanh nghiệp' }}</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="admin-section-title">Điều hướng</div>
                 <div class="d-flex flex-column gap-1">
-                    <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}">
-                        <i class="bi bi-speedometer2"></i> Dashboard
+                    <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}" title="Dashboard" data-quanly-tip="Dashboard">
+                        <i class="bi bi-speedometer2" aria-hidden="true"></i><span class="admin-nav-label">Dashboard</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/orders/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:orders' %}">
-                        <i class="bi bi-receipt-cutoff"></i> Lịch sử đơn
+                    <a class="admin-nav-link {% if '/quanly/stores/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:stores' %}" title="Cửa hàng" data-quanly-tip="Cửa hàng">
+                        <i class="bi bi-shop" aria-hidden="true"></i><span class="admin-nav-label">Cửa hàng</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}">
-                        <i class="bi bi-grid-3x3-gap"></i> Danh mục
+                    <a class="admin-nav-link {% if '/quanly/orders/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:orders' %}" title="Lịch sử đơn" data-quanly-tip="Lịch sử đơn">
+                        <i class="bi bi-receipt-cutoff" aria-hidden="true"></i><span class="admin-nav-label">Lịch sử đơn</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}">
-                        <i class="bi bi-cup-hot"></i> Sản phẩm
+                    <a class="admin-nav-link {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}" title="Danh mục" data-quanly-tip="Danh mục">
+                        <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span class="admin-nav-label">Danh mục</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/toppings/' in request.path or '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}">
-                        <i class="bi bi-plus-circle"></i> Topping
+                    <a class="admin-nav-link {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}" title="Sản phẩm" data-quanly-tip="Sản phẩm">
+                        <i class="bi bi-cup-hot" aria-hidden="true"></i><span class="admin-nav-label">Sản phẩm</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/qr-tables/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:qr_tables' %}">
-                        <i class="bi bi-qr-code-scan"></i> QR bàn
+                    <a class="admin-nav-link {% if '/quanly/toppings/' in request.path or '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}" title="Topping" data-quanly-tip="Topping">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i><span class="admin-nav-label">Topping</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/payment-qr/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:payment_qr_settings' %}">
-                        <i class="bi bi-credit-card-2-front"></i> QR thanh toán
+                    <a class="admin-nav-link {% if '/quanly/qr-tables/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:qr_tables' %}" title="QR bàn" data-quanly-tip="QR bàn">
+                        <i class="bi bi-qr-code-scan" aria-hidden="true"></i><span class="admin-nav-label">QR bàn</span>
                     </a>
-                    <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}">
-                        <i class="bi bi-people"></i> Nhân viên
+                    <a class="admin-nav-link {% if '/quanly/payment-qr/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:payment_qr_settings' %}" title="QR thanh toán" data-quanly-tip="QR thanh toán">
+                        <i class="bi bi-credit-card-2-front" aria-hidden="true"></i><span class="admin-nav-label">QR thanh toán</span>
+                    </a>
+                    <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}" title="Nhân viên" data-quanly-tip="Nhân viên">
+                        <i class="bi bi-people" aria-hidden="true"></i><span class="admin-nav-label">Nhân viên</span>
+                    </a>
+                    <a class="admin-nav-link {% if '/quanly/account/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:account' %}" title="Tài khoản" data-quanly-tip="Tài khoản">
+                        <i class="bi bi-person-circle" aria-hidden="true"></i><span class="admin-nav-label">Tài khoản</span>
                     </a>
                 </div>
 
@@ -392,20 +498,20 @@
                 <div class="admin-section-title">Liên kết nhanh</div>
                 <div class="d-flex flex-column gap-1">
                     {% if user.tenant %}
-                    <a class="admin-nav-link" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener">
-                        <i class="bi bi-globe2"></i> Public catalog
+                    <a class="admin-nav-link" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener" title="Public catalog" data-quanly-tip="Public catalog">
+                        <i class="bi bi-globe2" aria-hidden="true"></i><span class="admin-nav-label">Public catalog</span>
                         <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
                     </a>
                     {% endif %}
-                    <a class="admin-nav-link" href="{% url 'App_Sales:pos' %}" target="_blank" rel="noopener">
-                        <i class="bi bi-arrow-left-circle"></i> Về POS
+                    <a class="admin-nav-link" href="{% url 'App_Sales:pos' %}" target="_blank" rel="noopener" title="Về POS" data-quanly-tip="Về POS">
+                        <i class="bi bi-arrow-left-circle" aria-hidden="true"></i><span class="admin-nav-label">Về POS</span>
                         <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
                     </a>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-lg-9">
+    <div class="col-12 col-lg-9 quanly-main-col">
         {% comment %} <div class="admin-hero">
             <div>
                 <h1>Trung tâm quản lý</h1>
@@ -475,6 +581,56 @@
             const key = rawTags.find((tag) => toneMap[tag]) || 'info';
             showQuanlyToast(item.dataset.text || '', key);
         });
+
+        const shell = document.getElementById('quanlyShell');
+        const toggleBtn = document.getElementById('quanlySidebarToggle');
+        const toggleIcon = document.getElementById('quanlySidebarToggleIcon');
+        const toggleLabel = document.getElementById('quanlySidebarToggleLabel');
+        const storageKey = 'quanly_sidebar_collapsed';
+
+        const applySidebarCollapsed = (collapsed) => {
+            if (!shell) return;
+            shell.classList.toggle('sidebar-collapsed', collapsed);
+            if (toggleBtn) {
+                toggleBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+            }
+            if (toggleIcon) {
+                toggleIcon.className = collapsed ? 'bi bi-chevron-double-right' : 'bi bi-chevron-double-left';
+            }
+            if (toggleLabel) {
+                toggleLabel.textContent = collapsed ? 'Mở rộng menu' : 'Thu nhỏ menu';
+            }
+            if (toggleBtn && typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                const tip = bootstrap.Tooltip.getInstance(toggleBtn);
+                const nextTitle = collapsed ? 'Mở rộng menu bên trái' : 'Thu nhỏ menu bên trái';
+                toggleBtn.setAttribute('data-bs-original-title', nextTitle);
+                toggleBtn.setAttribute('title', nextTitle);
+                if (tip) {
+                    tip.dispose();
+                    bootstrap.Tooltip.getOrCreateInstance(toggleBtn, { placement: 'bottom' });
+                }
+            }
+            try {
+                localStorage.setItem(storageKey, collapsed ? '1' : '0');
+            } catch (e) {
+                /* ignore */
+            }
+        };
+
+        if (shell && toggleBtn) {
+            try {
+                if (localStorage.getItem(storageKey) === '1') {
+                    applySidebarCollapsed(true);
+                }
+            } catch (e) {
+                /* ignore */
+            }
+
+            toggleBtn.addEventListener('click', () => {
+                const next = !shell.classList.contains('sidebar-collapsed');
+                applySidebarCollapsed(next);
+            });
+        }
     });
 </script>
 {% endblock %}

@@ -26,7 +26,7 @@ class TenantAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['public_slug'].required = False
-        self.fields['public_slug'].help_text = 'Để trống thì hệ thống tự động tạo từ tên tenant.'
+        self.fields['public_slug'].help_text = 'Để trống thì hệ thống tự động tạo từ tên doanh nghiệp.'
         self.fields['public_slug'].widget.attrs['placeholder'] = 'Để trống thì tự động tạo'
 
     def clean_public_slug(self):
@@ -34,7 +34,7 @@ class TenantAdminForm(forms.ModelForm):
         if raw_value:
             return raw_value
 
-        base_slug = slugify(self.cleaned_data.get('name') or '') or 'tenant'
+        base_slug = slugify(self.cleaned_data.get('name') or '') or 'doanh-nghiep'
         queryset = Tenant.objects.exclude(pk=self.instance.pk) if self.instance.pk else Tenant.objects.all()
         return _build_unique_value(
             queryset=queryset,
@@ -146,7 +146,7 @@ class UserStoreAccessAdminForm(forms.ModelForm):
         user = cleaned_data.get('user')
         store = cleaned_data.get('store')
         if user and store and user.tenant_id != store.tenant_id:
-            self.add_error('store', 'Cửa hàng phải cùng tenant với user.')
+            self.add_error('store', 'Cửa hàng phải cùng doanh nghiệp với tài khoản.')
         return cleaned_data
 
 

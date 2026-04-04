@@ -1,0 +1,267 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block quanly_content %}
+<style>
+    .crud-modal .modal-content {
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+    }
+    .crud-modal .modal-header {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 1rem 1.15rem;
+    }
+    .crud-modal .modal-body {
+        padding: 1rem 1.15rem;
+    }
+    .crud-modal .modal-footer {
+        border-top: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 0.85rem 1.15rem 1rem;
+    }
+    .active-toggle, .default-toggle {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 10px;
+        padding: 0.55rem 0.65rem;
+        background: rgba(255, 255, 255, 0.9);
+    }
+</style>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-shop"></i>
+                Cửa hàng
+            </h2>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createStoreModal">
+                <i class="bi bi-plus-lg me-1"></i>Thêm cửa hàng
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Tên</th>
+                        <th>Mã (slug)</th>
+                        <th>Địa chỉ</th>
+                        <th>Trạng thái</th>
+                        <th>Mặc định</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in stores %}
+                    <tr>
+                        <td class="fw-semibold">{{ s.name }}</td>
+                        <td><code class="small">{{ s.slug }}</code></td>
+                        <td class="text-muted small">{{ s.address|default:'—' }}</td>
+                        <td>
+                            {% if s.is_active %}
+                            <span class="badge text-bg-success">Đang hoạt động</span>
+                            {% else %}
+                            <span class="badge text-bg-secondary">Tạm tắt</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.is_default %}
+                            <span class="badge text-bg-primary">Có</span>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                <button
+                                    class="btn btn-sm btn-outline-secondary js-edit-store"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editStoreModal"
+                                    data-action="{% url 'App_Quanly:store_edit' s.id %}"
+                                    data-name="{{ s.name|escape }}"
+                                    data-address="{{ s.address|escape }}"
+                                    data-is-active="{% if s.is_active %}1{% else %}0{% endif %}"
+                                    data-is-default="{% if s.is_default %}1{% else %}0{% endif %}"
+                                >
+                                    <i class="bi bi-pencil me-1"></i>Sửa
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-danger js-delete-store"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteStoreModal"
+                                    data-action="{% url 'App_Quanly:store_delete' s.id %}"
+                                    data-name="{{ s.name|escape }}"
+                                >
+                                    <i class="bi bi-trash me-1"></i>Xóa
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-muted">Chưa có cửa hàng. Thêm cửa hàng đầu tiên để gán danh mục, bàn QR, v.v.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="createStoreModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-plus-lg me-2 text-primary"></i>Thêm cửa hàng
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:stores' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.address.id_for_label }}">{{ form.address.label }}</label>
+                        {{ form.address }}
+                        {{ form.address.errors }}
+                    </div>
+                    <div class="active-toggle mb-3">
+                        <div class="form-check m-0">
+                            {{ form.is_active }}
+                            <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+                        </div>
+                        {{ form.is_active.errors }}
+                    </div>
+                    <div class="default-toggle mb-0">
+                        <div class="form-check m-0">
+                            {{ form.is_default }}
+                            <label class="form-check-label fw-semibold" for="{{ form.is_default.id_for_label }}">{{ form.is_default.label }}</label>
+                        </div>
+                        {% if form.is_default.help_text %}
+                        <div class="form-text small mt-1">{{ form.is_default.help_text }}</div>
+                        {% endif %}
+                        {{ form.is_default.errors }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Tạo cửa hàng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editStoreModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-pencil-square me-2 text-primary"></i>Sửa cửa hàng
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" id="editStoreForm" action="">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-store-name">Tên cửa hàng</label>
+                        <input type="text" class="form-control" id="edit-store-name" name="name" maxlength="150" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-store-address">Địa chỉ</label>
+                        <input type="text" class="form-control" id="edit-store-address" name="address" maxlength="255">
+                    </div>
+                    <div class="active-toggle mb-3">
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" id="edit-store-active" name="is_active">
+                            <label class="form-check-label fw-semibold" for="edit-store-active">Đang hoạt động</label>
+                        </div>
+                    </div>
+                    <div class="default-toggle mb-0">
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" id="edit-store-default" name="is_default">
+                            <label class="form-check-label fw-semibold" for="edit-store-default">Cửa hàng mặc định</label>
+                        </div>
+                        <div class="form-text small mt-1">Chỉ nên bật cho một cửa hàng; dùng làm mặc định khi hệ thống cần chọn sẵn cửa.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteStoreModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="bi bi-trash me-2"></i>Xóa cửa hàng
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" id="deleteStoreForm" action="">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="mb-0">Bạn chắc chắn muốn xóa cửa hàng <strong id="deleteStoreName"></strong>?</p>
+                    <p class="small text-muted mb-0 mt-2">Không thể xóa nếu còn đơn hàng hoặc dữ liệu ràng buộc.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-danger">Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const editForm = document.getElementById('editStoreForm');
+        const editName = document.getElementById('edit-store-name');
+        const editAddress = document.getElementById('edit-store-address');
+        const editActive = document.getElementById('edit-store-active');
+        const editDefault = document.getElementById('edit-store-default');
+
+        document.querySelectorAll('.js-edit-store').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (editForm) editForm.action = button.dataset.action || '';
+                if (editName) editName.value = button.dataset.name || '';
+                if (editAddress) editAddress.value = button.dataset.address || '';
+                if (editActive) editActive.checked = button.dataset.isActive === '1';
+                if (editDefault) editDefault.checked = button.dataset.isDefault === '1';
+            });
+        });
+
+        const deleteForm = document.getElementById('deleteStoreForm');
+        const deleteName = document.getElementById('deleteStoreName');
+        document.querySelectorAll('.js-delete-store').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (deleteForm) deleteForm.action = button.dataset.action || '';
+                if (deleteName) deleteName.textContent = button.dataset.name || '';
+            });
+        });
+
+        {% if open_create_modal %}
+        const createModalEl = document.getElementById('createStoreModal');
+        if (createModalEl) {
+            bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        }
+        {% endif %}
+    });
+</script>
+{% endblock %}

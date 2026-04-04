@@ -10,7 +10,7 @@ from App_Core.seed_initial_data_runner import run_seed_initial_data
 
 @never_cache
 def demo_seed_reset_confirm(request):
-    """Chỉ superuser. Phục hồi tenant demo về bộ seed ban đầu (mật khẩu, catalog, ảnh, QR cửa hàng)."""
+    """Chỉ superuser. Phục hồi doanh nghiệp demo về bộ seed ban đầu (mật khẩu, catalog, ảnh, QR cửa hàng)."""
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path())
     if not request.user.is_superuser:
@@ -28,7 +28,7 @@ def demo_seed_reset_confirm(request):
         )
         messages.success(
             request,
-            'Đã phục hồi dữ liệu tenant "demo": mật khẩu tài khoản seed, sản phẩm/danh mục, ảnh mẫu, QR thanh toán cửa hàng, đơn QR pending.',
+            'Đã phục hồi dữ liệu doanh nghiệp "demo": mật khẩu tài khoản seed, sản phẩm/danh mục, ảnh mẫu, QR thanh toán cửa hàng, đơn QR pending.',
         )
         return redirect('admin:index')
 

@@ -56,7 +56,7 @@ class DiningTable(TimeStampedModel):
     code = models.CharField(max_length=40)
     name = models.CharField(max_length=120)
     qr_token = models.CharField(max_length=64, unique=True, default=generate_qr_token, editable=False)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -71,7 +71,7 @@ class DiningTable(TimeStampedModel):
 
     def clean(self):
         if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
-            raise ValidationError('Store và tenant của bàn phải khớp nhau.')
+            raise ValidationError('Cửa hàng và doanh nghiệp của bàn phải khớp nhau.')
 
     def save(self, *args, **kwargs):
         self.code = (self.code or '').strip().upper()
@@ -124,9 +124,9 @@ class QROrder(TimeStampedModel):
         if self.table_id and self.store_id and self.table.store_id != self.store_id:
             raise ValidationError('Table phải thuộc store của đơn QR.')
         if self.table_id and self.tenant_id and self.table.tenant_id != self.tenant_id:
-            raise ValidationError('Table phải cùng tenant với đơn QR.')
+            raise ValidationError('Bàn phải cùng doanh nghiệp với đơn QR.')
         if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
-            raise ValidationError('Store phải cùng tenant với đơn QR.')
+            raise ValidationError('Cửa hàng phải cùng doanh nghiệp với đơn QR.')
 
     def __str__(self):
         return f'QR-{self.id or "new"}-{self.status}'
@@ -178,7 +178,7 @@ class QROrderItemTopping(TimeStampedModel):
             raise ValidationError('Giá topping snapshot phải >= 0.')
         if self.topping_id and self.qr_order_item_id:
             if self.topping.tenant_id != self.qr_order_item.qr_order.tenant_id:
-                raise ValidationError('Topping phải cùng tenant với đơn QR item.')
+                raise ValidationError('Topping phải cùng doanh nghiệp với món trong đơn QR.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -215,9 +215,9 @@ class TableCartItem(TimeStampedModel):
         if self.table_id and self.store_id and self.table.store_id != self.store_id:
             raise ValidationError('Table phải thuộc store của cart item.')
         if self.table_id and self.tenant_id and self.table.tenant_id != self.tenant_id:
-            raise ValidationError('Table phải cùng tenant với cart item.')
+            raise ValidationError('Bàn phải cùng doanh nghiệp với mục giỏ hàng.')
         if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
-            raise ValidationError('Store phải cùng tenant với cart item.')
+            raise ValidationError('Cửa hàng phải cùng doanh nghiệp với mục giỏ hàng.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -244,7 +244,7 @@ class TableCartItemTopping(TimeStampedModel):
             raise ValidationError('Giá topping snapshot phải >= 0.')
         if self.topping_id and self.table_cart_item_id:
             if self.topping.tenant_id != self.table_cart_item.tenant_id:
-                raise ValidationError('Topping phải cùng tenant với cart item.')
+                raise ValidationError('Topping phải cùng doanh nghiệp với mục giỏ hàng.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -295,7 +295,7 @@ class OrderItemTopping(TimeStampedModel):
             raise ValidationError('Giá topping snapshot phải >= 0.')
         if self.topping_id and self.order_item_id:
             if self.topping.tenant_id != self.order_item.order.tenant_id:
-                raise ValidationError('Topping phải cùng tenant với order item.')
+                raise ValidationError('Topping phải cùng doanh nghiệp với món trong đơn bán.')
 
     def save(self, *args, **kwargs):
         self.full_clean()

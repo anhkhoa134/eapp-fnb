@@ -8,6 +8,7 @@ class User(AbstractUser):
         MANAGER = 'MANAGER', 'Manager'
         STAFF = 'STAFF', 'Staff'
 
+    is_active = models.BooleanField('Đang hoạt động', default=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STAFF)
     tenant = models.ForeignKey(
         'App_Tenant.Tenant',
@@ -15,6 +16,7 @@ class User(AbstractUser):
         related_name='users',
         null=True,
         blank=True,
+        verbose_name='doanh nghiệp',
     )
 
     class Meta:

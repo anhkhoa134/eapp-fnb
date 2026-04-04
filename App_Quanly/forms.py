@@ -70,7 +70,7 @@ class CategoryForm(forms.ModelForm):
         if tenant:
             for store in cleaned.get('store_ids') or []:
                 if store.tenant_id != tenant.id:
-                    raise ValidationError('Cửa hàng chọn không thuộc tenant hiện tại.')
+                    raise ValidationError('Cửa hàng chọn không thuộc doanh nghiệp hiện tại.')
         return cleaned
 
 
@@ -127,11 +127,11 @@ class ProductForm(forms.ModelForm):
         tenant = self.tenant
         category = data.get('category')
         if tenant and category and category.tenant_id != tenant.id:
-            self.add_error('category', 'Danh mục không thuộc tenant hiện tại.')
+            self.add_error('category', 'Danh mục không thuộc doanh nghiệp hiện tại.')
         if tenant:
             for store in data.get('store_ids') or []:
                 if store.tenant_id != tenant.id:
-                    raise ValidationError('Cửa hàng chọn không thuộc tenant hiện tại.')
+                    raise ValidationError('Cửa hàng chọn không thuộc doanh nghiệp hiện tại.')
         return data
 
     def clean_image_upload(self):
@@ -225,7 +225,7 @@ class ProductToppingForm(forms.ModelForm):
         product = cleaned.get('product')
         topping = cleaned.get('topping')
         if product and topping and product.tenant_id != topping.tenant_id:
-            raise ValidationError('Sản phẩm và topping phải cùng tenant.')
+            raise ValidationError('Sản phẩm và topping phải cùng doanh nghiệp.')
         return cleaned
 
     def clean_price(self):
@@ -236,6 +236,30 @@ class ProductToppingForm(forms.ModelForm):
 
 
 STORE_PAYMENT_QR_MAX_BYTES = 2 * 1024 * 1024
+
+
+class StoreForm(forms.ModelForm):
+    class Meta:
+        model = Store
+        fields = ['name', 'address', 'is_active', 'is_default']
+        labels = {
+            'name': 'Tên cửa hàng',
+            'address': 'Địa chỉ',
+            'is_active': 'Đang hoạt động',
+            'is_default': 'Cửa hàng mặc định',
+        }
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Chi nhánh trung tâm'}),
+            'address': forms.TextInput(attrs={'placeholder': 'Địa chỉ hiển thị nội bộ (tuỳ chọn)'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['address'].required = False
+        self.fields['is_default'].help_text = (
+            'Chỉ nên bật cho một cửa hàng; dùng làm mặc định khi hệ thống cần chọn sẵn cửa.'
+        )
+        _apply_bootstrap_classes(self)
 
 
 class StorePaymentForm(forms.ModelForm):
@@ -330,7 +354,7 @@ class DiningTableForm(forms.ModelForm):
         tenant = getattr(self, 'tenant', None)
         store = cleaned.get('store')
         if tenant and store and store.tenant_id != tenant.id:
-            self.add_error('store', 'Cửa hàng không thuộc tenant hiện tại.')
+            self.add_error('store', 'Cửa hàng không thuộc doanh nghiệp hiện tại.')
         return cleaned
 
 
@@ -359,12 +383,24 @@ class StaffCreateForm(forms.Form):
             stores = Store.objects.none()
         self.fields['store_ids'].queryset = stores
         self.fields['default_store'].queryset = stores
+        if tenant:
+            pfx = f'{tenant.public_slug}_'
+            self.fields['username'].help_text = (
+                f'Bắt đầu bằng tiền tố mã doanh nghiệp "{pfx}" — ví dụ: {pfx}thu_ngan, {pfx}nhan_vien_1.'
+            )
         _apply_bootstrap_classes(self)
 
     def clean_username(self):
         username = (self.cleaned_data.get('username') or '').strip()
         if not username:
             raise forms.ValidationError('Vui lòng nhập tên đăng nhập.')
+        tenant = self.tenant
+        if tenant:
+            prefix = f'{tenant.public_slug}_'
+            if not username.startswith(prefix):
+                raise forms.ValidationError(
+                    f'Tên đăng nhập phải bắt đầu bằng tiền tố "{prefix}" (theo mã doanh nghiệp hiện tại).'
+                )
         if User.objects.filter(username=username).exists():
             raise forms.ValidationError('Tên đăng nhập đã tồn tại.')
         return username
@@ -387,9 +423,58 @@ class StaffCreateForm(forms.Form):
         if tenant and selected_stores is not None:
             for store in selected_stores:
                 if store.tenant_id != tenant.id:
-                    raise ValidationError('Cửa hàng chọn không thuộc tenant hiện tại.')
+                    raise ValidationError('Cửa hàng chọn không thuộc doanh nghiệp hiện tại.')
         if tenant and default_store and default_store.tenant_id != tenant.id:
-            self.add_error('default_store', 'Cửa hàng mặc định không thuộc tenant hiện tại.')
+            self.add_error('default_store', 'Cửa hàng mặc định không thuộc doanh nghiệp hiện tại.')
+        if selected_stores is not None and default_store and default_store not in selected_stores:
+            self.add_error('default_store', 'Cửa hàng mặc định phải thuộc danh sách cửa hàng đã cấp quyền.')
+        return cleaned
+
+
+class StaffEditForm(forms.Form):
+    store_ids = forms.ModelMultipleChoiceField(
+        queryset=Store.objects.none(),
+        required=True,
+        widget=forms.CheckboxSelectMultiple,
+        label='Cấp quyền cửa hàng',
+    )
+    default_store = forms.ModelChoiceField(
+        queryset=Store.objects.none(),
+        required=True,
+        label='Cửa hàng mặc định',
+    )
+    is_active = forms.BooleanField(
+        label='Đang hoạt động',
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
+    def __init__(self, *args, tenant=None, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        self.user = user
+        if tenant:
+            stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            stores = Store.objects.none()
+        self.fields['store_ids'].queryset = stores
+        self.fields['default_store'].queryset = stores
+        if user is not None and not self.is_bound:
+            self.fields['is_active'].initial = user.is_active
+        _apply_bootstrap_classes(self)
+
+    def clean(self):
+        cleaned = super().clean()
+        selected_stores = cleaned.get('store_ids')
+        default_store = cleaned.get('default_store')
+        tenant = self.tenant
+        if tenant and selected_stores is not None:
+            for store in selected_stores:
+                if store.tenant_id != tenant.id:
+                    raise ValidationError('Cửa hàng chọn không thuộc doanh nghiệp hiện tại.')
+        if tenant and default_store and default_store.tenant_id != tenant.id:
+            self.add_error('default_store', 'Cửa hàng mặc định không thuộc doanh nghiệp hiện tại.')
         if selected_stores is not None and default_store and default_store not in selected_stores:
             self.add_error('default_store', 'Cửa hàng mặc định phải thuộc danh sách cửa hàng đã cấp quyền.')
         return cleaned

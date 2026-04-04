@@ -10,7 +10,7 @@ class UserAdmin(BaseUserAdmin):
     list_filter = ('role', 'tenant', 'is_active')
     fieldsets = BaseUserAdmin.fieldsets + (
         (
-            'Tenant POS',
+            'Doanh nghiệp',
             {
                 'fields': ('role', 'tenant'),
             },
