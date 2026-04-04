@@ -294,6 +294,8 @@ class StorePaymentForm(forms.ModelForm):
             'payment_account_number': 'Số tài khoản',
         }
         widgets = {
+            # FileInput: không dùng ClearableFileInput để tránh checkbox "Xóa" trùng với remove_payment_qr
+            'payment_qr': forms.FileInput(attrs={'accept': 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'}),
             'payment_bank_name': forms.TextInput(attrs={'placeholder': 'VD: Vietcombank'}),
             'payment_account_name': forms.TextInput(attrs={'placeholder': 'Tên hiển thị trên thẻ / ứng dụng ngân hàng'}),
             'payment_account_number': forms.TextInput(attrs={'placeholder': 'Chỉ số, không khoảng trắng', 'inputmode': 'numeric'}),
@@ -316,7 +318,10 @@ class StorePaymentForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if data.get('remove_payment_qr') and data.get('payment_qr'):
+        # Chỉ xung đột khi vừa tick xóa vừa tải file mới; không dùng data['payment_qr'] vì khi
+        # không upload, Django vẫn giữ reference ảnh hiện tại của instance (truthy).
+        uploaded_new = bool(self.files.get('payment_qr'))
+        if data.get('remove_payment_qr') and uploaded_new:
             raise ValidationError('Chọn một: tải ảnh mới hoặc xóa ảnh QR hiện tại.')
         return data
 

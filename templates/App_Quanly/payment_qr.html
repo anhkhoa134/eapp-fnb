@@ -32,6 +32,12 @@
             {% csrf_token %}
             <input type="hidden" name="store" value="{{ selected_store.id }}">
 
+            {% if form.non_field_errors %}
+            <div class="col-12">
+                <div class="alert alert-danger mb-0">{{ form.non_field_errors }}</div>
+            </div>
+            {% endif %}
+
             <div class="col-12 col-lg-6">
                 {% if selected_store.payment_qr %}
                 <div class="mb-3">
