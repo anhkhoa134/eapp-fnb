@@ -26,6 +26,8 @@
 
 ## Trang thai hien tai
 - Da co: POS takeaway/table, topping full-stack, QR flow staff, QR flow khach (create/edit/cancel/status), quan ly QR ban (PNG/PDF 15 ban/trang).
+- POS: chon ban tu **mang ve** co mon thi tu dong **import** len cart ban (`import-takeaway`); **Doi sang mang ve** thi **xoa het** cart ban tren server roi giu mon tren gio mang ve; tren **mobile**, mo offcanvas gio roi chon tab/icon **Chon ban** thi offcanvas dong de khong che luoi ban.
+- Quan ly: CRUD cua hang (co so dien thoai tung cua hang), QR thanh toan POS (upload/xoa anh), giao dien responsive (menu mobile offcanvas).
 - QR realtime da dung WebSocket cho POS + Public QR, co fallback polling 15s khi WS mat ket noi.
 - Superadmin tao tenant trong Django Admin/Jazzmin se tu bootstrap du lieu mac dinh:
   1 quan ly, 2 nhan vien, 1 store, 12 ban co QR token, 2 category, 4 product co unit.
@@ -40,3 +42,10 @@
 6. `docs/6_testing_and_smoke.md`
 7. `docs/7_qr_public_and_qr_admin.md`
 8. `docs/8_websocket_realtime.md`
+9. `docs/9_deploy_production.md`
+10. `docs/10_pwa.md`
+
+## Tai lieu kiem thu (QA / tester)
+
+- Trang ban hang (POS): `docs/testing/trang_ban_hang.md`
+- Trang quan ly: `docs/testing/trang_quan_ly.md`

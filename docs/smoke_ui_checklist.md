@@ -1,5 +1,7 @@
 # Smoke UI Checklist (POS + QR Public + Quanly QR)
 
+> **Huong dan chi tiet (tung buoc, nut, thong bao):** `docs/testing/trang_ban_hang.md` (POS) va `docs/testing/trang_quan_ly.md` (Quan ly). File nay giu vai tro tom tat nhanh.
+
 ## 1) Chuan bi
 
 ### 1.1 Moi truong
@@ -33,10 +35,11 @@ Luu y:
 2. Verify topping hien trong cart + tong tien dung.
 3. Thu checkout cash (fail/pass) va card.
 
-## B. SaveToTable
-1. Tao takeaway cart.
-2. Bam Luu ban va chon ban.
-3. Verify item/topping import vao cart ban.
+## B. Takeaway / table cart (POS)
+1. Tao takeaway cart, **chon ban** (co the khong can Bam Luu ban) — verify mon **khong mat**, import vao cart ban.
+2. (Tuy chon) Bam **Luu ban** roi chon ban — tuong tu.
+3. **Doi sang mang ve** — verify gio ban tren server **rong** (DELETE items), gio tren man hinh van co mon (mang ve).
+4. **Mobile:** mo gio (offcanvas) → **Chon ban** — offcanvas **dong**, thay luoi ban.
 
 ## C. QR staff approve/reject
 1. Tao pending QR (bang API public hoac trang public QR).

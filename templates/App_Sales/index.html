@@ -77,12 +77,15 @@
             align-items: center;
             width: 100%;
         }
-        .top-nav-search {
+        .top-nav-search-desktop {
             order: 2;
             margin-left: 0.75rem;
             max-width: 380px;
             flex: 1 1 auto;
             min-width: 160px;
+        }
+        .top-nav-mobile-actions {
+            display: none;
         }
         .top-nav-tools {
             order: 3;
@@ -381,7 +384,8 @@
 
         @media (max-width: 991.98px) {
             .navbar > .container-fluid {
-                flex-wrap: nowrap;
+                flex-wrap: wrap;
+                align-items: center;
             }
             .mobile-cart-btn { display: block; }
             /* Make offcanvas act truly as offcanvas on mobile */
@@ -405,12 +409,39 @@
                 flex-wrap: nowrap;
                 margin-bottom: 0 !important;
             }
-            .top-nav-search {
+            .top-nav-search-desktop {
+                display: none !important;
+            }
+            .top-nav-mobile-actions {
+                display: flex !important;
                 order: 2;
-                flex: 1 1 auto;
-                margin: 0 0.45rem !important;
-                max-width: none !important;
-                min-width: 110px;
+                flex: 0 0 auto;
+                align-items: center;
+                gap: 0.35rem;
+                margin: 0 0.35rem;
+            }
+            .top-nav-mobile-actions .btn-icon-nav {
+                width: 44px;
+                height: 44px;
+                padding: 0;
+                border-radius: 14px;
+                border: 1px solid #e2e8f0;
+                background: #fff;
+                color: #475569;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .top-nav-mobile-actions .btn-icon-nav:hover {
+                background: #f8fafc;
+                color: var(--primary-color);
+                border-color: #cbd5e1;
+            }
+            .top-nav-mobile-actions .btn-icon-nav.active {
+                background: rgba(16, 185, 129, 0.12);
+                border-color: var(--primary-color);
+                color: var(--primary-color);
             }
             .top-nav-tools {
                 order: 3;
@@ -664,8 +695,8 @@
 <body>
 
     <!-- Top Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top py-2">
-        <div class="container-fluid align-items-center">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top pos-navbar-stack d-flex flex-column p-0 align-items-stretch">
+        <div class="container-fluid align-items-center py-2">
             <!-- Brand (Desktop only) -->
             <a class="navbar-brand fw-bold text-primary fs-4 d-none d-lg-flex align-items-center gap-2 me-3" href="#">
                 <img src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB" style="width: 36px; height: 36px; object-fit: cover; border-radius: 8px;">
@@ -792,11 +823,20 @@
                     </ul>
                 </div>
             </div>
-            <!-- Search Form in Navbar -->
-            <form class="d-flex my-2 my-lg-0 top-nav-search" onsubmit="event.preventDefault();">
-                <div class="input-group shadow-sm" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <!-- Mobile: icon tìm kiếm + toggle lưới/danh sách (navbar) -->
+            <div class="top-nav-mobile-actions" role="group" aria-label="Tìm kiếm và dạng xem">
+                <button type="button" class="btn btn-icon-nav" id="btnMobileSearchToggle" title="Tìm món" aria-expanded="false" aria-controls="mobileSearchRow">
+                    <i class="fa-solid fa-magnifying-glass fs-5"></i>
+                </button>
+                <button type="button" class="btn btn-icon-nav d-none" id="btnMobileViewToggle" title="Đổi dạng hiển thị" aria-label="Lưới hoặc danh sách">
+                    <i class="fa-solid fa-table-cells-large fs-5" id="mobileViewToggleIcon"></i>
+                </button>
+            </div>
+            <!-- Search Form in Navbar (desktop) -->
+            <form class="d-none d-lg-flex my-lg-0 top-nav-search-desktop" id="posNavSearchFormDesktop" onsubmit="event.preventDefault();">
+                <div class="input-group shadow-sm w-100" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
                     <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
-                    <input class="form-control bg-light border-start-0" type="search" placeholder="Tìm món..." id="searchInput" style="box-shadow: none;">
+                    <input class="form-control bg-light border-start-0 js-pos-search-input" type="search" placeholder="Tìm món..." id="searchInputDesktop" autocomplete="off" style="box-shadow: none;">
                 </div>
             </form>
             <!-- Notification -->
@@ -810,6 +850,17 @@
                     </a>
                 </li>
             </ul>
+        </div>
+        <!-- Mobile: thanh tìm kiếm full width (mở bằng icon) -->
+        <div class="d-lg-none w-100 border-top bg-white shadow-sm d-none" id="mobileSearchRow">
+            <div class="px-3 py-2">
+                <form onsubmit="event.preventDefault();">
+                    <div class="input-group shadow-sm" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
+                        <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input class="form-control bg-light border-start-0 js-pos-search-input" type="search" placeholder="Tìm món..." id="searchInputMobile" autocomplete="off" style="box-shadow: none;">
+                    </div>
+                </form>
+            </div>
         </div>
     </nav>
     <form id="posLogoutForm" method="post" action="{% url 'App_Accounts:logout' %}" class="d-none">
@@ -835,8 +886,8 @@
                                 <label class="btn" for="cat-all">Tất cả</label>
                             </div>
 
-                            <!-- Grid/List Toggles -->
-                            <div class="btn-group shadow-sm bg-white" role="group" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
+                            <!-- Grid/List Toggles (desktop; mobile: icon trên navbar) -->
+                            <div class="btn-group shadow-sm bg-white d-none d-lg-inline-flex" role="group" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
                                 <input type="radio" class="btn-check" name="viewToggle" id="view-grid" autocomplete="off" checked onclick="toggleView('grid')">
                                 <label class="btn btn-light border-0" for="view-grid"><i class="fa-solid fa-table-cells-large text-secondary"></i></label>
 
@@ -2025,9 +2076,45 @@
             renderCart();
         };
 
+        const buildTakeawayCartId = ({ productId, unitId, toppingIds }) => {
+            const sortedToppingIds = [...(toppingIds || [])].map((id) => Number(id)).sort((a, b) => a - b);
+            return `${productId}-${unitId}-${sortedToppingIds.join('-') || 'no-top'}`;
+        };
+
+        const syncMobileViewToggleIcon = () => {
+            const container = document.getElementById('product-container');
+            const icon = document.getElementById('mobileViewToggleIcon');
+            if (!container || !icon) return;
+            const isList = container.classList.contains('list-view');
+            icon.className = isList ? 'fa-solid fa-list fs-5' : 'fa-solid fa-table-cells-large fs-5';
+        };
+
+        const syncMobileViewToggleVisibility = () => {
+            const btn = document.getElementById('btnMobileViewToggle');
+            const menuTab = document.getElementById('tab-menu');
+            if (!btn) return;
+            const show = Boolean(menuTab && menuTab.classList.contains('active'));
+            btn.classList.toggle('d-none', !show);
+        };
+
         const toggleView = (viewType) => {
             const container = document.getElementById('product-container');
             container.classList.toggle('list-view', viewType === 'list');
+            const gridRadio = document.getElementById('view-grid');
+            const listRadio = document.getElementById('view-list');
+            if (viewType === 'list') {
+                if (listRadio) listRadio.checked = true;
+            } else if (gridRadio) {
+                gridRadio.checked = true;
+            }
+            syncMobileViewToggleIcon();
+        };
+
+        const toggleMobileProductView = () => {
+            const container = document.getElementById('product-container');
+            if (!container) return;
+            const next = container.classList.contains('list-view') ? 'grid' : 'list';
+            toggleView(next);
         };
 
         const filterCategory = (category) => {
@@ -2070,7 +2157,14 @@
             if (form) form.submit();
         };
 
+        const dismissMobileCartOffcanvas = () => {
+            if (!window.matchMedia('(max-width: 991.98px)').matches) return;
+            const oc = bootstrap.Offcanvas.getInstance(document.getElementById('cartOffcanvas'));
+            if (oc) oc.hide();
+        };
+
         const openTableMap = () => {
+            dismissMobileCartOffcanvas();
             new bootstrap.Tab(document.getElementById('tab-tables')).show();
         };
 
@@ -2105,31 +2199,98 @@
                 return;
             }
 
+            const wasTakeaway = currentSelectedTableId === null;
+
             currentSelectedTableId = tableId;
             const table = getCurrentTable();
             document.getElementById('current-order-name').textContent = table ? table.name : 'Bàn';
             document.getElementById('btn-takeaway').classList.remove('d-none');
             new bootstrap.Tab(document.getElementById('tab-menu')).show();
-            await loadTableCart(tableId);
 
-            if (pendingSaveToTable && takeawayCart.length) {
+            if (wasTakeaway && cart.length) {
+                takeawayCart = cart.map((item) => ({
+                    ...item,
+                    toppings: [...(item.toppings || [])],
+                    toppingIds: [...(item.toppingIds || [])],
+                }));
+            }
+
+            if (wasTakeaway && takeawayCart.length) {
                 try {
                     await importTakeawayCartToTable(tableId);
                 } catch (error) {
                     showToast(error.message, 'danger');
-                } finally {
-                    pendingSaveToTable = false;
+                    currentSelectedTableId = null;
+                    document.getElementById('current-order-name').textContent = 'Khách mang về';
+                    document.getElementById('btn-takeaway').classList.add('d-none');
+                    renderCart();
+                    renderTables();
+                    return;
                 }
+            } else {
+                await loadTableCart(tableId);
             }
+
+            pendingSaveToTable = false;
             renderTables();
         };
 
-        const selectTakeaway = () => {
+        const selectTakeaway = async () => {
             pendingSaveToTable = false;
+            const tableId = currentSelectedTableId;
+
+            if (tableId !== null) {
+                const rows = cart.filter((item) => item.tableItemId);
+                if (rows.length) {
+                    try {
+                        await Promise.all(
+                            rows.map((item) =>
+                                fetchJson(`${API_TABLES_BASE}${tableId}/cart/items/${item.tableItemId}/`, {
+                                    method: 'DELETE',
+                                    body: '{}',
+                                }),
+                            ),
+                        );
+                        await loadTablesFromApi();
+                    } catch (error) {
+                        showToast(error.message, 'danger');
+                        return;
+                    }
+                }
+            }
+
+            const carry = cart.map((item) => {
+                const toppings = (item.toppings || []).map((top) => ({ ...top }));
+                const toppingIds = [...(item.toppingIds || [])];
+                if (!item.tableItemId) {
+                    return { ...item, toppings, toppingIds };
+                }
+                const cartId = `${buildTakeawayCartId({ productId: item.id, unitId: item.unitId, toppingIds })}::t::${item.tableItemId}`;
+                return {
+                    cartId,
+                    id: item.id,
+                    unitId: item.unitId,
+                    name: item.name,
+                    size: item.size || '',
+                    price: Number(item.price || 0),
+                    qty: item.qty,
+                    note: item.note || '',
+                    source: item.source || 'STAFF',
+                    toppings,
+                    toppingIds,
+                    img: item.img || findProductImage(item.id),
+                };
+            });
+
             currentSelectedTableId = null;
-            cart = takeawayCart.map((item) => ({ ...item, toppings: [...(item.toppings || [])], toppingIds: [...(item.toppingIds || [])] }));
             document.getElementById('current-order-name').textContent = 'Khách mang về';
             document.getElementById('btn-takeaway').classList.add('d-none');
+            cart = carry;
+            takeawayCart = carry.map((item) => ({
+                ...item,
+                toppings: [...(item.toppings || [])],
+                toppingIds: [...(item.toppingIds || [])],
+            }));
             renderCart();
             renderTables();
         };
@@ -2264,11 +2425,6 @@
             updateOptionsPrice();
             if (!optionsModalInstance) optionsModalInstance = new bootstrap.Modal(document.getElementById('optionsModal'));
             optionsModalInstance.show();
-        };
-
-        const buildTakeawayCartId = ({ productId, unitId, toppingIds }) => {
-            const sortedToppingIds = [...(toppingIds || [])].map((id) => Number(id)).sort((a, b) => a - b);
-            return `${productId}-${unitId}-${sortedToppingIds.join('-') || 'no-top'}`;
         };
 
         const addToCart = async ({ productId, unitId, unitName, unitPrice, toppings = [], note = '', element = null }) => {
@@ -2628,17 +2784,61 @@
             try {
                 await loadProductsFromApi();
                 await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi()]);
-                selectTakeaway();
+                await selectTakeaway();
                 connectPosQrSocket();
             } catch (error) {
                 showToast(error.message || 'Không tải được dữ liệu ban đầu.', 'danger');
             }
         };
 
-        document.getElementById('searchInput').addEventListener('input', (event) => {
-            currentSearchTerm = event.target.value || '';
+        const applyPosSearchTerm = (value, sourceEl) => {
+            currentSearchTerm = value || '';
+            document.querySelectorAll('.js-pos-search-input').forEach((el) => {
+                if (el !== sourceEl) el.value = currentSearchTerm;
+            });
             renderProducts();
+        };
+        document.querySelectorAll('.js-pos-search-input').forEach((el) => {
+            el.addEventListener('input', (event) => {
+                applyPosSearchTerm(event.target.value, event.target);
+            });
         });
+
+        const setMobileSearchOpen = (open) => {
+            const row = document.getElementById('mobileSearchRow');
+            const btn = document.getElementById('btnMobileSearchToggle');
+            const mobileInp = document.getElementById('searchInputMobile');
+            const desktopInp = document.getElementById('searchInputDesktop');
+            if (!row || !btn) return;
+            row.classList.toggle('d-none', !open);
+            btn.classList.toggle('active', open);
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open && mobileInp && desktopInp) mobileInp.value = desktopInp.value;
+            if (open) mobileInp?.focus();
+        };
+
+        document.getElementById('btnMobileSearchToggle')?.addEventListener('click', () => {
+            const row = document.getElementById('mobileSearchRow');
+            if (!row) return;
+            setMobileSearchOpen(row.classList.contains('d-none'));
+        });
+
+        document.getElementById('btnMobileViewToggle')?.addEventListener('click', toggleMobileProductView);
+
+        ['tab-menu', 'tab-tables', 'tab-online'].forEach((id) => {
+            document.getElementById(id)?.addEventListener('shown.bs.tab', () => {
+                syncMobileViewToggleVisibility();
+                syncMobileViewToggleIcon();
+            });
+        });
+        document.getElementById('tab-tables')?.addEventListener('shown.bs.tab', () => {
+            dismissMobileCartOffcanvas();
+            setMobileSearchOpen(false);
+        });
+        document.getElementById('tab-online')?.addEventListener('shown.bs.tab', () => setMobileSearchOpen(false));
+
+        syncMobileViewToggleVisibility();
+        syncMobileViewToggleIcon();
         document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('themeSelector')?.addEventListener('change', (event) => {

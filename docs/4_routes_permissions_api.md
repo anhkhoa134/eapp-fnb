@@ -35,6 +35,8 @@ Chi tiết: `docs/10_pwa.md`.
 - `POST qr/orders/<order_id>/approve/`
 - `POST qr/orders/<order_id>/reject/`
 
+Ghi chú hành vi POS (frontend, `templates/App_Sales/index.html`): chọn bàn khi đang **mang về** có món → `POST .../cart/import-takeaway/` rồi `GET .../cart/`; **Đổi sang mang về** khi đang gắn bàn → `DELETE .../cart/items/<item_id>/` cho từng dòng rồi giữ giỏ trên client dạng mang về.
+
 ## Public API (`/api/public/`)
 - `POST qr/orders/` -> tao don pending.
 - `GET qr/orders/<order_id>/?table_code=&token=` -> lay trang thai + items.
@@ -52,6 +54,16 @@ Chi tiết: `docs/10_pwa.md`.
   - `{ "type": "qr.order.changed", "order_id": <id>, "status": "PENDING|APPROVED|REJECTED|CANCELLED", "reason": "...", "ts": "<iso>" }`
 
 ## Quanly API-like routes (server-rendered)
+
+Tat ca duoi day yeu cau **manager** (tru khi ghi chu khac).
+
+- `GET|POST /quanly/` — dashboard
+- `GET|POST /quanly/stores/` — CRUD cua hang (POST tao; POST edit/delete theo URL rieng)
+- `GET|POST /quanly/account/` — cai dat tai khoan quan ly
+- `GET /quanly/orders/`, `POST /quanly/orders/<id>/delete/` — lich su don
+- `GET|POST /quanly/categories/`, `.../products/`, `.../toppings/`, ... — catalog CRUD (xem `App_Quanly/urls.py`)
+- `GET|POST /quanly/payment-qr/` — cau hinh QR thanh toan POS theo cua hang
+- `GET|POST /quanly/staffs/` — quan ly nhan vien
 - `GET|POST /quanly/qr-tables/`
 - `GET|POST /quanly/qr-tables/<id>/edit/`
 - `POST /quanly/qr-tables/<id>/delete/`

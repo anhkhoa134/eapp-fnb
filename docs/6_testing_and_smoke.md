@@ -1,5 +1,12 @@
 # 6) Test va smoke checklist
 
+## Tai lieu kiem thu chi tiet (QA)
+
+Hai file huong dan tester theo tung click / thong bao:
+
+- **`docs/testing/trang_ban_hang.md`** — POS (`/`)
+- **`docs/testing/trang_quan_ly.md`** — Quan ly (`/quanly/`)
+
 ## Automated
 
 ### Check
@@ -29,10 +36,12 @@ python manage.py test App_Sales.tests_ws App_Public.tests_ws
 2. Thu cash thieu/du tien.
 3. Thu card.
 
-### B. Save-to-table
-1. Tao gio takeaway.
-2. Bam Luu ban, chon ban.
-3. Verify item/topping sang cart ban.
+### B. Save-to-table + takeaway / table cart (POS)
+1. Tao gio takeaway, chon ban (khong can Bam Luu ban) — verify mon khong mat, import len cart ban (`import-takeaway`).
+2. (Tuy chon) Bam Luu ban, chon ban — cung ket qua import.
+3. Verify item/topping tren cart ban sau khi chon ban.
+4. Bam Doi sang mang ve — verify DELETE tung dong cart ban tren API, gio client la mang ve (mon van hien), ban trong tren UI.
+5. Mobile: mo offcanvas gio, Bam Chon ban — offcanvas dong, thay luoi ban.
 
 ### C. QR staff
 1. Tao pending QR qua public API.
