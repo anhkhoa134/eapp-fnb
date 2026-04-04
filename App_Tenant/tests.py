@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.contrib.admin.sites import AdminSite
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
@@ -72,11 +75,18 @@ class TenantAdminPermissionTests(TestCase):
 
     def test_tenant_form_blank_public_slug_auto_generates_unique_value(self):
         Tenant.objects.create(name='Demo Tenant', public_slug='demo-tenant')
+        today = timezone.now().date()
+        end = today + timedelta(days=365)
         form = TenantAdminForm(
             data={
                 'name': 'Demo Tenant',
                 'public_slug': '',
                 'is_active': True,
+                'max_stores': '1',
+                'max_dining_tables': '12',
+                'max_staff_users': '2',
+                'subscription_starts_on': today.isoformat(),
+                'subscription_ends_on': end.isoformat(),
             }
         )
         self.assertTrue(form.is_valid(), form.errors.as_json())

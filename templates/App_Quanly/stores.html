@@ -44,6 +44,7 @@
                         <th>Tên</th>
                         <th>Mã (slug)</th>
                         <th>Địa chỉ</th>
+                        <th>Điện thoại</th>
                         <th>Trạng thái</th>
                         <th>Mặc định</th>
                         <th class="text-end">Thao tác</th>
@@ -55,6 +56,7 @@
                         <td class="fw-semibold">{{ s.name }}</td>
                         <td><code class="small">{{ s.slug }}</code></td>
                         <td class="text-muted small">{{ s.address|default:'—' }}</td>
+                        <td class="text-muted small">{{ s.phone|default:'—' }}</td>
                         <td>
                             {% if s.is_active %}
                             <span class="badge text-bg-success">Đang hoạt động</span>
@@ -79,6 +81,7 @@
                                     data-action="{% url 'App_Quanly:store_edit' s.id %}"
                                     data-name="{{ s.name|escape }}"
                                     data-address="{{ s.address|escape }}"
+                                    data-phone="{{ s.phone|default:''|escape }}"
                                     data-is-active="{% if s.is_active %}1{% else %}0{% endif %}"
                                     data-is-default="{% if s.is_default %}1{% else %}0{% endif %}"
                                 >
@@ -99,7 +102,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-muted">Chưa có cửa hàng. Thêm cửa hàng đầu tiên để gán danh mục, bàn QR, v.v.</td>
+                        <td colspan="7" class="text-muted">Chưa có cửa hàng. Thêm cửa hàng đầu tiên để gán danh mục, bàn QR, v.v.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -132,6 +135,14 @@
                         <label class="form-label" for="{{ form.address.id_for_label }}">{{ form.address.label }}</label>
                         {{ form.address }}
                         {{ form.address.errors }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.phone.id_for_label }}">{{ form.phone.label }}</label>
+                        {{ form.phone }}
+                        {% if form.phone.help_text %}
+                        <div class="form-text small">{{ form.phone.help_text }}</div>
+                        {% endif %}
+                        {{ form.phone.errors }}
                     </div>
                     <div class="active-toggle mb-3">
                         <div class="form-check m-0">
@@ -179,6 +190,11 @@
                     <div class="mb-3">
                         <label class="form-label" for="edit-store-address">Địa chỉ</label>
                         <input type="text" class="form-control" id="edit-store-address" name="address" maxlength="255">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="edit-store-phone">Số điện thoại</label>
+                        <input type="text" class="form-control" id="edit-store-phone" name="phone" maxlength="24" inputmode="tel" autocomplete="tel" placeholder="VD: 0901234567 hoặc +84901234567">
+                        <div class="form-text small">Mỗi cửa hàng một số liên hệ riêng (tuỳ chọn).</div>
                     </div>
                     <div class="active-toggle mb-3">
                         <div class="form-check m-0">
@@ -234,6 +250,7 @@
         const editForm = document.getElementById('editStoreForm');
         const editName = document.getElementById('edit-store-name');
         const editAddress = document.getElementById('edit-store-address');
+        const editPhone = document.getElementById('edit-store-phone');
         const editActive = document.getElementById('edit-store-active');
         const editDefault = document.getElementById('edit-store-default');
 
@@ -242,6 +259,7 @@
                 if (editForm) editForm.action = button.dataset.action || '';
                 if (editName) editName.value = button.dataset.name || '';
                 if (editAddress) editAddress.value = button.dataset.address || '';
+                if (editPhone) editPhone.value = button.dataset.phone || '';
                 if (editActive) editActive.checked = button.dataset.isActive === '1';
                 if (editDefault) editDefault.checked = button.dataset.isDefault === '1';
             });

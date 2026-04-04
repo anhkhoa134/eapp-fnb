@@ -19,6 +19,50 @@
                     <dt class="col-sm-4 text-muted">Doanh nghiệp</dt>
                     <dd class="col-sm-8">{{ user.tenant.name|default:'—' }}</dd>
                 </dl>
+                <hr class="my-3 opacity-50">
+                <h3 class="h6 fw-bold mb-2 text-secondary">Thời hạn gói</h3>
+                <dl class="row mb-3 small">
+                    <dt class="col-sm-4 text-muted">Ngày hiện tại</dt>
+                    <dd class="col-sm-8">{{ today|date:'d/m/Y' }}</dd>
+                    <dt class="col-sm-4 text-muted">Bắt đầu gói</dt>
+                    <dd class="col-sm-8">{% if usage.subscription_starts_on %}{{ usage.subscription_starts_on|date:'d/m/Y' }}{% else %}—{% endif %}</dd>
+                    <dt class="col-sm-4 text-muted">Kết thúc gói</dt>
+                    <dd class="col-sm-8">{% if usage.subscription_ends_on %}{{ usage.subscription_ends_on|date:'d/m/Y' }}{% else %}—{% endif %}</dd>
+                </dl>
+                <h3 class="h6 fw-bold mb-2 text-secondary">Giới hạn tài nguyên (theo gói)</h3>
+                <p class="small text-muted mb-2">Số lượng đang dùng so với hạn mức doanh nghiệp được phép tạo. Giá trị <strong>0</strong> nghĩa là không giới hạn.</p>
+                <dl class="row mb-0 small">
+                    <dt class="col-sm-4 text-muted">Cửa hàng</dt>
+                    <dd class="col-sm-8">
+                        <span class="fw-semibold">{{ usage.stores_used }}</span>
+                        /
+                        {% if usage.stores_max == 0 %}
+                        <span class="text-muted">Không giới hạn</span>
+                        {% else %}
+                        {{ usage.stores_max }}
+                        {% endif %}
+                    </dd>
+                    <dt class="col-sm-4 text-muted">Bàn</dt>
+                    <dd class="col-sm-8">
+                        <span class="fw-semibold">{{ usage.tables_used }}</span>
+                        /
+                        {% if usage.tables_max == 0 %}
+                        <span class="text-muted">Không giới hạn</span>
+                        {% else %}
+                        {{ usage.tables_max }}
+                        {% endif %}
+                    </dd>
+                    <dt class="col-sm-4 text-muted">Nhân viên</dt>
+                    <dd class="col-sm-8">
+                        <span class="fw-semibold">{{ usage.staff_used }}</span>
+                        /
+                        {% if usage.staff_max == 0 %}
+                        <span class="text-muted">Không giới hạn</span>
+                        {% else %}
+                        {{ usage.staff_max }}
+                        {% endif %}
+                    </dd>
+                </dl>
             </div>
         </div>
     </div>

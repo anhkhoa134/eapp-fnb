@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.text import slugify
 
 from App_Core.models import TimeStampedModel
@@ -37,6 +40,36 @@ class Tenant(TimeStampedModel):
     name = models.CharField(max_length=150)
     public_slug = models.SlugField(max_length=120, unique=True, validators=[validate_public_slug])
     is_active = models.BooleanField('Đang hoạt động', default=True)
+    max_stores = models.PositiveIntegerField(
+        'Giới hạn cửa hàng',
+        default=1,
+        blank=True,
+        help_text='Số cửa hàng tối đa. 0 = không giới hạn. Mặc định gói mới: 1.',
+    )
+    max_dining_tables = models.PositiveIntegerField(
+        'Giới hạn bàn',
+        default=12,
+        blank=True,
+        help_text='Tổng số bàn (QR/POS) tối đa. 0 = không giới hạn. Mặc định gói mới: 12.',
+    )
+    max_staff_users = models.PositiveIntegerField(
+        'Giới hạn nhân viên',
+        default=2,
+        blank=True,
+        help_text='Số tài khoản nhân viên (không tính quản lý). 0 = không giới hạn. Mặc định gói mới: 2.',
+    )
+    subscription_starts_on = models.DateField(
+        'Ngày bắt đầu gói',
+        null=True,
+        blank=True,
+        help_text='Để trống khi tạo mới: hệ thống gán ngày hiện tại.',
+    )
+    subscription_ends_on = models.DateField(
+        'Ngày kết thúc gói',
+        null=True,
+        blank=True,
+        help_text='Để trống khi tạo mới: mặc định 1 năm sau ngày bắt đầu.',
+    )
 
     class Meta:
         ordering = ['name']
@@ -46,9 +79,48 @@ class Tenant(TimeStampedModel):
     def clean(self):
         self.public_slug = (self.public_slug or '').strip().lower()
         validate_public_slug(self.public_slug)
+        if self.subscription_starts_on and self.subscription_ends_on:
+            if self.subscription_ends_on < self.subscription_starts_on:
+                raise ValidationError(
+                    {'subscription_ends_on': 'Ngày kết thúc phải sau hoặc cùng ngày bắt đầu gói.'}
+                )
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            today = timezone.now().date()
+            if self.subscription_starts_on is None:
+                self.subscription_starts_on = today
+            if self.subscription_ends_on is None:
+                self.subscription_ends_on = self.subscription_starts_on + timedelta(days=365)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
+
+    def dining_table_count(self) -> int:
+        from App_Sales.models import DiningTable
+
+        return DiningTable.objects.filter(tenant_id=self.pk).count()
+
+    def staff_user_count(self) -> int:
+        from App_Accounts.models import User
+
+        return User.objects.filter(tenant_id=self.pk, role=User.Role.STAFF).count()
+
+    def can_create_store(self) -> bool:
+        if self.max_stores == 0:
+            return True
+        return self.stores.count() < self.max_stores
+
+    def can_create_dining_table(self) -> bool:
+        if self.max_dining_tables == 0:
+            return True
+        return self.dining_table_count() < self.max_dining_tables
+
+    def can_create_staff_user(self) -> bool:
+        if self.max_staff_users == 0:
+            return True
+        return self.staff_user_count() < self.max_staff_users
 
 
 class Store(TimeStampedModel):
@@ -56,6 +128,7 @@ class Store(TimeStampedModel):
     name = models.CharField(max_length=150)
     slug = models.SlugField(max_length=120)
     address = models.CharField(max_length=255, blank=True)
+    phone = models.CharField('Số điện thoại', max_length=24, blank=True)
     is_active = models.BooleanField('Đang hoạt động', default=True)
     is_default = models.BooleanField(default=False)
     payment_qr = models.ImageField(upload_to=store_payment_qr_upload_to, blank=True, null=True)

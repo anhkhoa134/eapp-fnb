@@ -241,25 +241,39 @@ STORE_PAYMENT_QR_MAX_BYTES = 2 * 1024 * 1024
 class StoreForm(forms.ModelForm):
     class Meta:
         model = Store
-        fields = ['name', 'address', 'is_active', 'is_default']
+        fields = ['name', 'address', 'phone', 'is_active', 'is_default']
         labels = {
             'name': 'Tên cửa hàng',
             'address': 'Địa chỉ',
+            'phone': 'Số điện thoại',
             'is_active': 'Đang hoạt động',
             'is_default': 'Cửa hàng mặc định',
         }
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Chi nhánh trung tâm'}),
             'address': forms.TextInput(attrs={'placeholder': 'Địa chỉ hiển thị nội bộ (tuỳ chọn)'}),
+            'phone': forms.TextInput(attrs={'placeholder': 'VD: 0901234567 hoặc +84901234567', 'inputmode': 'tel', 'autocomplete': 'tel'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['address'].required = False
+        self.fields['phone'].required = False
+        self.fields['phone'].help_text = 'Mỗi cửa hàng một số liên hệ riêng (tuỳ chọn).'
         self.fields['is_default'].help_text = (
             'Chỉ nên bật cho một cửa hàng; dùng làm mặc định khi hệ thống cần chọn sẵn cửa.'
         )
         _apply_bootstrap_classes(self)
+
+    def clean_phone(self):
+        raw = (self.cleaned_data.get('phone') or '').strip()
+        if not raw:
+            return ''
+        # Cho phép số, +, khoảng trắng, gạch ngang (chuẩn hoá bỏ khoảng thừa)
+        compact = ''.join(c for c in raw if c.isdigit() or c == '+')
+        if len(compact.replace('+', '')) < 8:
+            raise ValidationError('Số điện thoại quá ngắn hoặc không hợp lệ.')
+        return raw
 
 
 class StorePaymentForm(forms.ModelForm):

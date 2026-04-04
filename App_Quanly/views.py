@@ -41,7 +41,7 @@ from App_Quanly.forms import (
     ToppingForm,
 )
 from App_Sales.models import DiningTable, Order, OrderItem, generate_qr_token
-from App_Tenant.models import Store, UserStoreAccess
+from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
 def _tenant_or_404(user):
@@ -765,13 +765,22 @@ def qr_table_list_create(request):
     open_create_modal = False
     if request.method == 'POST':
         if form.is_valid():
-            table = form.save(commit=False)
-            table.tenant = tenant
-            table.save()
-            messages.success(request, f'Đã tạo bàn "{table.name}".')
-            return redirect('App_Quanly:qr_tables')
-        messages.error(request, 'Không thể tạo bàn QR, vui lòng kiểm tra dữ liệu.')
-        open_create_modal = True
+            tenant_limits = Tenant.objects.get(pk=tenant.pk)
+            if not tenant_limits.can_create_dining_table():
+                messages.error(
+                    request,
+                    f'Đã đạt giới hạn số bàn ({tenant_limits.max_dining_tables}). Liên hệ quản trị viên nếu cần nâng gói.',
+                )
+                open_create_modal = True
+            else:
+                table = form.save(commit=False)
+                table.tenant = tenant_limits
+                table.save()
+                messages.success(request, f'Đã tạo bàn "{table.name}".')
+                return redirect('App_Quanly:qr_tables')
+        else:
+            messages.error(request, 'Không thể tạo bàn QR, vui lòng kiểm tra dữ liệu.')
+            open_create_modal = True
 
     table_rows = [
         {
@@ -925,6 +934,25 @@ def staff_list_create(request):
     form = StaffCreateForm(request.POST or None, tenant=tenant)
 
     if request.method == 'POST' and form.is_valid():
+        tenant_limits = Tenant.objects.get(pk=tenant.pk)
+        if not tenant_limits.can_create_staff_user():
+            messages.error(
+                request,
+                f'Đã đạt giới hạn số nhân viên ({tenant_limits.max_staff_users}). Liên hệ quản trị viên nếu cần nâng gói.',
+            )
+            return render(
+                request,
+                'App_Quanly/staffs.html',
+                {
+                    'staffs': staffs,
+                    'form': form,
+                    'edit_form': StaffEditForm(tenant=tenant),
+                    'edit_staff': None,
+                    'open_create_modal': True,
+                    'open_edit_modal': False,
+                },
+            )
+
         username = form.cleaned_data['username']
         password = form.cleaned_data['password1']
         selected_stores = list(form.cleaned_data['store_ids'])
@@ -1062,9 +1090,24 @@ def store_list_create(request):
     form = StoreForm(request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
+        tenant_limits = Tenant.objects.get(pk=tenant.pk)
+        if not tenant_limits.can_create_store():
+            messages.error(
+                request,
+                f'Đã đạt giới hạn số cửa hàng ({tenant_limits.max_stores}). Liên hệ quản trị viên nếu cần nâng gói.',
+            )
+            return render(
+                request,
+                'App_Quanly/stores.html',
+                {
+                    'stores': stores,
+                    'form': form,
+                    'open_create_modal': True,
+                },
+            )
         store = form.save(commit=False)
-        store.tenant = tenant
-        _save_store_and_sync_default(tenant=tenant, store=store, is_default=form.cleaned_data['is_default'])
+        store.tenant = tenant_limits
+        _save_store_and_sync_default(tenant=tenant_limits, store=store, is_default=form.cleaned_data['is_default'])
         messages.success(request, f'Đã tạo cửa hàng "{store.name}".')
         return redirect('App_Quanly:stores')
 
@@ -1133,11 +1176,25 @@ def account_settings(request):
     else:
         form = POSPasswordChangeForm(user)
 
+    tenant_obj = Tenant.objects.get(pk=user.tenant_id)
+    usage = {
+        'stores_used': tenant_obj.stores.count(),
+        'stores_max': tenant_obj.max_stores,
+        'tables_used': tenant_obj.dining_table_count(),
+        'tables_max': tenant_obj.max_dining_tables,
+        'staff_used': tenant_obj.staff_user_count(),
+        'staff_max': tenant_obj.max_staff_users,
+        'subscription_starts_on': tenant_obj.subscription_starts_on,
+        'subscription_ends_on': tenant_obj.subscription_ends_on,
+    }
+
     return render(
         request,
         'App_Quanly/account.html',
         {
             'form': form,
             'role_label': role_label,
+            'usage': usage,
+            'today': timezone.now().date(),
         },
     )

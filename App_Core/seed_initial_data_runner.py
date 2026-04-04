@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from argparse import BooleanOptionalAction
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.utils import timezone as django_timezone
 
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Catalog.product_image_utils import clear_product_uploaded_images
@@ -144,9 +146,18 @@ def run_seed_initial_data(
 
     User = get_user_model()
 
+    _today = django_timezone.now().date()
     tenant, _ = Tenant.objects.update_or_create(
         public_slug=tenant_slug,
-        defaults={'name': tenant_name, 'is_active': True},
+        defaults={
+            'name': tenant_name,
+            'is_active': True,
+            'max_stores': 0,
+            'max_dining_tables': 0,
+            'max_staff_users': 0,
+            'subscription_starts_on': _today,
+            'subscription_ends_on': _today + timedelta(days=365),
+        },
     )
 
     stores_seed = [
