@@ -49,8 +49,8 @@ class Product(TimeStampedModel):
     slug = models.SlugField(max_length=180)
     description = models.TextField('Mô tả', blank=True)
     image_url = models.URLField(blank=True)
-    image_file = models.ImageField('Ảnh upload', upload_to='products/%Y/%m/', blank=True)
-    image_thumbnail = models.ImageField('Thumbnail', upload_to='products/%Y/%m/thumbs/', blank=True)
+    image_file = models.ImageField('Ảnh upload', upload_to='products/_by_tenant/', blank=True)
+    image_thumbnail = models.ImageField('Thumbnail', upload_to='products/_by_tenant/thumbs/', blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -98,10 +98,9 @@ class Product(TimeStampedModel):
         return (self.image_url or '').strip()
 
     def delete(self, *args, **kwargs):
-        if self.image_file:
-            self.image_file.delete(save=False)
-        if self.image_thumbnail:
-            self.image_thumbnail.delete(save=False)
+        from App_Catalog.product_image_utils import clear_product_uploaded_images
+
+        clear_product_uploaded_images(self)
         super().delete(*args, **kwargs)
 
 

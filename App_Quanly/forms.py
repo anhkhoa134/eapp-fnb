@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
-from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload
+from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload, clear_product_uploaded_images
 from App_Sales.models import DiningTable
 from App_Tenant.models import Store
 
@@ -67,6 +67,12 @@ class ProductForm(forms.ModelForm):
         required=False,
         widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}),
     )
+    remove_uploaded_images = forms.BooleanField(
+        required=False,
+        initial=False,
+        label='Xóa ảnh đã upload',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
 
     class Meta:
         model = Product
@@ -82,6 +88,14 @@ class ProductForm(forms.ModelForm):
         cls = (self.fields['image_upload'].widget.attrs.get('class', '') + ' js-product-image-upload').strip()
         self.fields['image_upload'].widget.attrs['class'] = cls
 
+    def clean(self):
+        data = super().clean()
+        upload = data.get('image_upload')
+        remove_u = data.get('remove_uploaded_images')
+        if upload and remove_u:
+            raise ValidationError('Chọn một: tải ảnh mới hoặc xóa ảnh đã upload.')
+        return data
+
     def clean_image_upload(self):
         f = self.cleaned_data.get('image_upload')
         if not f:
@@ -96,11 +110,14 @@ class ProductForm(forms.ModelForm):
         if tenant and not instance.tenant_id:
             instance.tenant = tenant
         upload = self.cleaned_data.get('image_upload')
+        remove_upload = self.cleaned_data.get('remove_uploaded_images')
         if upload:
             try:
                 apply_product_image_upload(instance, upload)
             except Exception as exc:
                 raise ValidationError('Không xử lý được ảnh. Hãy dùng JPG, PNG hoặc WebP.') from exc
+        elif remove_upload and instance.pk:
+            clear_product_uploaded_images(instance)
         if commit:
             instance.save()
         return instance

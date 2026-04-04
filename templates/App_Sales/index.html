@@ -1006,7 +1006,7 @@
                                 <div class="border rounded-3 p-3 bg-white text-center shadow-sm">
                                     <div id="payment-card-qr-image-wrap" class="mb-2">
                                         <img id="payment-card-qr-img" src="" alt="QR thanh toán" class="img-fluid rounded border" style="max-width: 220px; max-height: 220px; object-fit: contain; display: none;">
-                                        <p id="payment-card-qr-missing" class="text-muted small mb-0">Chưa cấu hình ảnh QR. Vào Quản lý → QR thanh toán để tải ảnh.</p>
+                                        <p id="payment-card-qr-missing" class="text-muted small mb-0">Chưa cấu hình: Quản lý → QR thanh toán.</p>
                                     </div>
                                     <div id="payment-card-bank-details" class="text-start small"></div>
                                 </div>
@@ -1723,6 +1723,8 @@
             }
         };
 
+        const PAYMENT_QR_HINT = 'Chưa cấu hình: Quản lý → QR thanh toán.';
+
         const updatePaymentCardQrDisplay = () => {
             const info = storePaymentInfo || {};
             const img = document.getElementById('payment-card-qr-img');
@@ -1730,6 +1732,9 @@
             const details = document.getElementById('payment-card-bank-details');
             if (!img || !missing || !details) return;
             const hasQr = Boolean(info.payment_qr_url);
+            const hasAccount = Boolean(
+                info.payment_bank_name || info.payment_account_name || info.payment_account_number,
+            );
             if (hasQr) {
                 img.src = info.payment_qr_url;
                 img.style.display = '';
@@ -1737,7 +1742,8 @@
             } else {
                 img.removeAttribute('src');
                 img.style.display = 'none';
-                missing.classList.remove('d-none');
+                missing.textContent = PAYMENT_QR_HINT;
+                missing.classList.toggle('d-none', hasAccount);
             }
             const lines = [];
             if (info.payment_bank_name) {
@@ -1749,9 +1755,13 @@
             if (info.payment_account_number) {
                 lines.push(`<div class="mb-0"><span class="text-secondary">Số TK:</span> <span class="text-dark fw-semibold font-monospace">${escapeHtml(info.payment_account_number)}</span></div>`);
             }
-            details.innerHTML = lines.length
-                ? lines.join('')
-                : '<div class="text-muted fst-italic text-center">Chưa nhập thông tin tài khoản (Quản lý → QR thanh toán).</div>';
+            if (lines.length) {
+                details.innerHTML = lines.join('');
+            } else if (hasQr) {
+                details.innerHTML = `<div class="text-muted small text-center">${PAYMENT_QR_HINT}</div>`;
+            } else {
+                details.innerHTML = '';
+            }
         };
 
         const loadProductsFromApi = async () => {

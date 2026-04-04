@@ -46,6 +46,7 @@
                         data-product-description="{{ product.description|default:''|escape }}"
                         data-product-image-url="{{ product.image_url|default:''|escape }}"
                         data-product-preview-image="{{ product.catalog_image_url|default:''|escape }}"
+                        data-product-has-upload="{% if product.image_file or product.image_thumbnail %}1{% else %}0{% endif %}"
                         data-product-active="{% if product.is_active %}1{% else %}0{% endif %}"
                         data-product-store-ids="{{ row.available_store_ids_csv }}"
                     >
@@ -239,6 +240,13 @@
                             <label class="form-label fw-semibold" for="edit-product-image-upload">Ảnh từ máy</label>
                             <input class="form-control" id="edit-product-image-upload" name="image_upload" type="file" accept="image/*">
                         </div>
+                        <div class="full switch-card d-none" id="edit-product-remove-upload-wrap">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" type="checkbox" name="remove_uploaded_images" id="edit-remove-uploaded-images" value="1">
+                                <label class="form-check-label fw-semibold" for="edit-remove-uploaded-images">Xóa ảnh đã upload</label>
+                            </div>
+                            <div class="form-text">Gỡ file ảnh trên server (mỗi tenant có thư mục riêng). Có thể dùng Image URL thay thế.</div>
+                        </div>
                         <div class="full">
                             <div class="form-section-title">Bán tại cửa hàng</div>
                             <div class="check-grid">
@@ -412,6 +420,8 @@
         const editProductDescription = document.getElementById('edit-product-description');
         const editProductImageUrl = document.getElementById('edit-product-image-url');
         const editProductImageUpload = document.getElementById('edit-product-image-upload');
+        const editProductRemoveUploadWrap = document.getElementById('edit-product-remove-upload-wrap');
+        const editRemoveUploadedImages = document.getElementById('edit-remove-uploaded-images');
         const editProductUploadPreviewImg = document.getElementById('edit-product-upload-preview-img');
         const editProductActive = document.getElementById('edit-product-active');
         const editProductStores = Array.from(document.querySelectorAll('.js-edit-product-store'));
@@ -428,6 +438,11 @@
                 if (editProductDescription) editProductDescription.value = button.dataset.productDescription || '';
                 if (editProductImageUrl) editProductImageUrl.value = button.dataset.productImageUrl || '';
                 if (editProductImageUpload) editProductImageUpload.value = '';
+                if (editRemoveUploadedImages) editRemoveUploadedImages.checked = false;
+                const hasUpload = button.dataset.productHasUpload === '1';
+                if (editProductRemoveUploadWrap) {
+                    editProductRemoveUploadWrap.classList.toggle('d-none', !hasUpload);
+                }
                 const previewUrl = (button.dataset.productPreviewImage || '').trim();
                 if (editProductUploadPreviewImg) {
                     if (previewUrl) {
