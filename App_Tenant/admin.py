@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.db import transaction
 from django.utils.text import slugify
 
+from App_Accounts.models import User
 from App_Tenant.models import RESERVED_PUBLIC_SLUGS, Store, Tenant, UserStoreAccess
 from App_Tenant.services import provision_tenant_default_setup
 
@@ -116,8 +117,42 @@ class StoreAdmin(admin.ModelAdmin):
     )
 
 
+class UserStoreAccessAdminForm(forms.ModelForm):
+    class Meta:
+        model = UserStoreAccess
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        tenant_id = None
+        if self.instance.pk:
+            if self.instance.user_id:
+                tenant_id = self.instance.user.tenant_id
+            elif self.instance.store_id:
+                tenant_id = self.instance.store.tenant_id
+        elif self.data is not None:
+            uid = self.data.get('user')
+            sid = self.data.get('store')
+            if uid:
+                tenant_id = User.objects.filter(pk=uid).values_list('tenant_id', flat=True).first()
+            elif sid:
+                tenant_id = Store.objects.filter(pk=sid).values_list('tenant_id', flat=True).first()
+        if tenant_id is not None:
+            self.fields['store'].queryset = Store.objects.filter(tenant_id=tenant_id, is_active=True).order_by('name')
+            self.fields['user'].queryset = User.objects.filter(tenant_id=tenant_id).order_by('username')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        user = cleaned_data.get('user')
+        store = cleaned_data.get('store')
+        if user and store and user.tenant_id != store.tenant_id:
+            self.add_error('store', 'Cửa hàng phải cùng tenant với user.')
+        return cleaned_data
+
+
 @admin.register(UserStoreAccess)
 class UserStoreAccessAdmin(admin.ModelAdmin):
+    form = UserStoreAccessAdminForm
     list_display = ('user', 'store', 'is_default')
     list_filter = ('store__tenant', 'is_default')
     search_fields = ('user__username', 'store__name')

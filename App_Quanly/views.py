@@ -586,7 +586,7 @@ def topping_list_create(request):
         .order_by('product__name', 'display_order', 'id')
     )
 
-    topping_form = ToppingForm(prefix='topping')
+    topping_form = ToppingForm(prefix='topping', tenant=tenant)
     mapping_form = ProductToppingForm(prefix='mapping', tenant=tenant)
     open_topping_modal = False
     open_mapping_modal = False
@@ -594,7 +594,7 @@ def topping_list_create(request):
     if request.method == 'POST':
         form_type = (request.POST.get('form_type') or '').strip()
         if form_type == 'topping':
-            topping_form = ToppingForm(request.POST, prefix='topping')
+            topping_form = ToppingForm(request.POST, prefix='topping', tenant=tenant)
             if topping_form.is_valid():
                 topping = topping_form.save(commit=False)
                 topping.tenant = tenant
@@ -634,7 +634,7 @@ def topping_edit(request, pk):
     topping = get_object_or_404(Topping, pk=pk, tenant=tenant)
     if request.method != 'POST':
         return redirect('App_Quanly:toppings')
-    form = ToppingForm(request.POST, instance=topping)
+    form = ToppingForm(request.POST, instance=topping, tenant=tenant)
     if form.is_valid():
         form.save()
         messages.success(request, 'Đã cập nhật topping.')

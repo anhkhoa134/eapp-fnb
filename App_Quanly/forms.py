@@ -51,8 +51,27 @@ class CategoryForm(forms.ModelForm):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tenant = tenant
-        self.fields['store_ids'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        if tenant:
+            self.fields['store_ids'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            self.fields['store_ids'].queryset = Store.objects.none()
         _apply_bootstrap_classes(self)
+
+    def _post_clean(self):
+        # Tenant không có trên form; gán trước full_clean() (giống ProductForm).
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
+
+    def clean(self):
+        cleaned = super().clean()
+        tenant = self.tenant
+        if tenant:
+            for store in cleaned.get('store_ids') or []:
+                if store.tenant_id != tenant.id:
+                    raise ValidationError('Cửa hàng chọn không thuộc tenant hiện tại.')
+        return cleaned
 
 
 class ProductForm(forms.ModelForm):
@@ -81,12 +100,23 @@ class ProductForm(forms.ModelForm):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tenant = tenant
-        self.fields['category'].queryset = Category.objects.filter(tenant=tenant, is_active=True).order_by('name')
-        self.fields['store_ids'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        if tenant:
+            self.fields['category'].queryset = Category.objects.filter(tenant=tenant, is_active=True).order_by('name')
+            self.fields['store_ids'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            self.fields['category'].queryset = Category.objects.none()
+            self.fields['store_ids'].queryset = Store.objects.none()
         _apply_bootstrap_classes(self)
         self.fields['description'].widget.attrs['rows'] = 2
         cls = (self.fields['image_upload'].widget.attrs.get('class', '') + ' js-product-image-upload').strip()
         self.fields['image_upload'].widget.attrs['class'] = cls
+
+    def _post_clean(self):
+        # ModelForm gọi instance.full_clean() trước khi view kịp gán tenant; Product.clean() cần tenant khi có category.
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
 
     def clean(self):
         data = super().clean()
@@ -94,6 +124,14 @@ class ProductForm(forms.ModelForm):
         remove_u = data.get('remove_uploaded_images')
         if upload and remove_u:
             raise ValidationError('Chọn một: tải ảnh mới hoặc xóa ảnh đã upload.')
+        tenant = self.tenant
+        category = data.get('category')
+        if tenant and category and category.tenant_id != tenant.id:
+            self.add_error('category', 'Danh mục không thuộc tenant hiện tại.')
+        if tenant:
+            for store in data.get('store_ids') or []:
+                if store.tenant_id != tenant.id:
+                    raise ValidationError('Cửa hàng chọn không thuộc tenant hiện tại.')
         return data
 
     def clean_image_upload(self):
@@ -149,9 +187,16 @@ class ToppingForm(forms.ModelForm):
         model = Topping
         fields = ['name', 'display_order', 'is_active']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.tenant = tenant
         _apply_bootstrap_classes(self)
+
+    def _post_clean(self):
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
 
 
 class ProductToppingForm(forms.ModelForm):
@@ -168,9 +213,20 @@ class ProductToppingForm(forms.ModelForm):
         if tenant:
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant, is_active=True).order_by('name')
             self.fields['topping'].queryset = Topping.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            self.fields['product'].queryset = Product.objects.none()
+            self.fields['topping'].queryset = Topping.objects.none()
         _apply_bootstrap_classes(self)
         cls = (self.fields['price'].widget.attrs.get('class', '') + ' js-price-vnd').strip()
         self.fields['price'].widget.attrs['class'] = cls
+
+    def clean(self):
+        cleaned = super().clean()
+        product = cleaned.get('product')
+        topping = cleaned.get('topping')
+        if product and topping and product.tenant_id != topping.tenant_id:
+            raise ValidationError('Sản phẩm và topping phải cùng tenant.')
+        return cleaned
 
     def clean_price(self):
         price = self.cleaned_data.get('price')
@@ -255,10 +311,27 @@ class DiningTableForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.tenant = tenant
         if tenant:
             self.fields['store'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            self.fields['store'].queryset = Store.objects.none()
         self.fields['code'].help_text = 'Mã bàn sẽ tự chuyển sang chữ in hoa.'
         _apply_bootstrap_classes(self)
+
+    def _post_clean(self):
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
+
+    def clean(self):
+        cleaned = super().clean()
+        tenant = getattr(self, 'tenant', None)
+        store = cleaned.get('store')
+        if tenant and store and store.tenant_id != tenant.id:
+            self.add_error('store', 'Cửa hàng không thuộc tenant hiện tại.')
+        return cleaned
 
 
 class StaffCreateForm(forms.Form):
@@ -280,7 +353,10 @@ class StaffCreateForm(forms.Form):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tenant = tenant
-        stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        if tenant:
+            stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            stores = Store.objects.none()
         self.fields['store_ids'].queryset = stores
         self.fields['default_store'].queryset = stores
         _apply_bootstrap_classes(self)
@@ -307,6 +383,13 @@ class StaffCreateForm(forms.Form):
 
         selected_stores = cleaned.get('store_ids')
         default_store = cleaned.get('default_store')
+        tenant = self.tenant
+        if tenant and selected_stores is not None:
+            for store in selected_stores:
+                if store.tenant_id != tenant.id:
+                    raise ValidationError('Cửa hàng chọn không thuộc tenant hiện tại.')
+        if tenant and default_store and default_store.tenant_id != tenant.id:
+            self.add_error('default_store', 'Cửa hàng mặc định không thuộc tenant hiện tại.')
         if selected_stores is not None and default_store and default_store not in selected_stores:
             self.add_error('default_store', 'Cửa hàng mặc định phải thuộc danh sách cửa hàng đã cấp quyền.')
         return cleaned

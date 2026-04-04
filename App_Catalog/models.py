@@ -65,8 +65,17 @@ class Product(TimeStampedModel):
         ordering = ['name']
 
     def clean(self):
-        if self.category and self.category.tenant_id != self.tenant_id:
-            raise ValidationError('Category phải cùng tenant với sản phẩm.')
+        if not self.category_id:
+            return
+        if not self.tenant_id:
+            # Không dùng key 'tenant': ModelForm quản lý (vd. ProductForm) thường không có field tenant.
+            raise ValidationError('Sản phẩm phải có tenant trước khi gán danh mục.')
+        # So khớp tenant theo DB (tránh object category trong memory lệch tenant).
+        cat_tenant_id = (
+            Category.objects.filter(pk=self.category_id).values_list('tenant_id', flat=True).first()
+        )
+        if cat_tenant_id != self.tenant_id:
+            raise ValidationError({'category': 'Danh mục phải cùng tenant với sản phẩm.'})
 
     def save(self, *args, **kwargs):
         self.slug = _build_unique_slug(
