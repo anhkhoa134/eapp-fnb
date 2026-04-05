@@ -47,66 +47,6 @@
         justify-content: flex-end;
         gap: 0.35rem;
     }
-    /* Pill giống trang /orders/today/ — tránh class "card" (xung đột Bootstrap) */
-    .order-history-table-wrap table thead th {
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        font-size: 0.75rem;
-        color: #64748b;
-        border-bottom-color: rgba(148, 163, 184, 0.3);
-        background: transparent;
-    }
-    .order-history-table-wrap table tbody td {
-        border-color: rgba(148, 163, 184, 0.2);
-    }
-    .payment-pill {
-        font-size: 0.72rem;
-        font-weight: 700;
-        border-radius: 999px;
-        padding: 0.28rem 0.58rem;
-        display: inline-flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: center;
-        gap: 0.3rem;
-        white-space: nowrap;
-    }
-    .payment-pill.cash {
-        background: rgba(16, 185, 129, 0.14);
-        color: #047857;
-    }
-    .payment-pill.pay-card {
-        background: rgba(59, 130, 246, 0.14);
-        color: #1d4ed8;
-    }
-    .payment-pill.pay-dinein {
-        background: rgba(99, 102, 241, 0.16);
-        color: #4338ca;
-    }
-    .payment-pill.pay-takeaway {
-        background: rgba(245, 158, 11, 0.18);
-        color: #b45309;
-    }
-    .payment-pill.pay-qr {
-        background: rgba(6, 182, 212, 0.16);
-        color: #0e7490;
-    }
-    .payment-pill.status-done {
-        background: rgba(16, 185, 129, 0.14);
-        color: #047857;
-    }
-    .payment-pill.status-sale-cancel {
-        background: rgba(100, 116, 139, 0.18);
-        color: #475569;
-    }
-    .payment-pill.status-reject {
-        background: rgba(239, 68, 68, 0.14);
-        color: #b91c1c;
-    }
-    .payment-pill.status-customer-cancel {
-        background: rgba(100, 116, 139, 0.22);
-        color: #334155;
-    }
 </style>
 {% endblock %}
 
@@ -206,7 +146,7 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
-        <div class="table-responsive order-history-table-wrap">
+        <div class="table-responsive">
             <table class="table align-middle mb-0">
                 <thead>
                     <tr>

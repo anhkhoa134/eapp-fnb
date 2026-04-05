@@ -358,7 +358,7 @@
                                 {% endwith %}
                                 {% else %}
                                 {% with q=row.qr %}
-                                <td><span class="badge bg-info text-dark">QR-{{ q.id }}</span></td>
+                                <td><span class="payment-pill pay-qr"><i class="bi bi-qr-code" aria-hidden="true"></i>QR-{{ q.id }}</span></td>
                                 <td>{{ q.store.name }}</td>
                                 <td>{% if q.rejected_by %}{{ q.rejected_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
                                 <td>
