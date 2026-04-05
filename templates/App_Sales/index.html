@@ -1143,6 +1143,37 @@
         </div>
     </div>
 
+    <!-- QR REJECT CONFIRM (lý do từ chối) -->
+    <div class="modal fade" id="qrRejectModal" tabindex="-1" aria-labelledby="qrRejectModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-0 bg-danger-subtle">
+                    <h5 class="modal-title fw-bold text-dark" id="qrRejectModalLabel">
+                        <i class="fa-solid fa-ban me-2 text-danger"></i>Từ chối đơn QR
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">Chọn hoặc nhập lý do. Đơn sẽ được lưu vào lịch sử quản lý với trạng thái <strong>huỷ đơn</strong>.</p>
+                    <p class="fw-semibold small mb-2">Lý do nhanh</p>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary qr-reject-preset" data-qr-reason="Hết món" onclick="selectQrRejectPreset(this)">Hết món</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary qr-reject-preset" data-qr-reason="Quán đóng / hết giờ phục vụ" onclick="selectQrRejectPreset(this)">Hết giờ phục vụ</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary qr-reject-preset" data-qr-reason="Không liên hệ được khách" onclick="selectQrRejectPreset(this)">Không liên hệ được khách</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary qr-reject-preset" data-qr-reason="Đơn trùng hoặc đặt nhầm" onclick="selectQrRejectPreset(this)">Đơn trùng / nhầm</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary qr-reject-preset" data-qr-reason="Món không phù hợp chính sách cửa hàng" onclick="selectQrRejectPreset(this)">Không phù hợp chính sách</button>
+                    </div>
+                    <label class="form-label small fw-semibold" for="qrRejectCustomReason">Lý do khác</label>
+                    <textarea class="form-control" id="qrRejectCustomReason" rows="2" placeholder="Nhập lý do chi tiết (ưu tiên hơn lý do nhanh)…"></textarea>
+                </div>
+                <div class="modal-footer border-0 bg-light">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Quay lại</button>
+                    <button type="button" class="btn btn-danger fw-bold px-4" onclick="confirmRejectQrOrder()">Xác nhận từ chối</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- NOTE MODAL -->
     <div class="modal fade" id="noteModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1289,6 +1320,7 @@
         const QR_FALLBACK_POLL_INTERVAL_MS = 15000;
         const QR_ALERT_COOLDOWN_MS = 2500;
         const QR_BELL_VOLUME = 0.5;
+        const QR_NEW_ORDER_CLIP_URL = "{% static 'sounds/co-don-moi.mp3' %}";
         const POS_WS_RECONNECT_BASE_MS = 1000;
         const POS_WS_RECONNECT_MAX_MS = 20000;
         const QR_SOUND_STORAGE_KEY = 'eapp_pos_qr_sound_enabled';
@@ -1310,6 +1342,8 @@
         let noteModalInstance = null;
         let optionsModalInstance = null;
         let qrOrderModalInstance = null;
+        let qrRejectModalInstance = null;
+        let qrRejectTextareaBound = false;
         let logoutConfirmModalInstance = null;
         let currentNoteCartId = null;
         let currentOptionProduct = null;
@@ -1323,6 +1357,7 @@
         let pendingCreatedQrOrderIds = new Set();
         let lastQrAlertAt = 0;
         let qrAudioContext = null;
+        let qrNewOrderClipAudio = null;
         let qrSoundEnabled = true;
         let qrVoiceEnabled = true;
         let posQrSocket = null;
@@ -1470,23 +1505,81 @@
             }
         };
 
+        const pickVietnameseTtsVoice = () => {
+            const voices = window.speechSynthesis.getVoices() || [];
+            const lower = (s) => String(s || '').toLowerCase();
+            return (
+                voices.find((v) => lower(v.lang).startsWith('vi'))
+                || voices.find((v) => /vietnamese|tiếng việt|tieng viet/i.test(v.name || ''))
+                || null
+            );
+        };
+
+        const playQrNewOrderVoiceFallback = () => {
+            if (!QR_NEW_ORDER_CLIP_URL) return;
+            try {
+                if (!qrNewOrderClipAudio) {
+                    qrNewOrderClipAudio = new Audio(QR_NEW_ORDER_CLIP_URL);
+                    qrNewOrderClipAudio.preload = 'auto';
+                }
+                qrNewOrderClipAudio.currentTime = 0;
+                const playPromise = qrNewOrderClipAudio.play();
+                if (playPromise && typeof playPromise.catch === 'function') {
+                    playPromise.catch(() => null);
+                }
+            } catch (error) {
+                console.warn('Cannot play QR new-order clip:', error);
+            }
+        };
+
         const speakQrAlert = (count, tableNames = []) => {
-            if (!('speechSynthesis' in window) || !count) return;
+            if (!count) return;
+            if (!('speechSynthesis' in window)) {
+                playQrNewOrderVoiceFallback();
+                return;
+            }
             const topTables = tableNames.slice(0, 2).join(', ');
             const remain = count - Math.min(tableNames.length, 2);
             const tail = remain > 0 ? ` và ${remain} bàn khác` : '';
             const tablePart = topTables ? ` từ ${topTables}${tail}` : '';
-            const utterance = new SpeechSynthesisUtterance(`Có ${count} đơn QR mới${tablePart}.`);
-            utterance.lang = 'vi-VN';
-            utterance.rate = 1;
-            utterance.pitch = 1;
-            utterance.volume = 1;
-            try {
-                window.speechSynthesis.cancel();
-                window.speechSynthesis.speak(utterance);
-            } catch (error) {
-                console.warn('Cannot speak QR alert:', error);
+            const text = `Có ${count} đơn QR mới${tablePart}.`;
+
+            const runSpeak = () => {
+                const viVoice = pickVietnameseTtsVoice();
+                if (!viVoice) {
+                    playQrNewOrderVoiceFallback();
+                    return;
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'vi-VN';
+                utterance.voice = viVoice;
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                utterance.volume = 1;
+                try {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(utterance);
+                } catch (error) {
+                    console.warn('Cannot speak QR alert:', error);
+                    playQrNewOrderVoiceFallback();
+                }
+            };
+
+            const voicesNow = window.speechSynthesis.getVoices() || [];
+            if (voicesNow.length) {
+                runSpeak();
+                return;
             }
+            let finalized = false;
+            const finalize = () => {
+                if (finalized) return;
+                finalized = true;
+                window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+                runSpeak();
+            };
+            const onVoicesChanged = () => finalize();
+            window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+            window.setTimeout(finalize, 400);
         };
 
         const playQrAlert = (newOrders) => {
@@ -2349,12 +2442,66 @@
             }
         };
 
-        const rejectQrOrder = async () => {
+        const clearQrRejectForm = () => {
+            const ta = document.getElementById('qrRejectCustomReason');
+            if (ta) ta.value = '';
+            document.querySelectorAll('.qr-reject-preset').forEach((btn) => {
+                btn.classList.remove('btn-danger', 'text-white');
+                btn.classList.add('btn-outline-secondary');
+            });
+        };
+
+        const selectQrRejectPreset = (btn) => {
+            document.querySelectorAll('.qr-reject-preset').forEach((b) => {
+                b.classList.remove('btn-danger', 'text-white');
+                b.classList.add('btn-outline-secondary');
+            });
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-danger', 'text-white');
+            const ta = document.getElementById('qrRejectCustomReason');
+            if (ta) ta.value = '';
+        };
+
+        const rejectQrOrder = () => {
             if (!currentReviewingOrderId) return;
-            if (!confirm('Xác nhận từ chối đơn này?')) return;
+            clearQrRejectForm();
+            if (!qrRejectModalInstance) {
+                qrRejectModalInstance = new bootstrap.Modal(document.getElementById('qrRejectModal'));
+            }
+            const ta = document.getElementById('qrRejectCustomReason');
+            if (ta && !qrRejectTextareaBound) {
+                qrRejectTextareaBound = true;
+                ta.addEventListener('input', () => {
+                    if (!ta.value.trim()) return;
+                    document.querySelectorAll('.qr-reject-preset').forEach((b) => {
+                        b.classList.remove('btn-danger', 'text-white');
+                        b.classList.add('btn-outline-secondary');
+                    });
+                });
+            }
+            qrRejectModalInstance.show();
+        };
+
+        const confirmRejectQrOrder = async () => {
+            if (!currentReviewingOrderId) return;
+            const ta = document.getElementById('qrRejectCustomReason');
+            let reason = (ta?.value || '').trim();
+            if (!reason) {
+                const active = document.querySelector('.qr-reject-preset.btn-danger');
+                reason = (active?.dataset?.qrReason || '').trim();
+            }
+            if (!reason) {
+                showToast('Vui lòng chọn hoặc nhập lý do từ chối.', 'warning');
+                return;
+            }
             try {
-                await fetchJson(`${API_QR_ORDERS_BASE}${currentReviewingOrderId}/reject/`, { method: 'POST', body: '{}' });
+                await fetchJson(`${API_QR_ORDERS_BASE}${currentReviewingOrderId}/reject/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ reason }),
+                });
+                if (qrRejectModalInstance) qrRejectModalInstance.hide();
                 if (qrOrderModalInstance) qrOrderModalInstance.hide();
+                clearQrRejectForm();
                 showToast('Đã từ chối đơn QR.', 'warning');
                 await Promise.all([loadOnlineOrdersFromApi(), loadTablesFromApi()]);
             } catch (error) {
@@ -2907,6 +3054,8 @@
         window.openQrOrderModal = openQrOrderModal;
         window.approveQrOrder = approveQrOrder;
         window.rejectQrOrder = rejectQrOrder;
+        window.confirmRejectQrOrder = confirmRejectQrOrder;
+        window.selectQrRejectPreset = selectQrRejectPreset;
         window.handleProductClick = handleProductClick;
         window.confirmOptions = confirmOptions;
         window.updateOptionsPrice = updateOptionsPrice;

@@ -262,7 +262,7 @@
                         <div>
                             <div class="kpi-label">Hiệu suất hôm nay</div>
                             <div class="kpi-value">{{ today_revenue|thousand_sep }} đ</div>
-                            <div class="kpi-hint">{{ today_orders|thousand_sep }} đơn trong ngày</div>
+                            <div class="kpi-hint">{{ today_orders|thousand_sep }} đơn trong ngày (gồm đơn QR đã huỷ / khách huỷ)</div>
                         </div>
                     </div>
                 </div>
@@ -346,13 +346,28 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for order in recent_orders %}
+                            {% for row in recent_activity_rows %}
                             <tr>
+                                {% if row.kind == 'sale' %}
+                                {% with order=row.order %}
                                 <td>{{ order.order_code }}</td>
                                 <td>{{ order.store.name }}</td>
                                 <td>{{ order.cashier.username }}</td>
                                 <td>{{ order.total_amount|thousand_sep }} đ</td>
                                 <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
+                                {% endwith %}
+                                {% else %}
+                                {% with q=row.qr %}
+                                <td><span class="badge bg-info text-dark">QR-{{ q.id }}</span></td>
+                                <td>{{ q.store.name }}</td>
+                                <td>{% if q.rejected_by %}{{ q.rejected_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                <td>
+                                    <span class="d-block fw-semibold">{{ row.qr_total|thousand_sep }} đ</span>
+                                    <span class="small text-muted">{% if q.status == 'REJECTED' %}Huỷ đơn{% else %}Khách hủy{% endif %}</span>
+                                </td>
+                                <td>{{ q.created_at|date:'d/m/Y H:i' }}</td>
+                                {% endwith %}
+                                {% endif %}
                             </tr>
                             {% empty %}
                             <tr><td colspan="5" class="text-center text-muted">Chưa có dữ liệu.</td></tr>

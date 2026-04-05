@@ -159,6 +159,7 @@ class SalesApiTests(TestCase):
         order = Order.objects.first()
         self.assertEqual(order.total_amount, Decimal('25000'))
         self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.sale_channel, Order.SaleChannel.TAKEAWAY)
 
     def test_checkout_with_toppings_creates_order_item_topping_snapshot(self):
         url = reverse('App_Sales_API:checkout')
@@ -273,6 +274,7 @@ class SalesApiTests(TestCase):
         self.assertEqual(order.total_amount, Decimal('50000'))
         self.assertEqual(order.items.count(), 1)
         self.assertEqual(order.items.first().quantity, 2)
+        self.assertEqual(order.sale_channel, Order.SaleChannel.DINE_IN)
         self.assertEqual(TableCartItem.objects.filter(table=self.table_1).count(), 0)
 
     def test_table_cart_add_with_toppings_snapshot(self):
@@ -430,10 +432,15 @@ class SalesApiTests(TestCase):
         )
 
         reject_url = reverse('App_Sales_API:qr_order_reject', kwargs={'order_id': qr_order.id})
-        first_res = self.client.post(reject_url, data='{}', content_type='application/json')
+        first_res = self.client.post(
+            reject_url,
+            data=json.dumps({'reason': 'Hết món'}),
+            content_type='application/json',
+        )
         self.assertEqual(first_res.status_code, 200)
         qr_order.refresh_from_db()
         self.assertEqual(qr_order.status, QROrder.Status.REJECTED)
+        self.assertEqual(qr_order.rejection_reason, 'Hết món')
         self.assertEqual(TableCartItem.objects.filter(table=self.table_1).count(), 0)
 
         second_res = self.client.post(reject_url, data='{}', content_type='application/json')
@@ -796,7 +803,11 @@ class PosJsIntegrationSmokeTests(TestCase):
         tables_url = reverse('App_Sales_API:tables')
         reject_url = reverse('App_Sales_API:qr_order_reject', kwargs={'order_id': qr_order.id})
 
-        reject_res = self.client.post(reject_url, data='{}', content_type='application/json')
+        reject_res = self.client.post(
+            reject_url,
+            data=json.dumps({'reason': 'Kiểm thử từ chối'}),
+            content_type='application/json',
+        )
         self.assertEqual(reject_res.status_code, 200)
 
         pending_orders = self.client.get(qr_orders_url, {'store_id': self.store_1.id, 'status': 'pending'}).json()['orders']

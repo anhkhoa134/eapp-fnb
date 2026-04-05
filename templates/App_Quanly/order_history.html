@@ -47,6 +47,66 @@
         justify-content: flex-end;
         gap: 0.35rem;
     }
+    /* Pill giống trang /orders/today/ — tránh class "card" (xung đột Bootstrap) */
+    .order-history-table-wrap table thead th {
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 0.75rem;
+        color: #64748b;
+        border-bottom-color: rgba(148, 163, 184, 0.3);
+        background: transparent;
+    }
+    .order-history-table-wrap table tbody td {
+        border-color: rgba(148, 163, 184, 0.2);
+    }
+    .payment-pill {
+        font-size: 0.72rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.28rem 0.58rem;
+        display: inline-flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.3rem;
+        white-space: nowrap;
+    }
+    .payment-pill.cash {
+        background: rgba(16, 185, 129, 0.14);
+        color: #047857;
+    }
+    .payment-pill.pay-card {
+        background: rgba(59, 130, 246, 0.14);
+        color: #1d4ed8;
+    }
+    .payment-pill.pay-dinein {
+        background: rgba(99, 102, 241, 0.16);
+        color: #4338ca;
+    }
+    .payment-pill.pay-takeaway {
+        background: rgba(245, 158, 11, 0.18);
+        color: #b45309;
+    }
+    .payment-pill.pay-qr {
+        background: rgba(6, 182, 212, 0.16);
+        color: #0e7490;
+    }
+    .payment-pill.status-done {
+        background: rgba(16, 185, 129, 0.14);
+        color: #047857;
+    }
+    .payment-pill.status-sale-cancel {
+        background: rgba(100, 116, 139, 0.18);
+        color: #475569;
+    }
+    .payment-pill.status-reject {
+        background: rgba(239, 68, 68, 0.14);
+        color: #b91c1c;
+    }
+    .payment-pill.status-customer-cancel {
+        background: rgba(100, 116, 139, 0.22);
+        color: #334155;
+    }
 </style>
 {% endblock %}
 
@@ -123,6 +183,7 @@
                 <div class="flex-grow-1 min-w-0">
                     <div class="order-stat-label">Tổng số đơn</div>
                     <div class="order-stat-value mb-0">{{ total_orders|thousand_sep }}</div>
+                    <div class="small text-muted mt-1 mb-0">Gồm đơn bán và đơn QR đã kết thúc (huỷ / khách hủy).</div>
                 </div>
             </div>
         </div>
@@ -136,6 +197,7 @@
                 <div class="flex-grow-1 min-w-0">
                     <div class="order-stat-label">Tổng doanh thu</div>
                     <div class="order-stat-value order-stat-value--money mb-0">{{ total_revenue|thousand_sep }} đ</div>
+                    <div class="small text-muted mt-1 mb-0">Chỉ tính từ đơn thanh toán tại POS (không gồm đơn QR chưa thu tiền).</div>
                 </div>
             </div>
         </div>
@@ -144,13 +206,14 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive order-history-table-wrap">
             <table class="table align-middle mb-0">
                 <thead>
                     <tr>
                         <th>Mã đơn</th>
                         <th>Cửa hàng</th>
                         <th>Thu ngân</th>
+                        <th>Loại đơn</th>
                         <th>Thanh toán</th>
                         <th>Trạng thái</th>
                         <th class="text-end">Tổng tiền</th>
@@ -159,43 +222,80 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for order in orders %}
+                    {% for row in history_rows %}
                     <tr>
+                        {% if row.kind == 'sale' %}
+                        {% with order=row.order %}
                         <td class="fw-semibold">{{ order.order_code }}</td>
                         <td>{{ order.store.name }}</td>
                         <td>{{ order.cashier.username }}</td>
                         <td>
-                            {% if order.payment_method == 'cash' %}
-                            <span class="badge text-bg-success">Tiền mặt</span>
+                            {% if order.sale_channel == 'dine_in' %}
+                            <span class="payment-pill pay-dinein"><i class="bi bi-shop" aria-hidden="true"></i>Tại quán</span>
+                            {% elif order.sale_channel == 'takeaway' %}
+                            <span class="payment-pill pay-takeaway"><i class="bi bi-bag" aria-hidden="true"></i>Mang về</span>
                             {% else %}
-                            <span class="badge text-bg-primary">Thẻ/QR</span>
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.payment_method == 'cash' %}
+                            <span class="payment-pill cash"><i class="bi bi-cash-coin" aria-hidden="true"></i>Tiền mặt</span>
+                            {% else %}
+                            <span class="payment-pill pay-card"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>Thẻ/QR</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if order.status == 'completed' %}
-                            <span class="badge text-bg-success">Hoàn thành</span>
+                            <span class="payment-pill status-done"><i class="bi bi-check-circle" aria-hidden="true"></i>Hoàn thành</span>
                             {% else %}
-                            <span class="badge text-bg-secondary">Đã hủy</span>
+                            <span class="payment-pill status-sale-cancel"><i class="bi bi-x-circle" aria-hidden="true"></i>Đã hủy</span>
                             {% endif %}
                         </td>
                         <td class="text-end fw-semibold">{{ order.total_amount|thousand_sep }} đ</td>
                         <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
                         <td class="text-end">
                             <div class="order-row-actions">
-                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#orderDetailModal{{ order.id }}">
+                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#orderDetailModal-sale-{{ order.id }}">
                                     <i class="bi bi-eye"></i> Chi tiết
                                 </button>
                                 {% if user.is_manager %}
-                                <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal{{ order.id }}">
+                                <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal-sale-{{ order.id }}">
                                     <i class="bi bi-trash"></i> Xóa
                                 </button>
                                 {% endif %}
                             </div>
                         </td>
+                        {% endwith %}
+                        {% else %}
+                        {% with q=row.qr %}
+                        <td class="fw-semibold">QR-{{ q.id }}</td>
+                        <td>{{ q.store.name }}</td>
+                        <td>{% if q.rejected_by %}{{ q.rejected_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td><span class="payment-pill pay-qr"><i class="bi bi-qr-code" aria-hidden="true"></i>Đặt qua QR</span></td>
+                        <td><span class="text-muted small">—</span></td>
+                        <td>
+                            {% if row.qr_status == 'REJECTED' %}
+                            <span class="payment-pill status-reject"><i class="bi bi-slash-circle" aria-hidden="true"></i>Huỷ đơn</span>
+                            {% else %}
+                            <span class="payment-pill status-customer-cancel"><i class="bi bi-person-x" aria-hidden="true"></i>Khách hủy</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold">{{ row.qr_total|thousand_sep }} đ</td>
+                        <td>{{ q.created_at|date:'d/m/Y H:i' }}</td>
+                        <td class="text-end">
+                            <div class="order-row-actions">
+                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#orderDetailModal-qr-{{ q.id }}">
+                                    <i class="bi bi-eye"></i> Chi tiết
+                                </button>
+                            </div>
+                        </td>
+                        {% endwith %}
+                        {% endif %}
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">Không có đơn hàng phù hợp bộ lọc.</td>
+                        <td colspan="9" class="text-center text-muted py-4">Không có đơn hàng phù hợp bộ lọc.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -204,12 +304,14 @@
     </div>
 </div>
 
-{% for order in orders %}
-<div class="modal fade crud-modal" id="orderDetailModal{{ order.id }}" tabindex="-1" aria-labelledby="orderDetailLabel{{ order.id }}" aria-hidden="true">
+{% for row in history_rows %}
+{% if row.kind == 'sale' %}
+{% with order=row.order %}
+<div class="modal fade crud-modal" id="orderDetailModal-sale-{{ order.id }}" tabindex="-1" aria-labelledby="orderDetailLabel-sale-{{ order.id }}" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title h5 mb-0" id="orderDetailLabel{{ order.id }}">
+                <h2 class="modal-title h5 mb-0" id="orderDetailLabel-sale-{{ order.id }}">
                     <i class="bi bi-receipt me-2 text-primary"></i>Chi tiết đơn {{ order.order_code }}
                 </h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
@@ -223,6 +325,14 @@
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Thu ngân</span>
                         <div class="fw-semibold">{{ order.cashier.username }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Loại đơn</span>
+                        <div class="fw-semibold">
+                            {% if order.sale_channel == 'dine_in' %}Tại quán
+                            {% elif order.sale_channel == 'takeaway' %}Mang về
+                            {% else %}Không xác định{% endif %}
+                        </div>
                     </div>
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Thời gian</span>
@@ -290,14 +400,14 @@
     </div>
 </div>
 {% if user.is_manager %}
-<div class="modal fade crud-modal" id="orderDeleteModal{{ order.id }}" tabindex="-1" aria-labelledby="orderDeleteLabel{{ order.id }}" aria-hidden="true">
+<div class="modal fade crud-modal" id="orderDeleteModal-sale-{{ order.id }}" tabindex="-1" aria-labelledby="orderDeleteLabel-sale-{{ order.id }}" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form method="post" action="{% url 'App_Quanly:order_delete' order.id %}">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <div class="modal-header">
-                    <h2 class="modal-title h5 mb-0" id="orderDeleteLabel{{ order.id }}">
+                    <h2 class="modal-title h5 mb-0" id="orderDeleteLabel-sale-{{ order.id }}">
                         <i class="bi bi-exclamation-triangle text-danger me-2"></i>Xác nhận xóa đơn
                     </h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
@@ -314,6 +424,111 @@
         </div>
     </div>
 </div>
+{% endif %}
+{% endwith %}
+{% else %}
+{% with q=row.qr %}
+<div class="modal fade crud-modal" id="orderDetailModal-qr-{{ q.id }}" tabindex="-1" aria-labelledby="orderDetailLabel-qr-{{ q.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5 mb-0" id="orderDetailLabel-qr-{{ q.id }}">
+                    <i class="bi bi-qr-code me-2 text-primary"></i>Đơn QR-{{ q.id }}
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 small mb-3">
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Cửa hàng</span>
+                        <div class="fw-semibold">{{ q.store.name }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Bàn</span>
+                        <div class="fw-semibold">{{ q.table.name }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Loại đơn</span>
+                        <div class="fw-semibold">Đặt qua QR</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Thời gian đặt</span>
+                        <div class="fw-semibold">{{ q.created_at|date:'d/m/Y H:i' }}</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Trạng thái</span>
+                        <div class="fw-semibold">
+                            {% if row.qr_status == 'REJECTED' %}Huỷ đơn (từ chối){% else %}Khách hủy{% endif %}
+                        </div>
+                    </div>
+                    {% if q.rejected_by %}
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Nhân viên xử lý</span>
+                        <div class="fw-semibold">{{ q.rejected_by.username }}</div>
+                    </div>
+                    {% endif %}
+                    {% if q.rejection_reason %}
+                    <div class="col-12">
+                        <span class="text-muted">Lý do</span>
+                        <div class="fw-semibold">{{ q.rejection_reason }}</div>
+                    </div>
+                    {% endif %}
+                    {% if q.customer_note %}
+                    <div class="col-12">
+                        <span class="text-muted">Ghi chú khách</span>
+                        <div class="fw-semibold">{{ q.customer_note }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Tổng tiền (ước tính)</span>
+                        <div class="fw-semibold text-secondary">{{ row.qr_total|thousand_sep }} đ</div>
+                    </div>
+                </div>
+                <div class="form-section-title">Danh sách món</div>
+                <div class="table-responsive border rounded-3 overflow-hidden">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Món</th>
+                                <th>Đơn vị</th>
+                                <th class="text-center">SL</th>
+                                <th class="text-end">Đơn giá</th>
+                                <th class="text-end">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in q.items.all %}
+                            <tr>
+                                <td>
+                                    {{ item.snapshot_product_name }}
+                                    {% if item.note %}<div class="small text-muted fst-italic">{{ item.note }}</div>{% endif %}
+                                    {% if item.toppings.all %}
+                                    <div class="small text-muted">
+                                        {% for top in item.toppings.all %}
+                                        + {{ top.snapshot_topping_name }} ({{ top.snapshot_price|thousand_sep }} đ){% if not forloop.last %}, {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.snapshot_unit_name }}</td>
+                                <td class="text-center">{{ item.quantity|thousand_sep }}</td>
+                                <td class="text-end">{{ item.unit_price_snapshot|thousand_sep }} đ</td>
+                                <td class="text-end fw-semibold">{{ item.line_total|thousand_sep }} đ</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-muted text-center py-3">Không có dòng món.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endwith %}
 {% endif %}
 {% endfor %}
 

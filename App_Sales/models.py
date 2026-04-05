@@ -21,11 +21,23 @@ class Order(TimeStampedModel):
         COMPLETED = 'completed', 'Completed'
         CANCELLED = 'cancelled', 'Cancelled'
 
+    class SaleChannel(models.TextChoices):
+        DINE_IN = 'dine_in', 'Tại quán'
+        TAKEAWAY = 'takeaway', 'Mang về'
+
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.PROTECT, related_name='orders')
     store = models.ForeignKey('App_Tenant.Store', on_delete=models.PROTECT, related_name='orders')
     cashier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='orders')
     order_code = models.CharField(max_length=30, unique=True, editable=False)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
+    sale_channel = models.CharField(
+        'Kênh bán',
+        max_length=20,
+        choices=SaleChannel.choices,
+        null=True,
+        blank=True,
+        help_text='Thanh toán tại bàn (POS) hay mang về (checkout giỏ). Đơn cũ có thể để trống.',
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.COMPLETED)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0)
@@ -111,6 +123,7 @@ class QROrder(TimeStampedModel):
         blank=True,
         related_name='rejected_qr_orders',
     )
+    rejection_reason = models.CharField('Lý do từ chối', max_length=500, blank=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

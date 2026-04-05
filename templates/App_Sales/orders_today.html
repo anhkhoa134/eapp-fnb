@@ -99,16 +99,28 @@
         border-radius: 999px;
         padding: 0.28rem 0.58rem;
         display: inline-flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
         align-items: center;
         gap: 0.3rem;
+        white-space: nowrap;
     }
     .payment-pill.cash {
         background: rgba(16, 185, 129, 0.14);
         color: #047857;
     }
-    .payment-pill.card {
+    /* Không dùng class "card" — trùng Bootstrap .card (flex-direction: column) làm badge 2 dòng */
+    .payment-pill.pay-card {
         background: rgba(59, 130, 246, 0.14);
         color: #1d4ed8;
+    }
+    .payment-pill.pay-dinein {
+        background: rgba(99, 102, 241, 0.16);
+        color: #4338ca;
+    }
+    .payment-pill.pay-takeaway {
+        background: rgba(245, 158, 11, 0.18);
+        color: #b45309;
     }
 </style>
 {% endblock %}
@@ -183,6 +195,7 @@
                     <th>Mã đơn</th>
                     <th>Cửa hàng</th>
                     <th>Thu ngân</th>
+                    <th>Loại đơn</th>
                     <th>Thanh toán</th>
                     <th class="text-end">Tổng tiền</th>
                     <th>Thời gian</th>
@@ -195,10 +208,19 @@
                     <td>{{ order.store.name }}</td>
                     <td>{{ order.cashier.username }}</td>
                     <td>
+                        {% if order.sale_channel == 'dine_in' %}
+                        <span class="payment-pill pay-dinein"><i class="bi bi-shop" aria-hidden="true"></i>Tại quán</span>
+                        {% elif order.sale_channel == 'takeaway' %}
+                        <span class="payment-pill pay-takeaway"><i class="bi bi-bag" aria-hidden="true"></i>Mang về</span>
+                        {% else %}
+                        <span class="text-muted small">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         {% if order.payment_method == 'cash' %}
                         <span class="payment-pill cash"><i class="bi bi-cash-coin"></i>Tiền mặt</span>
                         {% else %}
-                        <span class="payment-pill card"><i class="bi bi-credit-card-2-front"></i>Thẻ/QR</span>
+                        <span class="payment-pill pay-card"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>Thẻ/QR</span>
                         {% endif %}
                     </td>
                     <td class="text-end fw-semibold">{{ order.total_amount|thousand_sep }} đ</td>
@@ -206,7 +228,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">Chưa có đơn hàng nào trong ngày.</td>
+                    <td colspan="7" class="text-center text-muted py-4">Chưa có đơn hàng nào trong ngày.</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -40,7 +40,7 @@ from App_Quanly.forms import (
     StorePaymentForm,
     ToppingForm,
 )
-from App_Sales.models import DiningTable, Order, OrderItem, generate_qr_token
+from App_Sales.models import DiningTable, Order, OrderItem, QROrder, QROrderItem, generate_qr_token
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -128,6 +128,16 @@ def dashboard(request):
         total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
         total_orders=Coalesce(Count('id'), 0),
     )
+    today_qr_void_qs = QROrder.objects.filter(
+        tenant=tenant,
+        status__in=(QROrder.Status.REJECTED, QROrder.Status.CANCELLED),
+        created_at__gte=today_start,
+        created_at__lte=today_end,
+    )
+    if store_id and store_id.isdigit():
+        today_qr_void_qs = today_qr_void_qs.filter(store_id=int(store_id))
+    today_void_orders = today_qr_void_qs.count()
+    today_orders_display = (today_stats['total_orders'] or 0) + today_void_orders
 
     store_kpis = list(
         orders.values('store__name')
@@ -187,7 +197,34 @@ def dashboard(request):
     chart_store_names = [row['store__name'] for row in store_kpis]
     chart_store_values = [int((row['total_revenue'] or Decimal('0')).quantize(Decimal('1'))) for row in store_kpis]
 
-    recent_orders = orders.select_related('store', 'cashier').order_by('-created_at')[:10]
+    qr_activity_qs = QROrder.objects.filter(
+        tenant=tenant,
+        status__in=(QROrder.Status.REJECTED, QROrder.Status.CANCELLED),
+    ).select_related('store', 'table', 'rejected_by').prefetch_related('items')
+    if store_id and store_id.isdigit():
+        qr_activity_qs = qr_activity_qs.filter(store_id=int(store_id))
+    if start_dt:
+        qr_activity_qs = qr_activity_qs.filter(created_at__gte=start_dt)
+    if end_dt:
+        qr_activity_qs = qr_activity_qs.filter(created_at__lte=end_dt)
+
+    sale_recent = list(orders.select_related('store', 'cashier').order_by('-created_at')[:20])
+    qr_recent = list(qr_activity_qs.order_by('-created_at')[:20])
+    recent_merged = []
+    for o in sale_recent:
+        recent_merged.append((o.created_at, 'sale', o))
+    for qro in qr_recent:
+        recent_merged.append((qro.created_at, 'qr', qro))
+    recent_merged.sort(key=lambda x: x[0], reverse=True)
+    recent_activity_rows = []
+    for _ts, kind, obj in recent_merged[:10]:
+        if kind == 'sale':
+            recent_activity_rows.append({'kind': 'sale', 'order': obj})
+        else:
+            qr_total = Decimal('0')
+            for it in obj.items.all():
+                qr_total += it.unit_price_snapshot * it.quantity
+            recent_activity_rows.append({'kind': 'qr', 'qr': obj, 'qr_total': qr_total})
     if date_from and date_to:
         period_label = f'{date_from} -> {date_to}'
     elif date_from:
@@ -212,7 +249,7 @@ def dashboard(request):
         'cash_percent': cash_percent,
         'card_percent': card_percent,
         'today_revenue': today_stats['total_revenue'] or Decimal('0'),
-        'today_orders': today_stats['total_orders'] or 0,
+        'today_orders': today_orders_display,
         'store_kpis': store_kpis,
         'top_store_name': top_store_name,
         'top_store_revenue': top_store_revenue,
@@ -224,7 +261,7 @@ def dashboard(request):
         'chart_payment_values': chart_payment_values,
         'chart_store_names': chart_store_names,
         'chart_store_values': chart_store_values,
-        'recent_orders': recent_orders,
+        'recent_activity_rows': recent_activity_rows,
     }
     return render(request, 'App_Quanly/dashboard.html', context)
 
@@ -234,7 +271,8 @@ def order_history(request):
     tenant = _tenant_or_404(request.user)
     stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
     cashiers = (
-        User.objects.filter(tenant=tenant, orders__isnull=False)
+        User.objects.filter(tenant=tenant)
+        .filter(Q(orders__isnull=False) | Q(rejected_qr_orders__isnull=False))
         .distinct()
         .order_by('username')
     )
@@ -279,15 +317,90 @@ def order_history(request):
         total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
     )
 
-    orders = orders.prefetch_related(
-        Prefetch(
-            'items',
-            queryset=OrderItem.objects.prefetch_related('toppings').order_by('id'),
+    qr_orders = QROrder.objects.filter(
+        tenant=tenant,
+        status__in=(QROrder.Status.REJECTED, QROrder.Status.CANCELLED),
+    )
+    if selected_store.isdigit():
+        qr_orders = qr_orders.filter(store_id=int(selected_store))
+    if selected_payment in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+        qr_orders = qr_orders.none()
+    if selected_status == Order.Status.COMPLETED:
+        qr_orders = qr_orders.none()
+    if selected_cashier.isdigit():
+        qr_orders = qr_orders.filter(rejected_by_id=int(selected_cashier))
+    if selected_q:
+        qq = (
+            Q(table__name__icontains=selected_q)
+            | Q(rejection_reason__icontains=selected_q)
+            | Q(store__name__icontains=selected_q)
+            | Q(customer_note__icontains=selected_q)
         )
-    ).order_by('-created_at')
+        if selected_q.isdigit():
+            qq |= Q(id=int(selected_q))
+        qr_orders = qr_orders.filter(qq)
+    if start_dt:
+        qr_orders = qr_orders.filter(created_at__gte=start_dt)
+    if end_dt:
+        qr_orders = qr_orders.filter(created_at__lte=end_dt)
 
-    paginator = Paginator(orders, 20)
+    sale_keys = list(orders.values_list('created_at', 'id'))
+    qr_keys = list(qr_orders.values_list('created_at', 'id', 'status'))
+    merged_entries = [(t[0], 'sale', t[1], None) for t in sale_keys]
+    merged_entries.extend((t[0], 'qr', t[1], t[2]) for t in qr_keys)
+    merged_entries.sort(key=lambda x: x[0], reverse=True)
+
+    total_merged = len(merged_entries)
+    paginator = Paginator(merged_entries, 20)
     page_obj = paginator.get_page(request.GET.get('page'))
+
+    sale_ids = [row[2] for row in page_obj.object_list if row[1] == 'sale']
+    qr_ids = [row[2] for row in page_obj.object_list if row[1] == 'qr']
+
+    sales_by_id = {
+        o.id: o
+        for o in Order.objects.filter(pk__in=sale_ids)
+        .select_related('store', 'cashier')
+        .prefetch_related(
+            Prefetch(
+                'items',
+                queryset=OrderItem.objects.prefetch_related('toppings').order_by('id'),
+            )
+        )
+    }
+    qr_by_id = {
+        q.id: q
+        for q in QROrder.objects.filter(pk__in=qr_ids)
+        .select_related('store', 'table', 'rejected_by')
+        .prefetch_related(
+            Prefetch(
+                'items',
+                queryset=QROrderItem.objects.prefetch_related('toppings').order_by('id'),
+            )
+        )
+    }
+
+    history_rows = []
+    for created_at, kind, pk, qr_status in page_obj.object_list:
+        if kind == 'sale':
+            so = sales_by_id.get(pk)
+            if so:
+                history_rows.append({'kind': 'sale', 'created_at': created_at, 'order': so})
+        else:
+            qo = qr_by_id.get(pk)
+            if qo:
+                qr_total = Decimal('0')
+                for it in qo.items.all():
+                    qr_total += it.unit_price_snapshot * it.quantity
+                history_rows.append(
+                    {
+                        'kind': 'qr',
+                        'created_at': created_at,
+                        'qr': qo,
+                        'qr_status': qr_status,
+                        'qr_total': qr_total,
+                    }
+                )
 
     query_params = request.GET.copy()
     query_params.pop('page', None)
@@ -299,8 +412,8 @@ def order_history(request):
             'stores': stores,
             'cashiers': cashiers,
             'page_obj': page_obj,
-            'orders': page_obj.object_list,
-            'total_orders': summary['total_orders'] or 0,
+            'history_rows': history_rows,
+            'total_orders': total_merged,
             'total_revenue': summary['total_revenue'] or Decimal('0'),
             'selected_store': selected_store,
             'selected_payment': selected_payment,

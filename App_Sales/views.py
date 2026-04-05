@@ -558,6 +558,7 @@ def api_checkout(request):
             store=store,
             cashier=user,
             payment_method=payment_method,
+            sale_channel=Order.SaleChannel.TAKEAWAY,
             subtotal=subtotal,
             tax_rate=tax_rate,
             tax_amount=tax_amount,
@@ -962,6 +963,7 @@ def api_table_checkout(request, table_id):
             store=table.store,
             cashier=user,
             payment_method=payment_method,
+            sale_channel=Order.SaleChannel.DINE_IN,
             subtotal=subtotal,
             tax_rate=tax_rate,
             tax_amount=tax_amount,
@@ -1029,7 +1031,7 @@ def api_qr_orders(request):
 
     orders = (
         QROrder.objects.filter(tenant=user.tenant, store=store, status=selected_status)
-        .select_related('table')
+        .select_related('table', 'rejected_by')
         .prefetch_related('items', 'items__toppings')
         .order_by('-created_at')
     )
@@ -1056,19 +1058,21 @@ def api_qr_orders(request):
                 }
             )
 
-        payload.append(
-            {
-                'id': order.id,
-                'status': order.status,
-                'table_id': order.table_id,
-                'table_name': order.table.name,
-                'customer_note': order.customer_note,
-                'created_at': order.created_at.isoformat(),
-                'time': timezone.localtime(order.created_at).strftime('%H:%M'),
-                'total': float(total),
-                'items': items_payload,
-            }
-        )
+        row = {
+            'id': order.id,
+            'status': order.status,
+            'table_id': order.table_id,
+            'table_name': order.table.name,
+            'customer_note': order.customer_note,
+            'created_at': order.created_at.isoformat(),
+            'time': timezone.localtime(order.created_at).strftime('%H:%M'),
+            'total': float(total),
+            'items': items_payload,
+        }
+        if order.status == QROrder.Status.REJECTED:
+            row['rejection_reason'] = order.rejection_reason or ''
+            row['rejected_by'] = order.rejected_by.get_username() if order.rejected_by_id else ''
+        payload.append(row)
 
     return JsonResponse({'store': {'id': store.id, 'name': store.name}, 'orders': payload})
 
@@ -1136,6 +1140,12 @@ def api_qr_order_approve(request, order_id):
 @require_POST
 def api_qr_order_reject(request, order_id):
     user = request.user
+    payload = _parse_json_request(request)
+    if payload is None:
+        payload = {}
+    reason = (payload.get('reason') or '').strip()
+    if len(reason) > 500:
+        return _json_error('Lý do không được quá 500 ký tự.', 400)
 
     with transaction.atomic():
         order = get_object_or_404(
@@ -1154,10 +1164,16 @@ def api_qr_order_reject(request, order_id):
         if order.status == QROrder.Status.CANCELLED:
             return _json_error('Đơn đã bị khách hủy nên không thể từ chối.', 400)
 
+        if not reason:
+            return _json_error('Vui lòng chọn hoặc nhập lý do từ chối.', 400)
+
         order.status = QROrder.Status.REJECTED
         order.rejected_by = user
+        order.rejection_reason = reason
         order.resolved_at = timezone.now()
-        order.save(update_fields=['status', 'rejected_by', 'resolved_at', 'updated_at'])
+        order.save(
+            update_fields=['status', 'rejected_by', 'rejection_reason', 'resolved_at', 'updated_at']
+        )
 
     notify_qr_order_changed(
         store_id=order.store_id,

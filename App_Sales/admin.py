@@ -208,8 +208,17 @@ class OrderItemToppingInline(admin.TabularInline):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     form = OrderAdminForm
-    list_display = ('order_code', 'tenant', 'store', 'cashier', 'total_amount', 'payment_method', 'created_at')
-    list_filter = ('tenant', 'store', 'payment_method', 'status')
+    list_display = (
+        'order_code',
+        'tenant',
+        'store',
+        'cashier',
+        'sale_channel',
+        'total_amount',
+        'payment_method',
+        'created_at',
+    )
+    list_filter = ('tenant', 'store', 'payment_method', 'status', 'sale_channel')
     search_fields = ('order_code', 'cashier__username')
     inlines = [OrderItemInline]
 
@@ -238,7 +247,7 @@ class QROrderItemToppingInline(admin.TabularInline):
 @admin.register(QROrder)
 class QROrderAdmin(admin.ModelAdmin):
     form = QROrderAdminForm
-    list_display = ('id', 'tenant', 'store', 'table', 'status', 'created_at')
+    list_display = ('id', 'tenant', 'store', 'table', 'status', 'rejection_reason', 'created_at')
     list_filter = ('tenant', 'store', 'status')
     search_fields = ('table__name', 'table__code')
     inlines = [QROrderItemInline]
