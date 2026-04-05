@@ -202,7 +202,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for order in orders %}
+                {% for order in orders_page %}
                 <tr>
                     <td class="fw-semibold">{{ order.order_code }}</td>
                     <td>{{ order.store.name }}</td>
@@ -235,4 +235,5 @@
         </table>
     </div>
 </div>
+{% include 'App_Quanly/_list_pagination.html' with page_obj=orders_page query_string=orders_query_string %}
 {% endblock %}

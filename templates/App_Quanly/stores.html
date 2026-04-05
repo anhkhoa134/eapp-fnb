@@ -51,7 +51,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for s in stores %}
+                    {% for s in page_obj %}
                     <tr>
                         <td class="fw-semibold">{{ s.name }}</td>
                         <td><code class="small">{{ s.slug }}</code></td>
@@ -108,6 +108,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'App_Quanly/_list_pagination.html' %}
     </div>
 </div>
 

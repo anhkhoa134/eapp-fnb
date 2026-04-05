@@ -26,14 +26,30 @@
 
 ---
 
+## 1A. Phân trang danh sách (bảng CRUD)
+
+**Quy ước:** 20 dòng/trang; thanh *Trước* / *Sau* và chữ *Trang n/tổng* chỉ hiện khi có từ 2 trang trở lên. **Lịch sử đơn** (`/quanly/orders/`) đã có phân trang từ trước (cùng kiểu URL `?page=`). **Dashboard — Đơn gần nhất** không dùng phân trang (danh sách cố định).
+
+| Bước | Thao tác | Kết quả / Thông báo mong đợi |
+|------|----------|-------------------------------|
+| 1A.1 | Vào **Cửa hàng** / **Danh mục** / **Sản phẩm** / **Nhân viên** — nếu tenant có >20 bản ghi | Cuối khối bảng có điều hướng phân trang |
+| 1A.2 | Bấm **Sau** (hoặc gõ tay `?page=2` trên URL) | Bảng chỉ hiển thị đúng trang 2 |
+| 1A.3 | **QR bàn** — chọn cửa hàng trong dropdown (GET `store`) rồi chuyển trang | Tham số `store` vẫn còn trên URL cùng `page` |
+| 1A.4 | **Topping** — có hai bảng | Bảng *Danh sách topping* dùng `page`; bảng *Cơ cấu topping* dùng `mpage`; đổi trang một bảng không xóa số trang của bảng kia |
+
+---
+
 ## 2. Dashboard
 
 **URL:** `http://127.0.0.1:8000/quanly/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
-| 2.1 | Quan sát nội dung trang (số liệu, card, biểu đồ — theo bản hiện tại) | Dữ liệu load; không 500 |
-| 2.2 | Bấm từng link trong **sidebar** (desktop) hoặc offcanvas (mobile) sang các module dưới | Điều hướng đúng URL |
+| 2.1 | Quan sát nội dung trang (số liệu, thẻ, biểu đồ — theo bản hiện tại) | Dữ liệu tải; không 500 |
+| 2.2 | **Khoảng thời gian nhanh** — chọn 7 / 30 ngày, tháng hiện tại, tháng trước, năm hiện tại, năm trước | Trang tải lại; chip kỳ và KPI/biểu đồ khớp khoảng; ô *Từ/Đến* điền sẵn (readonly khi dùng mốc nhanh) |
+| 2.3 | **Tùy chỉnh** — chọn *Tùy chỉnh*, nhập *Từ ngày* / *Đến ngày*, bấm **Lọc** | KPI và biểu đồ theo đúng hai ngày; có thể kết hợp **Cửa hàng** |
+| 2.4 | Bảng **Đơn gần nhất** (nếu có) | Danh sách ngắn cố định — **không** có phân trang `page` (khác các trang CRUD) |
+| 2.5 | Bấm từng link trong **sidebar** (desktop) hoặc offcanvas (mobile) sang các module dưới | Điều hướng đúng URL |
 
 ---
 
@@ -114,7 +130,7 @@
 | 8.3 | **Sửa** / **Xóa** | CRUD đúng |
 | 8.4 | **Reset token** (nút riêng) | Thông báo thành công; URL QR cũ không còn hiệu lực |
 | 8.5 | **Tải PNG** / mở link ảnh QR | File ảnh tải về, quét được |
-| 8.6 | **In PDF** (chọn store) — tải PDF | Nhiều bàn trên trang; layout không vỡ |
+| 8.6 | **In PDF** (chọn cửa hàng) — tải PDF | Nhiều bàn trên trang; layout không vỡ |
 
 ---
 
@@ -172,6 +188,7 @@ Nếu import nằm ở `/quanly/catalog-import/upload/`:
 | Module | URL | PASS / FAIL | Ghi chú |
 |--------|-----|-------------|---------|
 | Navbar / sidebar / offcanvas | | | |
+| Phân trang CRUD / Topping (`page`, `mpage`) | (xem mục 1A) | | |
 | Dashboard | `/quanly/` | | |
 | Cửa hàng | `/quanly/stores/` | | |
 | Lịch sử đơn | `/quanly/orders/` | | |

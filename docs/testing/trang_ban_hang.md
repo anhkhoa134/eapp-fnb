@@ -105,13 +105,17 @@ Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 
 ---
 
-## 8. Trang phụ: Đơn hôm nay (nếu dùng)
+## 8. Trang phụ: Đơn trong ngày
 
-**URL:** `http://127.0.0.1:8000/orders/today/`
+**URL:** `http://127.0.0.1:8000/orders/today/`  
+**Query:** `?store_id=` (lọc cửa hàng), `?page=` (phân trang **bảng** đơn — 20 đơn/trang).
 
 | Bước | Thao tác | Kiểm tra |
 |------|----------|----------|
-| 8.1 | Mở URL khi đã đăng nhập | Danh sách đơn trong ngày (theo thiết kế hiện tại) |
+| 8.1 | Mở URL khi đã đăng nhập | Hiển thị KPI (tổng đơn, doanh thu, giá trị đơn TB) và bảng đơn trong ngày (cột loại đơn / thanh toán theo UI hiện tại) |
+| 8.2 | (Nhiều cửa hàng) Chọn cửa hàng trong dropdown trên trang | Bảng và KPI chỉ theo cửa đã chọn |
+| 8.3 | Khi có hơn 20 đơn trong ngày (sau lọc) | Cuối bảng có *Trước* / *Sau*; `?page=2` chỉ đổi các dòng bảng |
+| 8.4 | So sánh KPI trang 1 và trang 2 | **Tổng đơn / Doanh thu / TB đơn** phải **giống nhau** (tính trên toàn bộ đơn đã lọc, không chỉ 20 dòng hiện tại) |
 
 ---
 
@@ -132,4 +136,4 @@ Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 | Giỏ, mobile offcanvas, chọn bàn, mang về ↔ bàn, Lưu bàn | | |
 | Thanh toán tiền mặt / Thẻ·QR | | |
 | Duyệt / Từ chối đơn QR | | |
-| Đơn hôm nay (nếu có) | | |
+| Đơn trong ngày (`/orders/today/`, KPI + phân trang bảng) | | |

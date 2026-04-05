@@ -34,7 +34,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for topping in toppings %}
+                    {% for topping in toppings_page %}
                     <tr>
                         <td class="fw-semibold">{{ topping.name }}</td>
                         <td>{{ topping.display_order }}</td>
@@ -74,6 +74,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'App_Quanly/_list_pagination.html' with page_obj=toppings_page query_string=toppings_query_string page_param='page' %}
 
         <h3 class="admin-card-title">
             <i class="bi bi-diagram-3"></i>
@@ -92,7 +93,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for mapping in mappings %}
+                    {% for mapping in mappings_page %}
                     <tr>
                         <td>{{ mapping.product.name }}</td>
                         <td>{{ mapping.topping.name }}</td>
@@ -137,6 +138,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'App_Quanly/_list_pagination.html' with page_obj=mappings_page query_string=mappings_query_string page_param='mpage' %}
     </div>
 </div>
 

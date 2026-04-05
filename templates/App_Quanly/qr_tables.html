@@ -44,7 +44,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in table_rows %}
+                    {% for row in page_obj %}
                     <tr>
                         <td>
                             <div class="fw-semibold">{{ row.table.name }}</div>
@@ -110,6 +110,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'App_Quanly/_list_pagination.html' %}
     </div>
 </div>
 

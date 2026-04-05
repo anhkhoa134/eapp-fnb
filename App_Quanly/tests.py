@@ -41,6 +41,20 @@ class QuanlyPermissionTests(TestCase):
         self.assertEqual(self.client.get(reverse('App_Quanly:orders')).status_code, 200)
         self.assertEqual(self.client.get(reverse('App_Quanly:qr_tables')).status_code, 200)
 
+    def test_dashboard_period_preset_sets_date_range(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:dashboard'), {'period': '7d'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context['selected_period'], '7d')
+        self.assertTrue(res.context['date_from'])
+        self.assertTrue(res.context['date_to'])
+
+    def test_dashboard_invalid_period_ignored_for_bounds(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:dashboard'), {'period': 'not-a-key'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context['selected_period'], '')
+
     def test_staff_cannot_access_dashboard(self):
         self.client.login(username='staff_demo', password='123456')
         res = self.client.get(reverse('App_Quanly:dashboard'))

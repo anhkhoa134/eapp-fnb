@@ -3,6 +3,7 @@ from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
@@ -31,6 +32,15 @@ from App_Tenant.services import get_user_accessible_stores
 
 def _json_error(detail, status=400):
     return JsonResponse({'detail': detail}, status=status)
+
+
+ORDERS_TODAY_PER_PAGE = 20
+
+
+def _orders_today_query_string(request):
+    q = request.GET.copy()
+    q.pop('page', None)
+    return q.urlencode()
 
 
 def _pos_product_image_url(request, product):
@@ -327,6 +337,7 @@ def orders_today_page(request):
     total_orders = orders.count()
     total_revenue = orders.aggregate(total=Coalesce(Sum('total_amount'), Decimal('0')))['total'] or Decimal('0')
     avg_order = (total_revenue / total_orders) if total_orders else Decimal('0')
+    orders_page = Paginator(orders, ORDERS_TODAY_PER_PAGE).get_page(request.GET.get('page'))
 
     return render(
         request,
@@ -335,7 +346,8 @@ def orders_today_page(request):
             'stores': stores,
             'selected_store_id': selected_store.id if selected_store else '',
             'today': today,
-            'orders': orders,
+            'orders_page': orders_page,
+            'orders_query_string': _orders_today_query_string(request),
             'total_orders': total_orders,
             'total_revenue': total_revenue,
             'avg_order': avg_order,

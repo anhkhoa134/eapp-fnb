@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from io import BytesIO
 from decimal import Decimal
 from urllib.parse import urlencode
@@ -50,6 +50,16 @@ def _tenant_or_404(user):
     return user.tenant
 
 
+QUANLY_LIST_PER_PAGE = 20
+
+
+def _list_query_without_keys(request, *keys: str) -> str:
+    q = request.GET.copy()
+    for k in keys:
+        q.pop(k, None)
+    return q.urlencode()
+
+
 def _parse_date_bounds(date_from, date_to):
     tz = timezone.get_current_timezone()
     start_dt = None
@@ -59,6 +69,54 @@ def _parse_date_bounds(date_from, date_to):
     if date_to:
         end_dt = timezone.make_aware(datetime.combine(datetime.fromisoformat(date_to).date(), time.max), tz)
     return start_dt, end_dt
+
+
+DASHBOARD_PERIOD_KEYS = frozenset({'7d', '30d', 'this_month', 'last_month', 'this_year', 'last_year'})
+
+DASHBOARD_PERIOD_LABELS = {
+    '7d': '7 ngày gần nhất',
+    '30d': '30 ngày gần nhất',
+    'this_month': 'Tháng hiện tại (đến hôm nay)',
+    'last_month': 'Tháng trước (cả tháng)',
+    'this_year': 'Năm hiện tại (đến hôm nay)',
+    'last_year': 'Năm trước (cả năm)',
+}
+
+
+def _dashboard_bounds_from_period(period_key: str):
+    """
+    Khoảng thời gian preset (timezone local).
+    Tháng/năm hiện tại: từ đầu kỳ đến hết hôm nay (MTD/YTD).
+    Trả về (start_dt, end_dt, date_from_iso, date_to_iso) hoặc None.
+    """
+    if period_key not in DASHBOARD_PERIOD_KEYS:
+        return None
+    today = timezone.localdate()
+    tz = timezone.get_current_timezone()
+
+    def pack(d0: date, d1: date):
+        start_dt = timezone.make_aware(datetime.combine(d0, time.min), tz)
+        end_dt = timezone.make_aware(datetime.combine(d1, time.max), tz)
+        return start_dt, end_dt, d0.isoformat(), d1.isoformat()
+
+    if period_key == '7d':
+        return pack(today - timedelta(days=6), today)
+    if period_key == '30d':
+        return pack(today - timedelta(days=29), today)
+    if period_key == 'this_month':
+        d0 = today.replace(day=1)
+        return pack(d0, today)
+    if period_key == 'last_month':
+        first_this = today.replace(day=1)
+        last_prev = first_this - timedelta(days=1)
+        d0 = last_prev.replace(day=1)
+        return pack(d0, last_prev)
+    if period_key == 'this_year':
+        return pack(date(today.year, 1, 1), today)
+    if period_key == 'last_year':
+        y = today.year - 1
+        return pack(date(y, 1, 1), date(y, 12, 31))
+    return None
 
 
 def _sync_category_store_links(category, selected_store_ids):
@@ -90,13 +148,24 @@ def dashboard(request):
         orders = orders.filter(store_id=selected_store_id)
         tenant_orders = tenant_orders.filter(store_id=selected_store_id)
 
+    period_key = (request.GET.get('period') or '').strip()
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-    try:
-        start_dt, end_dt = _parse_date_bounds(date_from, date_to)
-    except ValueError:
-        messages.error(request, 'Bộ lọc ngày không hợp lệ.')
-        start_dt, end_dt = None, None
+    selected_period = ''
+    start_dt = end_dt = None
+
+    preset = _dashboard_bounds_from_period(period_key)
+    if preset:
+        start_dt, end_dt, date_from, date_to = preset
+        selected_period = period_key
+    else:
+        if period_key and period_key not in DASHBOARD_PERIOD_KEYS:
+            messages.error(request, 'Khoảng thời gian nhanh không hợp lệ.')
+        try:
+            start_dt, end_dt = _parse_date_bounds(date_from, date_to)
+        except ValueError:
+            messages.error(request, 'Bộ lọc ngày không hợp lệ.')
+            start_dt, end_dt = None, None
 
     if start_dt:
         orders = orders.filter(created_at__gte=start_dt)
@@ -152,7 +221,9 @@ def dashboard(request):
 
     chart_orders = orders
     chart_caption = 'Theo bộ lọc hiện tại'
-    if not date_from and not date_to:
+    if selected_period:
+        chart_caption = DASHBOARD_PERIOD_LABELS.get(selected_period, chart_caption)
+    elif not date_from and not date_to:
         chart_start_dt = timezone.now() - timedelta(days=13)
         chart_orders = chart_orders.filter(created_at__gte=chart_start_dt)
         chart_caption = '14 ngày gần nhất'
@@ -225,8 +296,10 @@ def dashboard(request):
             for it in obj.items.all():
                 qr_total += it.unit_price_snapshot * it.quantity
             recent_activity_rows.append({'kind': 'qr', 'qr': obj, 'qr_total': qr_total})
-    if date_from and date_to:
-        period_label = f'{date_from} -> {date_to}'
+    if selected_period:
+        period_label = DASHBOARD_PERIOD_LABELS.get(selected_period, f'{date_from} → {date_to}')
+    elif date_from and date_to:
+        period_label = f'{date_from} → {date_to}'
     elif date_from:
         period_label = f'Từ {date_from}'
     elif date_to:
@@ -237,6 +310,7 @@ def dashboard(request):
     context = {
         'stores': stores,
         'selected_store': int(store_id) if store_id and store_id.isdigit() else None,
+        'selected_period': selected_period,
         'date_from': date_from or '',
         'date_to': date_to or '',
         'period_label': period_label,
@@ -485,11 +559,13 @@ def category_list_create(request):
             }
         )
 
+    page_obj = Paginator(category_rows, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
     return render(
         request,
         'App_Quanly/categories.html',
         {
-            'category_rows': category_rows,
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
             'stores': stores,
             'form': form,
             'open_create_modal': request.method == 'POST' and form.errors,
@@ -605,11 +681,13 @@ def product_list_create(request):
             }
         )
 
+    page_obj = Paginator(product_rows, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
     return render(
         request,
         'App_Quanly/products.html',
         {
-            'product_rows': product_rows,
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
             'stores': stores,
             'categories': form.fields['category'].queryset,
             'form': form,
@@ -731,12 +809,16 @@ def topping_list_create(request):
             messages.error(request, 'Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.')
             open_mapping_modal = True
 
+    toppings_page = Paginator(toppings, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    mappings_page = Paginator(mappings, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('mpage'))
     return render(
         request,
         'App_Quanly/toppings.html',
         {
-            'toppings': toppings,
-            'mappings': mappings,
+            'toppings_page': toppings_page,
+            'mappings_page': mappings_page,
+            'toppings_query_string': _list_query_without_keys(request, 'page'),
+            'mappings_query_string': _list_query_without_keys(request, 'mpage'),
             'topping_form': topping_form,
             'mapping_form': mapping_form,
             'mapping_products': mapping_form.fields['product'].queryset,
@@ -902,6 +984,7 @@ def qr_table_list_create(request):
         }
         for table in tables_qs
     ]
+    page_obj = Paginator(table_rows, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
 
     return render(
         request,
@@ -910,7 +993,8 @@ def qr_table_list_create(request):
             'stores': stores,
             'selected_store': selected_store,
             'form': form,
-            'table_rows': table_rows,
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
             'open_create_modal': open_create_modal,
         },
     )
@@ -1039,11 +1123,13 @@ def qr_tables_store_pdf(request):
 @manager_required
 def staff_list_create(request):
     tenant = _tenant_or_404(request.user)
-    staffs = (
+    staffs_qs = (
         User.objects.filter(tenant=tenant, role=User.Role.STAFF)
         .prefetch_related('store_accesses__store')
         .order_by('username')
     )
+    page_obj = Paginator(staffs_qs, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    list_query_string = _list_query_without_keys(request, 'page')
     form = StaffCreateForm(request.POST or None, tenant=tenant)
 
     if request.method == 'POST' and form.is_valid():
@@ -1057,7 +1143,8 @@ def staff_list_create(request):
                 request,
                 'App_Quanly/staffs.html',
                 {
-                    'staffs': staffs,
+                    'page_obj': page_obj,
+                    'query_string': list_query_string,
                     'form': form,
                     'edit_form': StaffEditForm(tenant=tenant),
                     'edit_staff': None,
@@ -1092,7 +1179,8 @@ def staff_list_create(request):
         request,
         'App_Quanly/staffs.html',
         {
-            'staffs': staffs,
+            'page_obj': page_obj,
+            'query_string': list_query_string,
             'form': form,
             'edit_form': StaffEditForm(tenant=tenant),
             'edit_staff': None,
@@ -1134,16 +1222,18 @@ def staff_edit(request, pk):
         messages.success(request, f'Đã cập nhật nhân viên "{staff_user.username}".')
         return redirect('App_Quanly:staffs')
 
-    staffs = (
+    staffs_qs = (
         User.objects.filter(tenant=tenant, role=User.Role.STAFF)
         .prefetch_related('store_accesses__store')
         .order_by('username')
     )
+    page_obj = Paginator(staffs_qs, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
     return render(
         request,
         'App_Quanly/staffs.html',
         {
-            'staffs': staffs,
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
             'form': StaffCreateForm(tenant=tenant),
             'edit_form': form,
             'edit_staff': staff_user,
@@ -1199,7 +1289,9 @@ def _save_store_and_sync_default(*, tenant, store, is_default: bool):
 @manager_required
 def store_list_create(request):
     tenant = _tenant_or_404(request.user)
-    stores = Store.objects.filter(tenant=tenant).order_by('name')
+    stores_qs = Store.objects.filter(tenant=tenant).order_by('name')
+    page_obj = Paginator(stores_qs, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    list_query_string = _list_query_without_keys(request, 'page')
     form = StoreForm(request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
@@ -1213,7 +1305,8 @@ def store_list_create(request):
                 request,
                 'App_Quanly/stores.html',
                 {
-                    'stores': stores,
+                    'page_obj': page_obj,
+                    'query_string': list_query_string,
                     'form': form,
                     'open_create_modal': True,
                 },
@@ -1228,7 +1321,8 @@ def store_list_create(request):
         request,
         'App_Quanly/stores.html',
         {
-            'stores': stores,
+            'page_obj': page_obj,
+            'query_string': list_query_string,
             'form': form,
             'open_create_modal': request.method == 'POST' and form.errors,
         },

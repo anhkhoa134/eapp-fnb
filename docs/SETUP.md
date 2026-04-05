@@ -21,13 +21,13 @@ Tắt seed QR pending:
 python manage.py seed_initial_data --no-seed-qr-pending
 ```
 
-Tao tenant nhanh trong Django Admin/Jazzmin (bang tai khoan superadmin):
-- Tao moi `Tenant` => he thong tu tao:
-  - 1 manager + 2 staff (mat khau mac dinh `123456`)
-  - 1 store mac dinh
-  - 12 ban co QR token
-  - 2 category + 4 product co unit
-- Username theo mau: `<slug>_quanly`, `<slug>_nhanvien_1`, `<slug>_nhanvien_2`.
+Tạo tenant nhanh trong Django Admin/Jazzmin (bằng tài khoản superadmin):
+- Tạo mới `Tenant` ⇒ hệ thống tự tạo:
+  - 1 manager + 2 staff (mật khẩu mặc định `123456`)
+  - 1 store mặc định
+  - 12 bàn có QR token
+  - 2 category + 4 product có unit
+- Username theo mẫu: `<slug>_quanly`, `<slug>_nhanvien_1`, `<slug>_nhanvien_2`.
 
 ## 4) Chạy server
 ```bash
@@ -35,18 +35,18 @@ python manage.py runserver 127.0.0.1:8000
 ```
 
 Realtime QR qua WebSocket:
-- Set `REDIS_URL` (mac dinh `redis://127.0.0.1:6379`).
-- Neu Redis chua san sang, UI se fallback polling 15s.
-- Khong chay `runserver --noasgi`.
+- Set `REDIS_URL` (mặc định `redis://127.0.0.1:6379`).
+- Nếu Redis chưa sẵn sàng, UI sẽ fallback polling 15s.
+- Không chạy `runserver --noasgi`.
 
-Neu chay local Redis thu cong:
+Nếu chạy local Redis thủ công:
 ```bash
 redis-server
 ```
 
 ## 5) Route chính
 - POS nhân viên: `/`
-- Đơn hàng trong ngày: `/orders/today/`
+- Đơn hàng trong ngày: `/orders/today/` (tùy chọn `?store_id=` lọc cửa hàng, `?page=` phân trang bảng; KPI vẫn theo toàn bộ đơn đã lọc)
 - Quản lý tenant: `/quanly/`
 - Quản lý QR bàn: `/quanly/qr-tables/`
 - Đăng nhập: `/accounts/login/`

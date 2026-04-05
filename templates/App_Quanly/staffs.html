@@ -24,7 +24,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for staff in staffs %}
+                    {% for staff in page_obj %}
                     <tr>
                         <td class="fw-semibold">{{ staff.username }}</td>
                         <td>
@@ -89,6 +89,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'App_Quanly/_list_pagination.html' %}
     </div>
 </div>
 

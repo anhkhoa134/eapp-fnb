@@ -1,25 +1,25 @@
 # 4) Route, permission, API contracts
 
 ## Web routes
-- `GET /` -> POS (staff/manager, login required).
-- `GET /orders/today/` -> don hom nay (staff/manager, login required).
-- `GET /quanly/*` -> manager only.
-- `GET /accounts/login/` -> login.
-- `POST /accounts/logout/` -> logout.
-- `GET /<public_slug>/` -> public catalog.
-- `GET /<public_slug>/qr/?table_code=&token=` -> public QR ordering UI.
-- `GET /manifest.webmanifest` -> Web App Manifest (PWA).
-- `GET /sw.js` -> service worker (PWA).
-- `GET /offline/` -> trang fallback khi ngoại tuyến (PWA).
+- `GET /` → POS (staff/manager, login required).
+- `GET /orders/today/` → đơn hôm nay (staff/manager, login required).
+- `GET /quanly/*` → manager only.
+- `GET /accounts/login/` → login.
+- `POST /accounts/logout/` → logout.
+- `GET /<public_slug>/` → public catalog.
+- `GET /<public_slug>/qr/?table_code=&token=` → public QR ordering UI.
+- `GET /manifest.webmanifest` → Web App Manifest (PWA).
+- `GET /sw.js` → service worker (PWA).
+- `GET /offline/` → trang fallback khi ngoại tuyến (PWA).
 
 Chi tiết: `docs/10_pwa.md`.
 
 ## Security notes
-- `GET /accounts/logout/` => 405.
-- Public QR APIs bat buoc `table_code + token` hop le.
-- POS APIs chi thao tac tren store user duoc cap quyen.
-- POS WebSocket can login + co quyen store.
-- Public WebSocket can `table_code + token` hop le va order thuoc dung ban.
+- `GET /accounts/logout/` ⇒ 405.
+- Public QR APIs bắt buộc `table_code + token` hợp lệ.
+- POS APIs chỉ thao tác trên store user được cấp quyền.
+- POS WebSocket cần login + có quyền store.
+- Public WebSocket cần `table_code + token` hợp lệ và order thuộc đúng bàn.
 
 ## POS API (`/api/pos/`)
 - `GET products/?store_id=&q=&category=`
@@ -38,10 +38,10 @@ Chi tiết: `docs/10_pwa.md`.
 Ghi chú hành vi POS (frontend, `templates/App_Sales/index.html`): chọn bàn khi đang **mang về** có món → `POST .../cart/import-takeaway/` rồi `GET .../cart/`; **Đổi sang mang về** khi đang gắn bàn → `DELETE .../cart/items/<item_id>/` cho từng dòng rồi giữ giỏ trên client dạng mang về.
 
 ## Public API (`/api/public/`)
-- `POST qr/orders/` -> tao don pending.
-- `GET qr/orders/<order_id>/?table_code=&token=` -> lay trang thai + items.
-- `PATCH qr/orders/<order_id>/` -> cap nhat don pending (replace items + note).
-- `POST qr/orders/<order_id>/cancel/` -> huy don pending (`CANCELLED`).
+- `POST qr/orders/` → tạo đơn pending.
+- `GET qr/orders/<order_id>/?table_code=&token=` → lấy trạng thái + items.
+- `PATCH qr/orders/<order_id>/` → cập nhật đơn pending (replace items + note).
+- `POST qr/orders/<order_id>/cancel/` → hủy đơn pending (`CANCELLED`).
 
 ## WebSocket routes
 - `GET ws://<host>/ws/pos/store/<store_id>/`
@@ -55,15 +55,15 @@ Ghi chú hành vi POS (frontend, `templates/App_Sales/index.html`): chọn bàn 
 
 ## Quanly API-like routes (server-rendered)
 
-Tat ca duoi day yeu cau **manager** (tru khi ghi chu khac).
+Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
 
-- `GET|POST /quanly/` — dashboard
-- `GET|POST /quanly/stores/` — CRUD cua hang (POST tao; POST edit/delete theo URL rieng)
-- `GET|POST /quanly/account/` — cai dat tai khoan quan ly
-- `GET /quanly/orders/`, `POST /quanly/orders/<id>/delete/` — lich su don
+- `GET|POST /quanly/` — dashboard (`GET`: `store`, `period` = `7d` \| `30d` \| `this_month` \| `last_month` \| `this_year` \| `last_year`, hoặc `date_from` / `date_to` khi `period` trống)
+- `GET|POST /quanly/stores/` — CRUD cửa hàng (POST tạo; POST edit/delete theo URL riêng)
+- `GET|POST /quanly/account/` — cài đặt tài khoản quản lý
+- `GET /quanly/orders/`, `POST /quanly/orders/<id>/delete/` — lịch sử đơn
 - `GET|POST /quanly/categories/`, `.../products/`, `.../toppings/`, ... — catalog CRUD (xem `App_Quanly/urls.py`)
-- `GET|POST /quanly/payment-qr/` — cau hinh QR thanh toan POS theo cua hang
-- `GET|POST /quanly/staffs/` — quan ly nhan vien
+- `GET|POST /quanly/payment-qr/` — cấu hình QR thanh toán POS theo cửa hàng
+- `GET|POST /quanly/staffs/` — quản lý nhân viên
 - `GET|POST /quanly/qr-tables/`
 - `GET|POST /quanly/qr-tables/<id>/edit/`
 - `POST /quanly/qr-tables/<id>/delete/`
@@ -71,6 +71,23 @@ Tat ca duoi day yeu cau **manager** (tru khi ghi chu khac).
 - `GET /quanly/qr-tables/<id>/png/`
 - `GET /quanly/qr-tables/print-pdf/?store=<id>`
 
+## Phân trang (danh sách render server)
+
+- **Kích thước trang:** 20 bản ghi (cùng mức với lịch sử đơn).
+- **Partial dùng chung:** `templates/App_Quanly/_list_pagination.html` — liên kết *Trước* / *Sau* và hiển thị `Trang n/tổng`.
+- **Quản lý** — tham số GET `page` trên:
+  - `/quanly/stores/`, `/quanly/categories/`, `/quanly/products/`, `/quanly/staffs/`, `/quanly/qr-tables/`
+  - Trên **QR bàn**, bộ lọc `?store=<id>` được giữ khi chuyển trang.
+- **Quản lý → Topping** (`/quanly/toppings/`): hai bảng độc lập:
+  - `page` — danh sách topping;
+  - `mpage` — bảng gán topping theo sản phẩm;
+  - Link phân trang của mỗi bảng giữ tham số của bảng còn lại (ví dụ đổi trang topping không reset trang gán).
+- **Đơn trong ngày** `GET /orders/today/?store_id=&page=`:
+  - Các chỉ số KPI (tổng đơn, doanh thu, giá trị đơn trung bình) tính trên **toàn bộ** đơn sau khi lọc cửa hàng;
+  - Chỉ **bảng chi tiết** theo từng trang.
+- **Đã có từ trước (không đổi):** lịch sử đơn `/quanly/orders/`, catalog public (paginator riêng theo app).
+- **Dashboard** `/quanly/`: khối **Đơn gần nhất** vẫn giới hạn cố định trên server (không dùng tham số `page`).
+
 ## Payment rule
 - `cash`: `customer_paid >= total_amount`.
-- `card`: neu `customer_paid <= 0` backend set bang `total_amount`.
+- `card`: nếu `customer_paid <= 0` backend set bằng `total_amount`.

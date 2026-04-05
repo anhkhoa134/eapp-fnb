@@ -105,7 +105,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in category_rows %}
+                    {% for row in page_obj %}
                     {% with item=row.category %}
                     <tr>
                         <td class="fw-semibold">{{ item.name }}</td>
@@ -147,6 +147,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'App_Quanly/_list_pagination.html' %}
     </div>
 </div>
 

@@ -1,28 +1,28 @@
-# 7) QR public ordering va QR table admin
+# 7) QR public ordering và QR table admin
 
 ## Public QR ordering flow
 
-### URL vao trang khach
+### URL vào trang khách
 - `/<public_slug>/qr/?table_code=<CODE>&token=<TOKEN>`
 
-### Hanh vi chinh
-- Hien menu dung theo store cua ban.
-- Cho chon unit, topping, note, quantity.
-- Gui don tao `QROrder.PENDING`.
-- WebSocket realtime de cap nhat trang thai don.
-- Neu mat ket noi WebSocket, fallback polling 15s.
-- Cho `edit/cancel` chi khi don con `PENDING`.
-- Luu `active_qr_order_id` theo `table_code` trong localStorage.
+### Hành vi chính
+- Hiện menu đúng theo store của bàn.
+- Cho chọn unit, topping, note, quantity.
+- Gửi đơn tạo `QROrder.PENDING`.
+- WebSocket realtime để cập nhật trạng thái đơn.
+- Nếu mất kết nối WebSocket, fallback polling 15s.
+- Cho `edit/cancel` chỉ khi đơn còn `PENDING`.
+- Lưu `active_qr_order_id` theo `table_code` trong localStorage.
 
-### POS realtime lien quan
-- POS mo socket theo `store_id` de nhan signal don QR moi.
-- Khi nhan signal, POS refetch `qr/orders` + `tables` va cap nhat badge/chuong.
+### POS realtime liên quan
+- POS mở socket theo `store_id` để nhận signal đơn QR mới.
+- Khi nhận signal, POS refetch `qr/orders` + `tables` và cập nhật badge/chuông.
 
-### Trang thai don
-- `PENDING`: cho staff duyet.
-- `APPROVED`: da duyet, merge vao cart ban.
-- `REJECTED`: staff tu choi.
-- `CANCELLED`: khach huy.
+### Trạng thái đơn
+- `PENDING`: chờ staff duyệt.
+- `APPROVED`: đã duyệt, merge vào cart bàn.
+- `REJECTED`: staff từ chối.
+- `CANCELLED`: khách hủy.
 
 ## Public QR API nhanh
 - `POST /api/public/qr/orders/`
@@ -34,14 +34,14 @@
 - `ws://<host>/ws/pos/store/<store_id>/`
 - `ws://<host>/ws/public/qr/order/<order_id>/?table_code=<CODE>&token=<TOKEN>`
 
-## Quanly QR ban
+## Quản lý QR bàn
 
-### Chuc nang
-- CRUD ban QR theo tenant.
+### Chức năng
+- CRUD bàn QR theo tenant.
 - Reset token QR.
 - Copy link QR.
-- Tai PNG QR cho tung ban.
-- In PDF A3 theo store, 15 ban/trang.
+- Tải PNG QR cho từng bàn.
+- In PDF A3 theo store, 15 bàn/trang.
 
 ### Routes
 - `/quanly/qr-tables/`
@@ -50,8 +50,8 @@
 - `/quanly/qr-tables/<id>/png/`
 - `/quanly/qr-tables/print-pdf/?store=<id>`
 
-## Van hanh nhanh
-1. Manager tao ban trong `/quanly/qr-tables/`.
-2. Copy link QR hoac tai PNG de in dan ban.
-3. Neu in hang loat, loc store roi bam `In PDF kho lon`.
-4. Khi lo token, dung `Reset token` va in lai QR.
+## Vận hành nhanh
+1. Manager tạo bàn trong `/quanly/qr-tables/`.
+2. Copy link QR hoặc tải PNG để in dán bàn.
+3. Nếu in hàng loạt, lọc store rồi bấm **In PDF khổ lớn**.
+4. Khi lộ token, dùng **Reset token** và in lại QR.

@@ -190,7 +190,20 @@
         </div>
 
         <form class="row g-2 hero-filter" method="get">
-            <div class="col-md-4">
+            <div class="col-12 col-xl-4">
+                <label class="form-label small">Khoảng thời gian nhanh</label>
+                <select name="period" class="form-select" aria-label="Khoảng thời gian nhanh" onchange="this.form.submit()">
+                    <option value="" {% if not selected_period %}selected{% endif %}>Tùy chỉnh (nhập ngày bên dưới)</option>
+                    <option value="7d" {% if selected_period == '7d' %}selected{% endif %}>7 ngày gần nhất</option>
+                    <option value="30d" {% if selected_period == '30d' %}selected{% endif %}>30 ngày gần nhất</option>
+                    <option value="this_month" {% if selected_period == 'this_month' %}selected{% endif %}>Tháng hiện tại (đến hôm nay)</option>
+                    <option value="last_month" {% if selected_period == 'last_month' %}selected{% endif %}>Tháng trước (cả tháng)</option>
+                    <option value="this_year" {% if selected_period == 'this_year' %}selected{% endif %}>Năm hiện tại (đến hôm nay)</option>
+                    <option value="last_year" {% if selected_period == 'last_year' %}selected{% endif %}>Năm trước (cả năm)</option>
+                </select>
+                <div class="form-text small mt-1" style="color: #475569;">Chọn mốc nhanh sẽ tải lại trang và điền sẵn hai ô ngày. Muốn nhập tay, chọn <strong>Tùy chỉnh</strong> rồi bấm <strong>Lọc</strong>.</div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
                 <label class="form-label small">Cửa hàng</label>
                 <select name="store" class="form-select">
                     <option value="">Tất cả cửa hàng</option>
@@ -199,18 +212,21 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small">Từ ngày</label>
-                <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}" {% if selected_period %}readonly{% endif %}>
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small">Đến ngày</label>
-                <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}" {% if selected_period %}readonly{% endif %}>
             </div>
-            <div class="col-md-2 d-grid align-items-end">
-                <button class="btn btn-primary">
-                    <i class="bi bi-funnel me-1"></i>Lọc
+            <div class="col-12 col-md-6 col-xl-auto d-flex flex-wrap gap-2 align-items-end">
+                <button type="submit" class="btn btn-primary" {% if selected_period %}title="Đổi cửa hàng hoặc chọn Tùy chỉnh để sửa ngày"{% endif %}>
+                    <i class="bi bi-funnel me-1"></i>Lọc dữ liệu
                 </button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:dashboard' %}">
+                    <i class="bi bi-x-lg me-1"></i>Xóa bộ lọc
+                </a>
             </div>
         </form>
     </div>
