@@ -10,9 +10,6 @@
                 Quản lý topping
             </h2>
             <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#createMappingModal">
-                    <i class="bi bi-link-45deg me-1"></i>Gán topping
-                </button>
                 <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createToppingModal">
                     <i class="bi bi-plus-lg me-1"></i>Tạo topping
                 </button>
@@ -28,6 +25,7 @@
                 <thead>
                     <tr>
                         <th>Tên topping</th>
+                        <th>Giá</th>
                         <th>Thứ tự</th>
                         <th class="text-center">Trạng thái</th>
                         <th class="text-end">Thao tác</th>
@@ -37,6 +35,7 @@
                     {% for topping in toppings_page %}
                     <tr>
                         <td class="fw-semibold">{{ topping.name }}</td>
+                        <td>{{ topping.price|thousand_sep }} đ</td>
                         <td>{{ topping.display_order }}</td>
                         <td class="text-center">
                             {% include 'App_Quanly/_status_icon.html' with active=topping.is_active %}
@@ -49,8 +48,10 @@
                                 data-bs-target="#editToppingModal"
                                 data-action="{% url 'App_Quanly:topping_edit' topping.id %}"
                                 data-topping-name="{{ topping.name|escape }}"
+                                data-topping-price="{{ topping.price|stringformat:'s' }}"
                                 data-topping-display-order="{{ topping.display_order }}"
                                 data-topping-active="{% if topping.is_active %}1{% else %}0{% endif %}"
+                                data-topping-product-ids="{% for link in topping.product_links.all %}{{ link.product_id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                             >
                                 Sửa
                             </button>
@@ -68,77 +69,13 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="text-muted">Chưa có topping.</td>
+                        <td colspan="5" class="text-muted">Chưa có topping.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% include 'App_Quanly/_list_pagination.html' with page_obj=toppings_page query_string=toppings_query_string page_param='page' %}
-
-        <h3 class="admin-card-title">
-            <i class="bi bi-diagram-3"></i>
-            Cơ cấu topping theo sản phẩm
-        </h3>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Sản phẩm</th>
-                        <th>Topping</th>
-                        <th>Giá</th>
-                        <th>Thứ tự</th>
-                        <th class="text-center">Trạng thái</th>
-                        <th class="text-end">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for mapping in mappings_page %}
-                    <tr>
-                        <td>{{ mapping.product.name }}</td>
-                        <td>{{ mapping.topping.name }}</td>
-                        <td>{{ mapping.price|thousand_sep }} đ</td>
-                        <td>{{ mapping.display_order }}</td>
-                        <td class="text-center">
-                            {% include 'App_Quanly/_status_icon.html' with active=mapping.is_active %}
-                        </td>
-                        <td class="text-end">
-                            <button
-                                class="btn btn-sm btn-outline-primary js-edit-mapping"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#editMappingModal"
-                                data-action="{% url 'App_Quanly:product_topping_edit' mapping.id %}"
-                                data-mapping-product="{{ mapping.product_id }}"
-                                data-mapping-topping="{{ mapping.topping_id }}"
-                                data-mapping-price="{{ mapping.price|stringformat:'s' }}"
-                                data-mapping-display-order="{{ mapping.display_order }}"
-                                data-mapping-active="{% if mapping.is_active %}1{% else %}0{% endif %}"
-                                data-mapping-label="{{ mapping.product.name|escape }} - {{ mapping.topping.name|escape }}"
-                            >
-                                Sửa
-                            </button>
-                            <button
-                                class="btn btn-sm btn-outline-danger js-delete-mapping"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#deleteMappingModal"
-                                data-action="{% url 'App_Quanly:product_topping_delete' mapping.id %}"
-                                data-mapping-label="{{ mapping.product.name|escape }} - {{ mapping.topping.name|escape }}"
-                            >
-                                Xóa
-                            </button>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-muted">Chưa có gán topping.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% include 'App_Quanly/_list_pagination.html' with page_obj=mappings_page query_string=mappings_query_string page_param='mpage' %}
     </div>
 </div>
 
@@ -161,74 +98,36 @@
                             {{ topping_form.name.errors }}
                         </div>
                         <div>
+                            <label class="form-label fw-semibold" for="{{ topping_form.price.id_for_label }}">Giá</label>
+                            {{ topping_form.price }}
+                            <div class="form-text">Số nguyên (đ), có thể gõ kèm dấu phân cách phần nghìn.</div>
+                            {{ topping_form.price.errors }}
+                        </div>
+                        <div>
                             <label class="form-label fw-semibold" for="{{ topping_form.display_order.id_for_label }}">Thứ tự</label>
                             {{ topping_form.display_order }}
                             {{ topping_form.display_order.errors }}
                         </div>
                         <div class="switch-card">
-                            <div class="form-check m-0 mt-4">
+                            <div class="form-check m-0">
                                 {{ topping_form.is_active }}
                                 <label class="form-check-label fw-semibold" for="{{ topping_form.is_active.id_for_label }}">Đang hoạt động (tick để bật)</label>
                             </div>
                             {{ topping_form.is_active.errors }}
+                        </div>
+                        <div class="full">
+                            <div class="fw-semibold mb-2">Gán topping cho sản phẩm (tùy chọn)</div>
+                            <div class="small text-muted mb-2">Không chọn sản phẩm nào thì topping chưa được gán cho sản phẩm nào.</div>
+                            <div class="d-flex flex-column gap-2">
+                                {{ topping_form.product_ids }}
+                            </div>
+                            {{ topping_form.product_ids.errors }}
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
                     <button class="btn btn-primary" type="submit">Lưu topping</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade crud-modal" id="createMappingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-link-45deg me-2 text-primary"></i>Gán topping cho sản phẩm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="post" action="{% url 'App_Quanly:toppings' %}">
-                <div class="modal-body">
-                    {% csrf_token %}
-                    <input type="hidden" name="form_type" value="mapping">
-                    {{ mapping_form.non_field_errors }}
-                    <div class="crud-form-grid">
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="{{ mapping_form.product.id_for_label }}">Sản phẩm</label>
-                            {{ mapping_form.product }}
-                            {{ mapping_form.product.errors }}
-                        </div>
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="{{ mapping_form.topping.id_for_label }}">Topping</label>
-                            {{ mapping_form.topping }}
-                            {{ mapping_form.topping.errors }}
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="{{ mapping_form.price.id_for_label }}">Giá</label>
-                            {{ mapping_form.price }}
-                            <div class="form-text">Số nguyên (đ), có thể gõ kèm dấu phân cách phần nghìn.</div>
-                            {{ mapping_form.price.errors }}
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="{{ mapping_form.display_order.id_for_label }}">Thứ tự</label>
-                            {{ mapping_form.display_order }}
-                            {{ mapping_form.display_order.errors }}
-                        </div>
-                        <div class="full switch-card">
-                            <div class="form-check m-0">
-                                {{ mapping_form.is_active }}
-                                <label class="form-check-label fw-semibold" for="{{ mapping_form.is_active.id_for_label }}">Đang hoạt động (tick để bật)</label>
-                            </div>
-                            {{ mapping_form.is_active.errors }}
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu gán topping</button>
                 </div>
             </form>
         </div>
@@ -251,13 +150,30 @@
                             <input class="form-control" id="edit-topping-name" name="name" maxlength="120" required>
                         </div>
                         <div>
+                            <label class="form-label fw-semibold" for="edit-topping-price">Giá</label>
+                            <input class="form-control js-price-vnd" id="edit-topping-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <div class="form-text">Số nguyên (đ).</div>
+                        </div>
+                        <div>
                             <label class="form-label fw-semibold" for="edit-topping-display-order">Thứ tự</label>
                             <input class="form-control" id="edit-topping-display-order" name="display_order" type="number" min="0" value="0" required>
                         </div>
                         <div class="switch-card">
-                            <div class="form-check m-0 mt-4">
+                            <div class="form-check m-0">
                                 <input class="form-check-input" id="edit-topping-active" name="is_active" type="checkbox">
                                 <label class="form-check-label fw-semibold" for="edit-topping-active">Đang hoạt động (tick để bật)</label>
+                            </div>
+                        </div>
+                        <div class="full">
+                            <div class="fw-semibold mb-2">Gán topping cho sản phẩm (tùy chọn)</div>
+                            <div class="small text-muted mb-2">Không chọn sản phẩm nào thì topping không gán cho sản phẩm nào.</div>
+                            <div class="d-flex flex-column gap-2" id="edit-topping-products">
+                                {% for product in all_products %}
+                                <div class="form-check">
+                                    <input class="form-check-input js-edit-topping-product" type="checkbox" name="product_ids" value="{{ product.id }}" id="edit-topping-product-{{ product.id }}">
+                                    <label class="form-check-label" for="edit-topping-product-{{ product.id }}">{{ product.name }}</label>
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>
@@ -291,81 +207,6 @@
         </div>
     </div>
 </div>
-
-<div class="modal fade crud-modal" id="editMappingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa gán topping</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="post" id="editMappingForm" action="">
-                <div class="modal-body">
-                    {% csrf_token %}
-                    <div class="small text-muted mb-3" id="editMappingLabel"></div>
-                    <div class="crud-form-grid">
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="edit-mapping-product">Sản phẩm</label>
-                            <select class="form-select" id="edit-mapping-product" name="product" required>
-                                {% for product in mapping_products %}
-                                <option value="{{ product.id }}">{{ product.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="edit-mapping-topping">Topping</label>
-                            <select class="form-select" id="edit-mapping-topping" name="topping" required>
-                                {% for topping in mapping_toppings %}
-                                <option value="{{ topping.id }}">{{ topping.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="edit-mapping-price">Giá</label>
-                            <input class="form-control js-price-vnd" id="edit-mapping-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
-                            <div class="form-text">Số nguyên (đ).</div>
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="edit-mapping-display-order">Thứ tự</label>
-                            <input class="form-control" id="edit-mapping-display-order" name="display_order" type="number" min="0" value="0" required>
-                        </div>
-                        <div class="full switch-card">
-                            <div class="form-check m-0">
-                                <input class="form-check-input" id="edit-mapping-active" name="is_active" type="checkbox">
-                                <label class="form-check-label fw-semibold" for="edit-mapping-active">Đang hoạt động (tick để bật)</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade crud-modal" id="deleteMappingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header">
-                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa gán topping</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="post" id="deleteMappingForm" action="">
-                <div class="modal-body">
-                    {% csrf_token %}
-                    <p class="mb-0">Bạn chắc chắn muốn xóa gán topping <strong id="deleteMappingLabel"></strong>?</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -374,14 +215,26 @@
     document.addEventListener('DOMContentLoaded', () => {
         const editToppingForm = document.getElementById('editToppingForm');
         const editToppingName = document.getElementById('edit-topping-name');
+        const editToppingPrice = document.getElementById('edit-topping-price');
         const editToppingDisplayOrder = document.getElementById('edit-topping-display-order');
         const editToppingActive = document.getElementById('edit-topping-active');
+        const editToppingProducts = document.querySelectorAll('.js-edit-topping-product');
         document.querySelectorAll('.js-edit-topping').forEach((button) => {
             button.addEventListener('click', () => {
                 if (editToppingForm) editToppingForm.action = button.dataset.action || '';
                 if (editToppingName) editToppingName.value = button.dataset.toppingName || '';
+                if (editToppingPrice) editToppingPrice.value = button.dataset.toppingPrice || '0';
+                if (typeof window.quanlyFormatPriceVndInput === 'function') {
+                    window.quanlyFormatPriceVndInput(editToppingPrice);
+                }
                 if (editToppingDisplayOrder) editToppingDisplayOrder.value = button.dataset.toppingDisplayOrder || '0';
                 if (editToppingActive) editToppingActive.checked = button.dataset.toppingActive === '1';
+
+                const raw = (button.dataset.toppingProductIds || '').trim();
+                const selected = new Set(raw ? raw.split(',').map((x) => x.trim()).filter(Boolean) : []);
+                editToppingProducts.forEach((cb) => {
+                    cb.checked = selected.has(cb.value);
+                });
             });
         });
 
@@ -394,50 +247,6 @@
             });
         });
 
-        const editMappingForm = document.getElementById('editMappingForm');
-        const editMappingProduct = document.getElementById('edit-mapping-product');
-        const editMappingTopping = document.getElementById('edit-mapping-topping');
-        const editMappingPrice = document.getElementById('edit-mapping-price');
-        const editMappingDisplayOrder = document.getElementById('edit-mapping-display-order');
-        const editMappingActive = document.getElementById('edit-mapping-active');
-        const editMappingLabel = document.getElementById('editMappingLabel');
-        document.querySelectorAll('.js-edit-mapping').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (editMappingForm) editMappingForm.action = button.dataset.action || '';
-                if (editMappingProduct) editMappingProduct.value = button.dataset.mappingProduct || '';
-                if (editMappingTopping) editMappingTopping.value = button.dataset.mappingTopping || '';
-                if (editMappingPrice) editMappingPrice.value = button.dataset.mappingPrice || '0';
-                if (typeof window.quanlyFormatPriceVndInput === 'function') {
-                    window.quanlyFormatPriceVndInput(editMappingPrice);
-                }
-                if (editMappingDisplayOrder) editMappingDisplayOrder.value = button.dataset.mappingDisplayOrder || '0';
-                if (editMappingActive) editMappingActive.checked = button.dataset.mappingActive === '1';
-                if (editMappingLabel) editMappingLabel.textContent = button.dataset.mappingLabel || '';
-            });
-        });
-
-        const deleteMappingForm = document.getElementById('deleteMappingForm');
-        const deleteMappingLabel = document.getElementById('deleteMappingLabel');
-        document.querySelectorAll('.js-delete-mapping').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteMappingForm) deleteMappingForm.action = button.dataset.action || '';
-                if (deleteMappingLabel) deleteMappingLabel.textContent = button.dataset.mappingLabel || '';
-            });
-        });
-
-        {% if open_topping_modal %}
-        const toppingModalEl = document.getElementById('createToppingModal');
-        if (toppingModalEl) {
-            bootstrap.Modal.getOrCreateInstance(toppingModalEl).show();
-        }
-        {% endif %}
-
-        {% if open_mapping_modal %}
-        const mappingModalEl = document.getElementById('createMappingModal');
-        if (mappingModalEl) {
-            bootstrap.Modal.getOrCreateInstance(mappingModalEl).show();
-        }
-        {% endif %}
     });
 </script>
 {% endblock %}

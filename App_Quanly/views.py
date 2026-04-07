@@ -135,6 +135,54 @@ def _sync_product_store_links(product, selected_store_ids):
         link.save(update_fields=['is_available', 'updated_at'])
 
 
+def _sync_topping_product_links(*, topping: Topping, selected_products):
+    """
+    Đồng bộ gán topping -> sản phẩm bằng ProductTopping.
+    - Không chọn sản phẩm nào: không gán.
+    - Thứ tự gán = thứ tự của topping.
+    - Giá gán = giá của topping (giữ ProductTopping.price để tương thích dữ liệu cũ/logic snapshot).
+    """
+    selected_product_ids = {p.id for p in (selected_products or [])}
+    existing = list(ProductTopping.objects.filter(topping=topping).only('id', 'product_id', 'is_active', 'price', 'display_order'))
+    existing_by_pid = {row.product_id: row for row in existing}
+
+    # Remove links no longer selected
+    remove_ids = [row.id for row in existing if row.product_id not in selected_product_ids]
+    if remove_ids:
+        ProductTopping.objects.filter(id__in=remove_ids).delete()
+
+    # Create missing links
+    create_rows = []
+    for pid in selected_product_ids:
+        if pid in existing_by_pid:
+            continue
+        create_rows.append(
+            ProductTopping(
+                product_id=pid,
+                topping=topping,
+                price=topping.price,
+                display_order=topping.display_order,
+                is_active=True,
+            )
+        )
+    if create_rows:
+        ProductTopping.objects.bulk_create(create_rows)
+
+    # Keep existing links aligned with topping's price/order (do not force is_active)
+    for row in existing:
+        if row.product_id not in selected_product_ids:
+            continue
+        changed_fields = []
+        if row.display_order != topping.display_order:
+            row.display_order = topping.display_order
+            changed_fields.append('display_order')
+        if row.price != topping.price:
+            row.price = topping.price
+            changed_fields.append('price')
+        if changed_fields:
+            row.save(update_fields=changed_fields + ['updated_at'])
+
+
 @manager_required
 def dashboard(request):
     tenant = _tenant_or_404(request.user)
@@ -776,17 +824,14 @@ def unit_delete(request, pk):
 @manager_required
 def topping_list_create(request):
     tenant = _tenant_or_404(request.user)
-    toppings = Topping.objects.filter(tenant=tenant).order_by('display_order', 'name')
-    mappings = (
-        ProductTopping.objects.filter(product__tenant=tenant)
-        .select_related('product', 'topping')
-        .order_by('product__name', 'display_order', 'id')
+    toppings = (
+        Topping.objects.filter(tenant=tenant)
+        .prefetch_related(Prefetch('product_links', queryset=ProductTopping.objects.only('id', 'product_id', 'topping_id')))
+        .order_by('display_order', 'name', 'id')
     )
 
     topping_form = ToppingForm(prefix='topping', tenant=tenant)
-    mapping_form = ProductToppingForm(prefix='mapping', tenant=tenant)
     open_topping_modal = False
-    open_mapping_modal = False
 
     if request.method == 'POST':
         form_type = (request.POST.get('form_type') or '').strip()
@@ -796,35 +841,23 @@ def topping_list_create(request):
                 topping = topping_form.save(commit=False)
                 topping.tenant = tenant
                 topping.save()
+                selected_products = list(topping_form.cleaned_data.get('product_ids') or [])
+                _sync_topping_product_links(topping=topping, selected_products=selected_products)
                 messages.success(request, 'Đã tạo topping.')
                 return redirect('App_Quanly:toppings')
             messages.error(request, 'Không thể tạo topping, vui lòng kiểm tra dữ liệu.')
             open_topping_modal = True
-        elif form_type == 'mapping':
-            mapping_form = ProductToppingForm(request.POST, prefix='mapping', tenant=tenant)
-            if mapping_form.is_valid():
-                mapping = mapping_form.save()
-                messages.success(request, f'Đã gán topping "{mapping.topping.name}" cho "{mapping.product.name}".')
-                return redirect('App_Quanly:toppings')
-            messages.error(request, 'Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.')
-            open_mapping_modal = True
 
     toppings_page = Paginator(toppings, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
-    mappings_page = Paginator(mappings, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('mpage'))
     return render(
         request,
         'App_Quanly/toppings.html',
         {
             'toppings_page': toppings_page,
-            'mappings_page': mappings_page,
             'toppings_query_string': _list_query_without_keys(request, 'page'),
-            'mappings_query_string': _list_query_without_keys(request, 'mpage'),
             'topping_form': topping_form,
-            'mapping_form': mapping_form,
-            'mapping_products': mapping_form.fields['product'].queryset,
-            'mapping_toppings': mapping_form.fields['topping'].queryset,
+            'all_products': Product.objects.filter(tenant=tenant, is_active=True).order_by('name'),
             'open_topping_modal': open_topping_modal,
-            'open_mapping_modal': open_mapping_modal,
         },
     )
 
@@ -837,7 +870,9 @@ def topping_edit(request, pk):
         return redirect('App_Quanly:toppings')
     form = ToppingForm(request.POST, instance=topping, tenant=tenant)
     if form.is_valid():
-        form.save()
+        topping = form.save()
+        selected_products = list(form.cleaned_data.get('product_ids') or [])
+        _sync_topping_product_links(topping=topping, selected_products=selected_products)
         messages.success(request, 'Đã cập nhật topping.')
     else:
         messages.error(request, 'Không thể cập nhật topping, vui lòng kiểm tra lại dữ liệu.')

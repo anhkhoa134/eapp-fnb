@@ -137,6 +137,7 @@ class Topping(TimeStampedModel):
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=140)
     is_active = models.BooleanField('Đang hoạt động', default=True)
+    price = models.DecimalField(max_digits=14, decimal_places=2, default=0, blank=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:

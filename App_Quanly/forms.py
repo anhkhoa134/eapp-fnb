@@ -183,20 +183,43 @@ class ProductUnitForm(forms.ModelForm):
 
 
 class ToppingForm(forms.ModelForm):
+    product_ids = forms.ModelMultipleChoiceField(
+        queryset=Product.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label='Gán cho sản phẩm',
+    )
+
     class Meta:
         model = Topping
-        fields = ['name', 'display_order', 'is_active']
+        fields = ['name', 'price', 'display_order', 'is_active']
+        widgets = {
+            'price': forms.TextInput(attrs={'inputmode': 'numeric', 'autocomplete': 'off'}),
+        }
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tenant = tenant
+        if tenant:
+            self.fields['product_ids'].queryset = Product.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            self.fields['product_ids'].queryset = Product.objects.none()
+        self.fields['price'].required = True
         _apply_bootstrap_classes(self)
+        cls = (self.fields['price'].widget.attrs.get('class', '') + ' js-price-vnd').strip()
+        self.fields['price'].widget.attrs['class'] = cls
 
     def _post_clean(self):
         tenant = getattr(self, 'tenant', None)
         if tenant is not None and not self.instance.tenant_id:
             self.instance.tenant = tenant
         super()._post_clean()
+
+    def clean_price(self):
+        price = self.cleaned_data.get('price')
+        if price is None:
+            return price
+        return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
 class ProductToppingForm(forms.ModelForm):

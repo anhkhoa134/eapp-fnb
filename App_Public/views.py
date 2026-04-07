@@ -157,7 +157,7 @@ def _prepare_qr_items_for_table(*, table, raw_items):
                     {
                         'topping_id': link.topping_id,
                         'name': link.topping.name,
-                        'price': link.price,
+                        'price': (getattr(link.topping, 'price', None) or link.price),
                     }
                     for link in topping_links
                 ],
@@ -250,7 +250,7 @@ def _build_qr_products_payload(*, table, request):
                 {
                     'id': link.topping_id,
                     'name': link.topping.name,
-                    'price': float(link.price),
+                    'price': float((getattr(link.topping, 'price', None) or link.price)),
                 }
             )
 

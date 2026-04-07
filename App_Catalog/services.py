@@ -47,7 +47,8 @@ def resolve_product_topping_links(*, product: Product, topping_ids):
 def calc_toppings_total(links):
     total = Decimal('0')
     for link in links:
-        total += link.price
+        # Giá topping được quản lý theo Topping (giá chung), link.price giữ để tương thích dữ liệu cũ.
+        total += (getattr(link.topping, 'price', None) if getattr(link, 'topping', None) else None) or link.price
     return total
 
 
@@ -56,8 +57,8 @@ def serialize_topping_links(links):
         {
             'id': link.topping_id,
             'name': link.topping.name,
-            'price': float(link.price),
+            'price': float((getattr(link.topping, 'price', None) or link.price)),
         }
-        for link in sorted(links, key=lambda row: (row.display_order, row.id))
+        for link in sorted(links, key=lambda row: (row.topping.display_order, row.id))
     ]
 

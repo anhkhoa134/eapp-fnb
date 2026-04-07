@@ -167,7 +167,7 @@ def _snapshot_rows_from_product_toppings(links):
             {
                 'topping_id': link.topping_id,
                 'name': link.topping.name,
-                'price': link.price,
+                'price': (getattr(link.topping, 'price', None) or link.price),
             }
         )
     return rows
@@ -430,7 +430,7 @@ def api_products(request):
                 {
                     'id': topping_link.topping_id,
                     'name': topping_link.topping.name,
-                    'price': float(topping_link.price),
+                    'price': float((getattr(topping_link.topping, 'price', None) or topping_link.price)),
                 }
             )
 
