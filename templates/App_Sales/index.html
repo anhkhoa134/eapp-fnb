@@ -968,10 +968,13 @@
                         <span class="fw-bold text-primary fs-5" id="current-order-name">Khách mang về</span>
                     </div>
                     <div class="d-flex flex-column gap-1 align-items-end">
-                        <button class="btn btn-outline-primary btn-sm fw-bold px-3" onclick="openTableMap()">
+                        <button class="btn btn-outline-primary btn-sm fw-bold px-3" onclick="openTableMap()" id="btn-open-table-map">
                             <i class="fa-solid fa-chair me-1"></i>Chọn bàn
                         </button>
-                        <button class="btn btn-sm btn-link text-muted text-decoration-none p-0 d-none" style="font-size: 0.8rem;" onclick="selectTakeaway()" id="btn-takeaway">
+                        <button class="btn btn-outline-warning btn-sm fw-bold px-3 d-none" onclick="openMoveTableModal()" id="btn-move-table">
+                            <i class="fa-solid fa-right-left me-1"></i>Chuyển bàn
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm fw-bold px-3 d-none" onclick="selectTakeaway()" id="btn-takeaway">
                             <i class="fa-solid fa-bag-shopping me-1"></i>Đổi sang mang về
                         </button>
                     </div>
@@ -999,12 +1002,12 @@
                     </div>
 
                     <div class="row g-2">
-                        <div class="col-6">
-                            <button class="btn btn-outline-secondary w-100 py-2 fw-bold" onclick="saveToTable()">
-                                <i class="fa-solid fa-clock-rotate-left me-1"></i>Lưu bàn
+                        <div class="col-6" id="footer-left-col">
+                            <button class="btn btn-outline-primary w-100 py-2 fw-bold d-none" onclick="handleFooterLeftAction()" id="btn-footer-left-action">
+                                <i class="fa-solid fa-rotate-left me-1" id="btn-footer-left-icon"></i><span id="btn-footer-left-text">Quay lại bàn</span>
                             </button>
                         </div>
-                        <div class="col-6">
+                        <div class="col-6" id="footer-right-col">
                             <button class="btn btn-primary w-100 py-2 fw-bold text-white" style="background-color: var(--primary-color); border:none;" onclick="openPaymentModal()" id="btn-pay" disabled>
                                 <i class="fa-solid fa-money-bill-wave me-1"></i>Thanh toán
                             </button>
@@ -1095,6 +1098,32 @@
                 <div class="modal-footer border-0 pb-4 px-4 bg-white">
                     <button type="button" class="btn btn-light border py-2 px-4" data-bs-dismiss="modal">Hủy</button>
                     <button type="button" class="btn btn-success py-2 px-5 fw-bold" onclick="processPayment()">Hoàn tất thanh toán</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MOVE TABLE MODAL -->
+    <div class="modal fade" id="moveTableModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fa-solid fa-right-left text-warning me-2"></i>Chuyển sang bàn khác
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-muted small mb-2">Giỏ hiện tại sẽ được chuyển toàn bộ sang bàn mới (bàn cũ sẽ rỗng).</div>
+                    <label class="form-label fw-semibold mb-1" for="moveTableSelect">Chọn bàn đích</label>
+                    <select id="moveTableSelect" class="form-select"></select>
+                    <div class="text-danger small mt-2 d-none" id="moveTableError"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-warning text-dark fw-bold" onclick="confirmMoveTable()">
+                        <i class="fa-solid fa-arrow-right-arrow-left me-1"></i>Chuyển bàn
+                    </button>
                 </div>
             </div>
         </div>
@@ -1332,6 +1361,7 @@
         let tables = [];
         let onlineOrders = [];
         let currentSelectedTableId = null;
+        let lastTableContextId = null;
         let takeawayCart = [];
         let cart = [];
         let currentFilter = 'all';
@@ -1382,6 +1412,38 @@
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#39;');
         const getCurrentTable = () => tables.find((table) => table.id === currentSelectedTableId);
+        const getLastTableContext = () => tables.find((table) => table.id === lastTableContextId);
+        const syncOrderContextUi = () => {
+            const chooseBtn = document.getElementById('btn-open-table-map');
+            const moveBtn = document.getElementById('btn-move-table');
+            const takeawayBtn = document.getElementById('btn-takeaway');
+            const footerBtn = document.getElementById('btn-footer-left-action');
+            const footerText = document.getElementById('btn-footer-left-text');
+            const footerIcon = document.getElementById('btn-footer-left-icon');
+            const footerLeftCol = document.getElementById('footer-left-col');
+            const footerRightCol = document.getElementById('footer-right-col');
+            const isTakeaway = currentSelectedTableId === null;
+            if (chooseBtn) chooseBtn.classList.toggle('d-none', !isTakeaway);
+            if (moveBtn) moveBtn.classList.toggle('d-none', isTakeaway);
+            if (takeawayBtn) takeawayBtn.classList.toggle('d-none', isTakeaway);
+            if (footerBtn) {
+                const show = (!isTakeaway) || (isTakeaway && lastTableContextId !== null);
+                footerBtn.classList.toggle('d-none', !show);
+                if (!isTakeaway) {
+                    if (footerText) footerText.textContent = 'Tạo đơn mang về';
+                    if (footerIcon) footerIcon.className = 'fa-solid fa-bag-shopping me-1';
+                } else {
+                    if (footerText) footerText.textContent = 'Quay lại bàn';
+                    if (footerIcon) footerIcon.className = 'fa-solid fa-rotate-left me-1';
+                }
+            }
+            const showFooterLeft = (!isTakeaway) || (isTakeaway && lastTableContextId !== null);
+            if (footerLeftCol) footerLeftCol.classList.toggle('d-none', !showFooterLeft);
+            if (footerRightCol) {
+                footerRightCol.classList.toggle('col-12', !showFooterLeft);
+                footerRightCol.classList.toggle('col-6', showFooterLeft);
+            }
+        };
         const getSelectedPaymentMethod = () => document.getElementById('payment-card')?.checked ? 'card' : 'cash';
         const getCurrentStoreName = () => {
             const selector = document.getElementById('storeSelector');
@@ -2301,10 +2363,11 @@
             const wasTakeaway = currentSelectedTableId === null;
 
             currentSelectedTableId = tableId;
+            lastTableContextId = null;
             const table = getCurrentTable();
             document.getElementById('current-order-name').textContent = table ? table.name : 'Bàn';
-            document.getElementById('btn-takeaway').classList.remove('d-none');
             new bootstrap.Tab(document.getElementById('tab-menu')).show();
+            syncOrderContextUi();
 
             if (wasTakeaway && cart.length) {
                 takeawayCart = cart.map((item) => ({
@@ -2320,8 +2383,9 @@
                 } catch (error) {
                     showToast(error.message, 'danger');
                     currentSelectedTableId = null;
+                    lastTableContextId = null;
                     document.getElementById('current-order-name').textContent = 'Khách mang về';
-                    document.getElementById('btn-takeaway').classList.add('d-none');
+                    syncOrderContextUi();
                     renderCart();
                     renderTables();
                     return;
@@ -2332,6 +2396,7 @@
 
             pendingSaveToTable = false;
             renderTables();
+            syncOrderContextUi();
         };
 
         const selectTakeaway = async () => {
@@ -2383,7 +2448,6 @@
 
             currentSelectedTableId = null;
             document.getElementById('current-order-name').textContent = 'Khách mang về';
-            document.getElementById('btn-takeaway').classList.add('d-none');
             cart = carry;
             takeawayCart = carry.map((item) => ({
                 ...item,
@@ -2392,6 +2456,41 @@
             }));
             renderCart();
             renderTables();
+            syncOrderContextUi();
+        };
+
+        const startNewTakeawayOrder = () => {
+            if (currentSelectedTableId === null) return;
+            lastTableContextId = currentSelectedTableId;
+            currentSelectedTableId = null;
+            pendingSaveToTable = false;
+            cart = [];
+            takeawayCart = [];
+            document.getElementById('current-order-name').textContent = 'Khách mang về';
+            renderCart();
+            renderTables();
+            syncOrderContextUi();
+            showToast(`Đã tạo đơn mang về mới. Bạn có thể quay lại ${getLastTableContext()?.name || 'bàn'}.`, 'primary');
+        };
+
+        const returnToLastTable = async () => {
+            if (lastTableContextId === null) return;
+            const tableId = lastTableContextId;
+            lastTableContextId = null;
+            currentSelectedTableId = tableId;
+            const table = getCurrentTable();
+            document.getElementById('current-order-name').textContent = table ? table.name : 'Bàn';
+            await Promise.all([loadTableCart(tableId), loadTablesFromApi()]);
+            syncOrderContextUi();
+            renderTables();
+        };
+
+        const handleFooterLeftAction = async () => {
+            if (currentSelectedTableId !== null) {
+                startNewTakeawayOrder();
+                return;
+            }
+            await returnToLastTable();
         };
 
         const simulateQrOrder = () => {
@@ -2866,18 +2965,71 @@
             }
         };
 
-        const saveToTable = async () => {
-            if (currentSelectedTableId !== null) {
-                showToast('Bạn đang ở chế độ bàn, không cần lưu vào bàn.', 'warning');
+        let moveTableModalInstance = null;
+        const openMoveTableModal = () => {
+            if (currentSelectedTableId === null) return;
+            const select = document.getElementById('moveTableSelect');
+            const err = document.getElementById('moveTableError');
+            if (!select) return;
+            if (err) {
+                err.classList.add('d-none');
+                err.textContent = '';
+            }
+
+            const currentId = Number(currentSelectedTableId);
+            select.innerHTML = '';
+            const candidates = tables.filter((t) => Number(t.id) !== currentId);
+            candidates.forEach((t) => {
+                const pending = onlineOrders.some((o) => Number(o.table_id) === Number(t.id));
+                const label = `${t.name}${pending ? ' (có đơn QR chờ duyệt)' : ''}`;
+                const opt = document.createElement('option');
+                opt.value = String(t.id);
+                opt.textContent = label;
+                opt.disabled = pending;
+                select.appendChild(opt);
+            });
+
+            if (!moveTableModalInstance) {
+                moveTableModalInstance = new bootstrap.Modal(document.getElementById('moveTableModal'));
+            }
+            moveTableModalInstance.show();
+        };
+
+        const confirmMoveTable = async () => {
+            const select = document.getElementById('moveTableSelect');
+            const err = document.getElementById('moveTableError');
+            if (!select || currentSelectedTableId === null) return;
+            const toTableId = parseInt(select.value || '0', 10) || null;
+            if (!toTableId) return;
+
+            const pending = onlineOrders.some((o) => Number(o.table_id) === Number(toTableId));
+            if (pending) {
+                showToast('Bàn này đang có đơn QR chờ duyệt, vui lòng chọn bàn khác.', 'warning');
                 return;
             }
-            if (!cart.length) {
-                showToast('Giỏ mang về đang trống.', 'warning');
-                return;
+
+            try {
+                await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/move-to/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ to_table_id: toTableId }),
+                });
+                currentSelectedTableId = toTableId;
+                lastTableContextId = null;
+                const table = getCurrentTable();
+                document.getElementById('current-order-name').textContent = table ? table.name : 'Bàn';
+                await Promise.all([loadTableCart(toTableId), loadTablesFromApi()]);
+                renderTables();
+                syncOrderContextUi();
+                if (moveTableModalInstance) moveTableModalInstance.hide();
+                showToast(`Đã chuyển giỏ sang ${table?.name || 'bàn mới'}.`, 'success');
+            } catch (error) {
+                if (err) {
+                    err.textContent = error.message || 'Không thể chuyển bàn.';
+                    err.classList.remove('d-none');
+                } else {
+                    showToast(error.message || 'Không thể chuyển bàn.', 'danger');
+                }
             }
-            pendingSaveToTable = true;
-            showToast('Chọn bàn để lưu giỏ mang về.', 'primary');
-            openTableMap();
         };
 
         const processPayment = async () => {
@@ -2938,6 +3090,7 @@
                 await loadProductsFromApi();
                 await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi()]);
                 await selectTakeaway();
+                syncOrderContextUi();
                 connectPosQrSocket();
             } catch (error) {
                 showToast(error.message || 'Không tải được dữ liệu ban đầu.', 'danger');
@@ -3018,6 +3171,7 @@
             posQrReconnectDelayMs = POS_WS_RECONNECT_BASE_MS;
             pendingSaveToTable = false;
             currentSelectedTableId = null;
+            lastTableContextId = null;
             cart = [];
             takeawayCart = [];
             resetOnlineOrdersTracking();
@@ -3050,6 +3204,10 @@
         window.openTableMap = openTableMap;
         window.selectTable = selectTable;
         window.selectTakeaway = selectTakeaway;
+        window.openMoveTableModal = openMoveTableModal;
+        window.confirmMoveTable = confirmMoveTable;
+        window.returnToLastTable = returnToLastTable;
+        window.handleFooterLeftAction = handleFooterLeftAction;
         window.simulateQrOrder = simulateQrOrder;
         window.openQrOrderModal = openQrOrderModal;
         window.approveQrOrder = approveQrOrder;
@@ -3071,7 +3229,7 @@
         window.formatCashInput = formatCashInput;
         window.setCashReceived = setCashReceived;
         window.processPayment = processPayment;
-        window.saveToTable = saveToTable;
+        // window.saveToTable removed (no longer used)
 
         window.onload = () => {
             changeTheme(currentTheme);

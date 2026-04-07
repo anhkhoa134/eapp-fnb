@@ -30,6 +30,7 @@ Chi tiết: `docs/10_pwa.md`.
 - `PATCH tables/<table_id>/cart/items/<item_id>/`
 - `DELETE tables/<table_id>/cart/items/<item_id>/`
 - `POST tables/<table_id>/cart/import-takeaway/`
+- `POST tables/<table_id>/cart/move-to/` (body: `{ "to_table_id": <id> }`)
 - `POST tables/<table_id>/checkout/`
 - `GET qr/orders/?store_id=&status=pending|approved|rejected|cancelled`
 - `POST qr/orders/<order_id>/approve/`

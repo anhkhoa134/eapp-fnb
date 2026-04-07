@@ -856,6 +856,88 @@ def api_table_import_takeaway(request, table_id):
 
 @login_required
 @staff_or_manager_required
+@require_POST
+def api_table_cart_move_to(request, table_id):
+    user = request.user
+    from_table = _get_accessible_table_or_403(user, table_id)
+    if not from_table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    to_table_id = payload.get('to_table_id')
+    try:
+        to_table_id = int(to_table_id)
+    except (TypeError, ValueError):
+        return _json_error('to_table_id không hợp lệ.', 400)
+    if to_table_id == from_table.id:
+        return _json_error('Bàn đích phải khác bàn hiện tại.', 400)
+
+    to_table = _get_accessible_table_or_403(user, to_table_id)
+    if not to_table:
+        return _json_error('Không có quyền truy cập bàn đích.', 403)
+    if to_table.store_id != from_table.store_id:
+        return _json_error('Không thể chuyển giỏ giữa hai cửa hàng khác nhau.', 400)
+
+    items = list(
+        TableCartItem.objects.filter(table=from_table)
+        .select_related('unit', 'product')
+        .prefetch_related('toppings')
+        .order_by('id')
+    )
+    if not items:
+        return JsonResponse(
+            {
+                'detail': 'Giỏ bàn đang trống.',
+                'from_table': {'id': from_table.id, 'name': from_table.name},
+                'to_table': {'id': to_table.id, 'name': to_table.name},
+                'summary': _table_cart_summary(to_table),
+            }
+        )
+
+    if any(not item.unit_id for item in items):
+        return _json_error('Item không hợp lệ (thiếu unit).', 400)
+
+    with transaction.atomic():
+        for item in items:
+            snapshot_toppings = [
+                {
+                    'topping_id': row.topping_id,
+                    'name': row.snapshot_topping_name,
+                    'price': row.snapshot_price,
+                }
+                for row in item.toppings.all().order_by('id')
+            ]
+            base_unit_price = get_effective_unit_price(unit=item.unit, store_id=to_table.store_id)
+            _upsert_table_cart_item(
+                tenant=user.tenant,
+                store=to_table.store,
+                table=to_table,
+                unit=item.unit,
+                quantity=item.quantity,
+                base_unit_price=base_unit_price,
+                snapshot_toppings=snapshot_toppings,
+                note=item.note,
+                source=item.source,
+                qr_order=item.qr_order if item.qr_order_id else None,
+            )
+
+        TableCartItem.objects.filter(table=from_table).delete()
+
+    return JsonResponse(
+        {
+            'detail': 'Đã chuyển giỏ sang bàn khác.',
+            'from_table': {'id': from_table.id, 'name': from_table.name},
+            'to_table': {'id': to_table.id, 'name': to_table.name},
+            'summary': _table_cart_summary(to_table),
+        }
+    )
+
+
+@login_required
+@staff_or_manager_required
 @require_http_methods(['PATCH', 'DELETE'])
 def api_table_cart_item(request, table_id, item_id):
     user = request.user

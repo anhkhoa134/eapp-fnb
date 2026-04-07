@@ -11,6 +11,7 @@ urlpatterns = [
     path('tables/<int:table_id>/cart/', views.api_table_cart, name='table_cart'),
     path('tables/<int:table_id>/cart/items/', views.api_table_cart_add, name='table_cart_add'),
     path('tables/<int:table_id>/cart/import-takeaway/', views.api_table_import_takeaway, name='table_import_takeaway'),
+    path('tables/<int:table_id>/cart/move-to/', views.api_table_cart_move_to, name='table_cart_move_to'),
     path('tables/<int:table_id>/cart/items/<int:item_id>/', views.api_table_cart_item, name='table_cart_item'),
     path('tables/<int:table_id>/checkout/', views.api_table_checkout, name='table_checkout'),
     path('qr/orders/', views.api_qr_orders, name='qr_orders'),

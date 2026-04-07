@@ -346,6 +346,44 @@ class SalesApiTests(TestCase):
         self.assertEqual(item.unit_price_snapshot, Decimal('31000'))
         self.assertEqual(TableCartItemTopping.objects.filter(table_cart_item=item).count(), 1)
 
+    def test_table_cart_move_to_moves_all_rows_and_merges_duplicates(self):
+        # from_table: 2 identical rows (same unit/toppings/note/source) -> should merge on destination
+        TableCartItem.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=1,
+            note='Gộp dòng',
+            source=TableCartItem.Source.STAFF,
+        )
+        TableCartItem.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=2,
+            note='Gộp dòng',
+            source=TableCartItem.Source.STAFF,
+        )
+
+        move_url = reverse('App_Sales_API:table_cart_move_to', kwargs={'table_id': self.table_1.id})
+        res = self.client.post(move_url, data=json.dumps({'to_table_id': self.table_2.id}), content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+
+        self.assertEqual(TableCartItem.objects.filter(table=self.table_1).count(), 0)
+        dst_items = TableCartItem.objects.filter(table=self.table_2)
+        self.assertEqual(dst_items.count(), 1)
+        self.assertEqual(dst_items.first().quantity, 3)
+
     def test_qr_approve_merges_into_table_cart_and_is_idempotent(self):
         qr_order = QROrder.objects.create(
             tenant=self.tenant,
