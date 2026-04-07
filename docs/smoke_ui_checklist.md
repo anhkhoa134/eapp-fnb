@@ -36,8 +36,8 @@ Lưu ý:
 3. Thử checkout cash (fail/pass) và card.
 
 ## B. Takeaway / table cart (POS)
-1. Tạo takeaway cart, **chọn bàn** (có thể không cần bấm Lưu bàn) — verify món **không mất**, import vào cart bàn.
-2. (Tùy chọn) Bấm **Lưu bàn** rồi chọn bàn — tương tự.
+1. Tạo takeaway cart, **chọn bàn** — verify món **không mất**, import vào cart bàn.
+2. (Tùy chọn) Khi đang **ở bàn**, bấm **Tạo đơn mang về** (nút trái footer) để mở đơn mang về mới; sau đó bấm **Quay lại bàn** để quay lại bàn đang phục vụ.
 3. **Đổi sang mang về** — verify giỏ bàn trên server **rỗng** (DELETE items), giỏ trên màn hình vẫn có món (mang về).
 4. **Mobile:** mở giỏ (offcanvas) → **Chọn bàn** — offcanvas **đóng**, thấy lưới bàn.
 

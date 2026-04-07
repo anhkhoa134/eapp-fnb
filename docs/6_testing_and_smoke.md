@@ -37,8 +37,8 @@ python manage.py test App_Sales.tests_ws App_Public.tests_ws
 3. Thử card.
 
 ### B. Save-to-table + takeaway / table cart (POS)
-1. Tạo giỏ takeaway, **chọn bàn** (có thể không cần bấm Lưu bàn) — verify món **không mất**, import lên cart bàn (`import-takeaway`).
-2. (Tùy chọn) Bấm **Lưu bàn**, chọn bàn — cùng kết quả import.
+1. Tạo giỏ takeaway, **chọn bàn** — verify món **không mất**, import lên cart bàn (`import-takeaway`).
+2. (Tùy chọn) Khi đang **ở bàn**, bấm **Tạo đơn mang về** (nút trái footer) để mở đơn mang về mới; sau đó bấm **Quay lại bàn** để quay lại bàn đang phục vụ.
 3. Verify item/topping trên cart bàn sau khi chọn bàn.
 4. Bấm Đổi sang mang về — verify DELETE từng dòng cart bàn trên API, giỏ client là mang về (món vẫn hiện), bàn trống trên UI.
 5. Mobile: mở offcanvas giỏ, bấm Chọn bàn — offcanvas đóng, thấy lưới bàn.

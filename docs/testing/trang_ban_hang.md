@@ -62,8 +62,8 @@ Ghi chú cột **Kết quả / Thông báo**: ghi lại toast, `alert`, nội du
 | 4.4 | Bấm **Đổi sang mang về** (khi đang gắn bàn và giỏ có món đồng bộ từ bàn) | **Toàn bộ dòng giỏ trên bàn** bị xóa trên server (`DELETE` từng `cart/items/<id>/`); giỏ trên màn hình chuyển sang **mang về** (cùng món, không còn liên kết `tableItemId`); bàn trên lưới cập nhật trạng thái trống / tổng. Nếu API lỗi → toast, **vẫn ở chế độ bàn** |
 | 4.5 | Bấm **Đổi sang mang về** khi giỏ **trống** | Chỉ đổi nhãn *Khách mang về*; không gọi xóa dòng (hoặc không có dòng để xóa) |
 | 4.6 | Bấm **Xóa tất cả** (thùng rác) khi giỏ có món | Giỏ về trống; modal xác nhận (Bootstrap) trước khi thực hiện |
-| 4.7 | Khi đang **mang về** có món: bấm **Lưu bàn** | Toast hướng dẫn → chọn bàn → món import vào cart bàn (giống 4.3) |
-| 4.8 | Khi đang **ở bàn** (chưa thanh toán): bấm **Tạo đơn mang về** | POS chuyển sang *Khách mang về* với giỏ **trống** (không xóa giỏ bàn trên server); có nút **Quay lại bàn** để tiếp tục bàn cũ |
+| 4.7 | Khi đang **mang về** có món: bấm **Chọn bàn** | Chọn bàn đích → món import vào cart bàn (giống 4.3). (Không còn nút *Lưu bàn*) |
+| 4.8 | Khi đang **ở bàn** (chưa thanh toán): bấm **Tạo đơn mang về** (nút trái footer) | POS chuyển sang *Khách mang về* với giỏ **trống** (không xóa giỏ bàn trên server); nút trái footer đổi thành **Quay lại bàn** để tiếp tục bàn cũ |
 | 4.9 | Khi đang **ở bàn**: bấm **Chuyển bàn** | Mở modal chọn bàn đích → xác nhận → giỏ bàn hiện tại được chuyển sang bàn mới (bàn cũ rỗng); POS tự chuyển sang bàn đích |
 
 ---
@@ -135,7 +135,7 @@ Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 |----------|-------------|---------|
 | Tab Thực đơn / Chọn bàn / Đơn QR | | |
 | Thêm món, topping, ghi chú | | |
-| Giỏ, mobile offcanvas, chọn bàn, mang về ↔ bàn, Lưu bàn | | |
+| Giỏ, mobile offcanvas, chọn bàn, mang về ↔ bàn, tạo đơn mang về / quay lại bàn | | |
 | Thanh toán tiền mặt / Thẻ·QR | | |
 | Duyệt / Từ chối đơn QR | | |
 | Đơn trong ngày (`/orders/today/`, KPI + phân trang bảng) | | |
