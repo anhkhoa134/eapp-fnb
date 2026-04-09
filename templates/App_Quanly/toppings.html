@@ -2,12 +2,28 @@
 {% load number_format %}
 
 {% block quanly_content %}
+<style>
+    /* Ensure modal fits viewport on mobile; keep footer visible */
+    .crud-modal .modal-dialog-scrollable .modal-content {
+        max-height: calc(100dvh - 1rem);
+    }
+    .crud-modal .modal-dialog-scrollable .modal-body {
+        overflow-y: auto;
+    }
+
+    /* Limit long product lists inside topping modals */
+    .topping-products-scroll {
+        max-height: clamp(160px, 30dvh, 320px);
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+</style>
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         <div class="crud-toolbar">
             <h2 class="admin-card-title mb-0">
                 <i class="bi bi-plus-circle"></i>
-                Quản lý topping
+                Danh sách topping
             </h2>
             <div class="d-flex flex-wrap gap-2">
                 <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createToppingModal">
@@ -16,10 +32,6 @@
             </div>
         </div>
 
-        <h3 class="admin-card-title">
-            <i class="bi bi-list-ul"></i>
-            Danh sách topping
-        </h3>
         <div class="table-responsive mb-4">
             <table class="table table-sm align-middle">
                 <thead>
@@ -118,7 +130,7 @@
                         <div class="full">
                             <div class="fw-semibold mb-2">Gán topping cho sản phẩm (tùy chọn)</div>
                             <div class="small text-muted mb-2">Không chọn sản phẩm nào thì topping chưa được gán cho sản phẩm nào.</div>
-                            <div class="d-flex flex-column gap-2">
+                            <div class="d-flex flex-column gap-2 topping-products-scroll">
                                 {{ topping_form.product_ids }}
                             </div>
                             {{ topping_form.product_ids.errors }}
@@ -167,7 +179,7 @@
                         <div class="full">
                             <div class="fw-semibold mb-2">Gán topping cho sản phẩm (tùy chọn)</div>
                             <div class="small text-muted mb-2">Không chọn sản phẩm nào thì topping không gán cho sản phẩm nào.</div>
-                            <div class="d-flex flex-column gap-2" id="edit-topping-products">
+                            <div class="d-flex flex-column gap-2 topping-products-scroll" id="edit-topping-products">
                                 {% for product in all_products %}
                                 <div class="form-check">
                                     <input class="form-check-input js-edit-topping-product" type="checkbox" name="product_ids" value="{{ product.id }}" id="edit-topping-product-{{ product.id }}">

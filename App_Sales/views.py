@@ -438,6 +438,7 @@ def api_products(request):
             {
                 'id': product.id,
                 'name': product.name,
+                'description': (product.description or '').strip(),
                 'category': product.category.name if product.category else 'Khác',
                 'category_id': str(product.category_id or ''),
                 'image': _pos_product_image_url(request, product),
