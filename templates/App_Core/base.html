@@ -212,13 +212,13 @@
                     </li>
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
-                    <li class="px-2 pb-2">
-                        <button class="dropdown-item text-danger fw-bold mx-2" type="button" onclick="openLogoutConfirm('globalLogoutForm')">
+                    <li class="pb-2">
+                        <button class="dropdown-item account-action text-danger fw-bold mx-2" type="button" onclick="openLogoutConfirm('globalLogoutForm')">
                             <span class="account-icon-pill"><i class="bi bi-box-arrow-right"></i></span>Đăng xuất
                         </button>
                     </li>
                     {% else %}
-                    <li class="px-2 pb-2">
+                    <li class="pb-2">
                         <a class="dropdown-item account-action mx-2" href="{% url 'App_Accounts:login' %}">
                             <span class="account-icon-pill"><i class="bi bi-box-arrow-in-right"></i></span>Đăng nhập POS
                         </a>

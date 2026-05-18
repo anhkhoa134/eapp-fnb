@@ -388,6 +388,231 @@
             border-radius: 50%;
         }
 
+        /* --- Payment modal customer/promotion UX --- */
+        .payment-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.7rem;
+            margin-bottom: 0.85rem;
+        }
+        .payment-meta-grid.payment-meta-grid--single {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        .payment-panel {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #fff;
+            padding: 0.62rem;
+            min-width: 0;
+        }
+        .payment-panel .min-w-0 {
+            min-width: 0;
+        }
+        .customer-picker-wrap {
+            position: relative;
+        }
+        .payment-section-label {
+            display: flex;
+            align-items: center;
+            gap: 0.36rem;
+            margin-bottom: 0.42rem;
+            color: #475569;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .payment-section-label i {
+            color: var(--primary-color);
+        }
+        .customer-combobox .form-control,
+        .customer-combobox .btn,
+        .promotion-picker-btn {
+            min-height: 38px;
+        }
+        .customer-results-menu {
+            position: absolute;
+            top: calc(100% + 0.35rem);
+            left: 0;
+            right: 0;
+            z-index: 1070;
+            max-height: 240px;
+            overflow-y: auto;
+            border: 1px solid #dbe4ee;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16);
+            padding: 0.35rem;
+        }
+        .customer-result-item {
+            width: 100%;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            padding: 0.55rem 0.62rem;
+            text-align: left;
+        }
+        .customer-result-item:hover,
+        .customer-result-item.active {
+            background: rgba(16, 185, 129, 0.1);
+        }
+        .customer-result-name {
+            color: #0f172a;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .customer-result-meta {
+            color: #64748b;
+            font-size: 0.76rem;
+        }
+        .customer-result-empty {
+            padding: 0.55rem 0.62rem;
+            color: #64748b;
+            font-size: 0.8rem;
+        }
+        .selected-customer-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            border: 1px solid rgba(16, 185, 129, 0.24);
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.08);
+            padding: 0.45rem 0.52rem;
+        }
+        .selected-customer-name,
+        .promotion-picker-title {
+            color: #0f172a;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .selected-customer-meta,
+        .promotion-picker-meta,
+        .payment-mini-help {
+            color: #64748b;
+            font-size: 0.76rem;
+            line-height: 1.25;
+        }
+        .promotion-dropdown {
+            position: relative;
+        }
+        .promotion-picker-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #fff;
+            padding: 0.48rem 0.58rem;
+            text-align: left;
+        }
+        .promotion-picker-content {
+            min-width: 0;
+            flex: 1;
+        }
+        .promotion-picker-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.45rem;
+            min-width: 0;
+        }
+        .promotion-picker-discount {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            background: rgba(22, 163, 74, 0.11);
+            color: #15803d;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 0.12rem 0.42rem;
+            white-space: nowrap;
+        }
+        .promotion-picker-btn:hover,
+        .promotion-picker-btn.show {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.18rem rgba(16, 185, 129, 0.12);
+        }
+        .promotion-menu {
+            width: 100%;
+            max-height: 260px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16);
+            padding: 0.35rem;
+        }
+        .promotion-menu .dropdown-item {
+            position: relative;
+            display: block;
+            white-space: normal;
+            border-radius: 10px;
+            color: #0f172a;
+            padding: 0.58rem 0.62rem;
+        }
+        .promotion-menu .dropdown-item:hover,
+        .promotion-menu .dropdown-item:focus {
+            background: rgba(16, 185, 129, 0.08);
+            color: #0f172a;
+        }
+        .promotion-menu .dropdown-item.active,
+        .promotion-menu .dropdown-item:active {
+            background: rgba(16, 185, 129, 0.13);
+            color: #0f172a;
+        }
+        .promotion-option-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .promotion-option-title {
+            min-width: 0;
+            overflow: hidden;
+            color: #0f172a;
+            font-weight: 800;
+            line-height: 1.2;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .promotion-option-side {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            flex-shrink: 0;
+        }
+        .promotion-discount {
+            color: #15803d;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .promotion-option-check {
+            color: var(--primary-color);
+            opacity: 0;
+        }
+        .promotion-menu .dropdown-item.active .promotion-option-check {
+            opacity: 1;
+        }
+        .promotion-option-meta {
+            margin-top: 0.16rem;
+            color: #64748b;
+            font-size: 0.74rem;
+            line-height: 1.25;
+        }
+        .promotion-empty-state {
+            padding: 0.58rem 0.62rem;
+            color: #64748b;
+            font-size: 0.78rem;
+        }
+        .payment-modal-dialog {
+            max-width: min(96vw, 1240px);
+        }
+        @media (max-width: 767.98px) {
+            .payment-meta-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* --- Mobile Floating Button --- */
         .mobile-cart-btn {
             position: fixed;
@@ -869,8 +1094,8 @@
                         </li>
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
-                        <li class="px-2 pb-2">
-                            <button class="dropdown-item text-danger mx-2 mb-2 fw-bold rounded-3" type="button" onclick="openLogoutConfirmModal()">
+                        <li class="pb-2">
+                            <button class="dropdown-item account-action text-danger mx-2 mb-2 fw-bold rounded-3" type="button" onclick="openLogoutConfirmModal()">
                                 <span class="account-icon-pill"><i class="fa-solid fa-right-from-bracket"></i></span>Đăng xuất
                             </button>
                         </li>
@@ -1050,7 +1275,7 @@
 
     <!-- PAYMENT MODAL -->
     <div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-dialog modal-dialog-centered modal-xl payment-modal-dialog">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-light border-0">
                     <h5 class="modal-title fw-bold"><i class="fa-solid fa-wallet text-primary me-2"></i>Thanh toán hóa đơn</h5>
@@ -1084,40 +1309,57 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Khách hàng:</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="customer-search-input" placeholder="Tìm tên hoặc SĐT...">
-                                    <button class="btn btn-outline-primary" type="button" onclick="searchCustomers()">
-                                        <i class="fa-solid fa-magnifying-glass"></i>
-                                    </button>
-                                </div>
-                                <div id="customer-search-results" class="list-group mt-2 d-none"></div>
-                                <div class="d-flex align-items-center justify-content-between gap-2 mt-2 d-none" id="selected-customer-row">
-                                    <span class="badge rounded-pill bg-primary-subtle text-primary border" id="selected-customer-label"></span>
-                                    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="clearSelectedCustomer()">Bỏ chọn</button>
-                                </div>
-                                <div class="row g-2 mt-2">
-                                    <div class="col-6">
-                                        <input type="text" class="form-control form-control-sm" id="quick-customer-name" placeholder="Tên khách mới">
+                            <div class="payment-meta-grid" id="payment-meta-grid">
+                                <div class="payment-panel" id="payment-customer-panel">
+                                    <label class="payment-section-label" for="customer-search-input">
+                                        <i class="fa-solid fa-user"></i>Khách hàng
+                                    </label>
+                                    <div class="customer-picker-wrap">
+                                        <div class="input-group customer-combobox">
+                                            <input
+                                                type="text"
+                                                class="form-control"
+                                                id="customer-search-input"
+                                                placeholder="Gõ tên hoặc SĐT..."
+                                                autocomplete="off"
+                                                aria-autocomplete="list"
+                                                aria-expanded="false"
+                                                aria-controls="customer-search-results"
+                                            >
+                                            <button class="btn btn-outline-primary" type="button" onclick="openQuickCustomerModal()" title="Tạo nhanh khách hàng" aria-label="Tạo nhanh khách hàng">
+                                                <i class="fa-solid fa-plus"></i>
+                                            </button>
+                                        </div>
+                                        <div id="customer-search-results" class="customer-results-menu d-none"></div>
                                     </div>
-                                    <div class="col-6">
-                                        <input type="text" class="form-control form-control-sm" id="quick-customer-phone" placeholder="SĐT">
-                                    </div>
-                                    <div class="col-12">
-                                        <button class="btn btn-outline-primary btn-sm w-100" type="button" onclick="createQuickCustomer()">
-                                            <i class="fa-solid fa-user-plus me-1"></i>Tạo nhanh khách hàng
-                                        </button>
+                                    <div class="selected-customer-card mt-2 d-none" id="selected-customer-row">
+                                        <div class="min-w-0">
+                                            <div class="selected-customer-name text-truncate" id="selected-customer-name"></div>
+                                            <div class="selected-customer-meta" id="selected-customer-meta"></div>
+                                        </div>
+                                        <button class="btn btn-sm btn-light border flex-shrink-0" type="button" onclick="clearSelectedCustomer()">Bỏ</button>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="mb-3">
-                                <label class="form-label text-muted" for="promotion-select">Khuyến mãi:</label>
-                                <select class="form-select" id="promotion-select" onchange="handlePromotionChange()">
-                                    <option value="">Không áp dụng</option>
-                                </select>
-                                <div class="form-text" id="promotion-help-text">Chọn khuyến mãi hợp lệ cho hóa đơn hiện tại.</div>
+                                <div class="payment-panel" id="payment-promotion-panel">
+                                    <label class="payment-section-label" for="promotion-dropdown-button">
+                                        <i class="fa-solid fa-tag"></i>Khuyến mãi
+                                    </label>
+                                    <div class="dropdown w-100 promotion-dropdown">
+                                        <button class="promotion-picker-btn" type="button" id="promotion-dropdown-button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="promotion-picker-content">
+                                                <span class="promotion-picker-line">
+                                                    <span class="promotion-picker-title text-truncate" id="promotion-dropdown-label">Không áp dụng</span>
+                                                    <span class="promotion-picker-discount d-none" id="promotion-dropdown-discount">-0 đ</span>
+                                                </span>
+                                            </span>
+                                            <i class="fa-solid fa-chevron-down text-muted flex-shrink-0"></i>
+                                        </button>
+                                        <div class="dropdown-menu promotion-menu" id="promotion-dropdown-menu" aria-labelledby="promotion-dropdown-button">
+                                            <button class="dropdown-item" type="button" data-promotion-id="">Không áp dụng</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -1166,6 +1408,36 @@
                 <div class="modal-footer border-0 pb-4 px-4 bg-white">
                     <button type="button" class="btn btn-light border py-2 px-4" data-bs-dismiss="modal">Hủy</button>
                     <button type="button" class="btn btn-success py-2 px-5 fw-bold" onclick="processPayment()">Hoàn tất thanh toán</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK CUSTOMER MODAL -->
+    <div class="modal fade" id="quickCustomerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-light border-0">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fa-solid fa-user-plus text-primary me-2"></i>Tạo khách hàng
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted" for="quick-customer-modal-name">Tên khách hàng</label>
+                        <input type="text" class="form-control" id="quick-customer-modal-name" placeholder="VD: Nguyễn Văn An" autocomplete="off">
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label text-muted" for="quick-customer-modal-phone">Số điện thoại</label>
+                        <input type="text" class="form-control" id="quick-customer-modal-phone" placeholder="VD: 0901234567" inputmode="tel" autocomplete="tel">
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" id="quick-customer-save-btn" onclick="createQuickCustomer()">
+                        <i class="fa-solid fa-check me-1"></i>Lưu
+                    </button>
                 </div>
             </div>
         </div>
@@ -1439,12 +1711,18 @@
         let cartSubtotalAmount = 0;
         let totalAmountDue = 0;
         let selectedCustomer = null;
+        let customerOptionMap = new Map();
+        let customerSearchTimer = null;
+        let customerSearchRequestSeq = 0;
+        let hasCustomerFeature = true;
         let availablePromotions = [];
         let selectedPromotion = null;
+        let hasPromotionFeature = true;
         let currentDiscountAmount = 0;
         let currentSearchTerm = '';
         let currentReviewingOrderId = null;
         let paymentModalInstance = null;
+        let quickCustomerModalInstance = null;
         let noteModalInstance = null;
         let optionsModalInstance = null;
         let qrOrderModalInstance = null;
@@ -2986,84 +3264,211 @@
             });
         };
 
+        const updatePaymentMetaVisibility = () => {
+            const grid = document.getElementById('payment-meta-grid');
+            const customerPanel = document.getElementById('payment-customer-panel');
+            const promotionPanel = document.getElementById('payment-promotion-panel');
+            const discountRow = document.getElementById('modal-discount-row');
+            if (customerPanel) customerPanel.classList.toggle('d-none', !hasCustomerFeature);
+            if (promotionPanel) promotionPanel.classList.toggle('d-none', !hasPromotionFeature);
+            if (discountRow) discountRow.classList.toggle('d-none', !hasPromotionFeature);
+            if (grid) {
+                const visibleCount = (hasCustomerFeature ? 1 : 0) + (hasPromotionFeature ? 1 : 0);
+                grid.classList.toggle('d-none', visibleCount === 0);
+                grid.classList.toggle('payment-meta-grid--single', visibleCount === 1);
+            }
+            if (!hasCustomerFeature) clearSelectedCustomer();
+            if (!hasPromotionFeature) {
+                selectedPromotion = null;
+                currentDiscountAmount = 0;
+            }
+        };
+
+        const loadCustomerFeatureAvailability = async () => {
+            try {
+                const payload = await fetchJson(API_CUSTOMERS_URL);
+                hasCustomerFeature = payload.has_customers !== false;
+            } catch (error) {
+                hasCustomerFeature = true;
+            }
+            updatePaymentMetaVisibility();
+        };
+
+        const customerOptionValue = (customer) => {
+            const tier = customer.tier_label || customer.tier || 'Member';
+            const points = Number(customer.points_balance || 0);
+            return `${customer.name} - ${customer.phone} - ${tier} - ${points} điểm`;
+        };
+
         const updateSelectedCustomerUi = () => {
             const row = document.getElementById('selected-customer-row');
-            const label = document.getElementById('selected-customer-label');
-            if (!row || !label) return;
+            const nameEl = document.getElementById('selected-customer-name');
+            const metaEl = document.getElementById('selected-customer-meta');
+            if (!row || !nameEl || !metaEl) return;
             row.classList.toggle('d-none', !selectedCustomer);
             if (selectedCustomer) {
-                label.textContent = `${selectedCustomer.name} · ${selectedCustomer.phone} · ${selectedCustomer.tier_label || selectedCustomer.tier || 'Member'}`;
+                const tier = selectedCustomer.tier_label || selectedCustomer.tier || 'Member';
+                const points = Number(selectedCustomer.points_balance || 0);
+                nameEl.textContent = selectedCustomer.name || '';
+                metaEl.textContent = `${selectedCustomer.phone || ''} · ${tier} · ${points} điểm`;
             } else {
-                label.textContent = '';
+                nameEl.textContent = '';
+                metaEl.textContent = '';
             }
         };
 
         const setSelectedCustomer = (customer) => {
             selectedCustomer = customer || null;
+            const input = document.getElementById('customer-search-input');
+            if (input) {
+                input.value = selectedCustomer ? `${selectedCustomer.name} - ${selectedCustomer.phone}` : '';
+            }
+            hideCustomerResults();
+            updateSelectedCustomerUi();
+        };
+
+        const clearSelectedCustomer = () => {
+            selectedCustomer = null;
+            const input = document.getElementById('customer-search-input');
             const results = document.getElementById('customer-search-results');
+            if (input) input.value = '';
             if (results) {
                 results.innerHTML = '';
                 results.classList.add('d-none');
             }
+            customerOptionMap.clear();
             updateSelectedCustomerUi();
         };
 
-        const clearSelectedCustomer = () => setSelectedCustomer(null);
-
-        const searchCustomers = async () => {
-            const input = document.getElementById('customer-search-input');
+        const hideCustomerResults = () => {
             const results = document.getElementById('customer-search-results');
-            if (!input || !results) return;
-            const q = input.value.trim();
-            if (!q) {
-                results.innerHTML = '';
-                results.classList.add('d-none');
+            const input = document.getElementById('customer-search-input');
+            if (results) results.classList.add('d-none');
+            if (input) input.setAttribute('aria-expanded', 'false');
+        };
+
+        const showCustomerResults = () => {
+            const results = document.getElementById('customer-search-results');
+            const input = document.getElementById('customer-search-input');
+            if (results && results.innerHTML.trim()) {
+                results.classList.remove('d-none');
+                if (input) input.setAttribute('aria-expanded', 'true');
+            }
+        };
+
+        const renderCustomerOptions = (customers) => {
+            const results = document.getElementById('customer-search-results');
+            if (!results) return;
+            customerOptionMap = new Map();
+            results.innerHTML = '';
+            if (!customers.length) {
+                const query = (document.getElementById('customer-search-input')?.value || '').trim();
+                if (query.length >= 2) {
+                    results.innerHTML = '<div class="customer-result-empty">Không tìm thấy khách phù hợp.</div>';
+                    showCustomerResults();
+                } else {
+                    hideCustomerResults();
+                }
                 return;
             }
+            customers.forEach((customer) => {
+                const value = customerOptionValue(customer);
+                customerOptionMap.set(value, customer);
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'customer-result-item';
+                item.dataset.customerValue = value;
+                const tier = customer.tier_label || customer.tier || 'Member';
+                const points = Number(customer.points_balance || 0);
+                item.innerHTML = `
+                    <div class="customer-result-name">${escapeHtml(customer.name || '')}</div>
+                    <div class="customer-result-meta">${escapeHtml(customer.phone || '')} · ${escapeHtml(tier)} · ${points} điểm</div>
+                `;
+                item.addEventListener('click', () => setSelectedCustomer(customer));
+                results.appendChild(item);
+            });
+            showCustomerResults();
+        };
+
+        const searchCustomers = async (query) => {
+            const q = (query ?? document.getElementById('customer-search-input')?.value ?? '').trim();
+            if (!q || q.length < 2) {
+                renderCustomerOptions([]);
+                return;
+            }
+            const requestSeq = ++customerSearchRequestSeq;
             try {
                 const payload = await fetchJson(`${API_CUSTOMERS_URL}?q=${encodeURIComponent(q)}`);
+                if (requestSeq !== customerSearchRequestSeq) return;
+                hasCustomerFeature = payload.has_customers !== false;
                 const customers = payload.customers || [];
-                results.innerHTML = '';
-                if (!customers.length) {
-                    results.innerHTML = '<div class="list-group-item small text-muted">Không tìm thấy khách hàng.</div>';
-                } else {
-                    customers.forEach((customer) => {
-                        const meta = `${customer.phone}${customer.points_balance ? ` · ${customer.points_balance} điểm` : ''}`;
-                        results.insertAdjacentHTML('beforeend', `
-                            <button type="button" class="list-group-item list-group-item-action" data-customer-id="${customer.id}">
-                                <div class="fw-semibold">${escapeHtml(customer.name)}</div>
-                                <div class="small text-muted">${escapeHtml(meta)}</div>
-                            </button>
-                        `);
-                        results.lastElementChild.addEventListener('click', () => setSelectedCustomer(customer));
-                    });
-                }
-                results.classList.remove('d-none');
+                renderCustomerOptions(customers);
+                updatePaymentMetaVisibility();
             } catch (error) {
+                if (requestSeq !== customerSearchRequestSeq) return;
                 showToast(error.message || 'Không thể tìm khách hàng.', 'danger');
             }
         };
 
+        const scheduleCustomerSearch = () => {
+            const input = document.getElementById('customer-search-input');
+            if (!input) return;
+            const value = input.value.trim();
+            const matched = customerOptionMap.get(value);
+            if (matched) {
+                setSelectedCustomer(matched);
+                return;
+            }
+            if (selectedCustomer && value !== `${selectedCustomer.name} - ${selectedCustomer.phone}`) {
+                selectedCustomer = null;
+                updateSelectedCustomerUi();
+            }
+            window.clearTimeout(customerSearchTimer);
+            customerSearchTimer = window.setTimeout(() => searchCustomers(value), 250);
+        };
+
+        const openQuickCustomerModal = () => {
+            const modalEl = document.getElementById('quickCustomerModal');
+            if (!modalEl) return;
+            const searchValue = (document.getElementById('customer-search-input')?.value || '').trim();
+            const nameEl = document.getElementById('quick-customer-modal-name');
+            const phoneEl = document.getElementById('quick-customer-modal-phone');
+            if (nameEl && !nameEl.value) nameEl.value = /\d{6,}/.test(searchValue) ? '' : searchValue;
+            if (phoneEl && !phoneEl.value) {
+                const phoneGuess = (searchValue.match(/[\d\s+.-]{8,}/) || [''])[0].replace(/[^\d+]/g, '');
+                phoneEl.value = phoneGuess;
+            }
+            if (!quickCustomerModalInstance) quickCustomerModalInstance = new bootstrap.Modal(modalEl);
+            quickCustomerModalInstance.show();
+            setTimeout(() => (nameEl?.value ? phoneEl : nameEl)?.focus(), 180);
+        };
+
         const createQuickCustomer = async () => {
-            const nameEl = document.getElementById('quick-customer-name');
-            const phoneEl = document.getElementById('quick-customer-phone');
+            const nameEl = document.getElementById('quick-customer-modal-name');
+            const phoneEl = document.getElementById('quick-customer-modal-phone');
+            const saveBtn = document.getElementById('quick-customer-save-btn');
             const name = (nameEl?.value || '').trim();
             const phone = (phoneEl?.value || '').trim();
             if (!name || !phone) {
                 showToast('Vui lòng nhập tên và số điện thoại khách hàng.', 'warning');
                 return;
             }
+            if (saveBtn) saveBtn.disabled = true;
             try {
                 const payload = await fetchJson(API_CUSTOMERS_URL, {
                     method: 'POST',
                     body: JSON.stringify({ name, phone }),
                 });
                 setSelectedCustomer(payload.customer);
+                renderCustomerOptions(payload.customer ? [payload.customer] : []);
                 if (nameEl) nameEl.value = '';
                 if (phoneEl) phoneEl.value = '';
+                if (quickCustomerModalInstance) quickCustomerModalInstance.hide();
                 showToast(payload.detail || 'Đã chọn khách hàng.', 'success');
             } catch (error) {
                 showToast(error.message || 'Không thể tạo khách hàng.', 'danger');
+            } finally {
+                if (saveBtn) saveBtn.disabled = false;
             }
         };
 
@@ -3073,12 +3478,7 @@
             document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
             document.getElementById('modal-discount-amount').textContent = currentDiscountAmount ? `-${formatCurrency(currentDiscountAmount)}` : '-0 đ';
             document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
-            const help = document.getElementById('promotion-help-text');
-            if (help) {
-                help.textContent = selectedPromotion
-                    ? `Đã giảm ${formatCurrency(currentDiscountAmount)} cho hóa đơn này.`
-                    : 'Chọn khuyến mãi hợp lệ cho hóa đơn hiện tại.';
-            }
+            renderSelectedPromotionButton();
             refreshQuickCashButtons();
             if (getSelectedPaymentMethod() === 'card') {
                 document.getElementById('input-cash-received').value = '';
@@ -3086,32 +3486,111 @@
             calculateChange();
         };
 
+        const promotionRuleText = (promotion) => {
+            const parts = [];
+            if (Number(promotion.min_order_amount || 0) > 0) {
+                parts.push(`Đơn từ ${formatCurrency(promotion.min_order_amount)}`);
+            }
+            if (promotion.max_discount_amount !== null && promotion.max_discount_amount !== undefined) {
+                parts.push(`Tối đa ${formatCurrency(promotion.max_discount_amount)}`);
+            }
+            return parts.join(' · ') || 'Áp dụng cho hóa đơn hiện tại';
+        };
+
+        const renderSelectedPromotionButton = () => {
+            const label = document.getElementById('promotion-dropdown-label');
+            const discount = document.getElementById('promotion-dropdown-discount');
+            if (!label) return;
+            if (selectedPromotion) {
+                label.textContent = selectedPromotion.name || 'Khuyến mãi';
+                if (discount) {
+                    discount.textContent = `-${formatCurrency(currentDiscountAmount)}`;
+                    discount.classList.remove('d-none');
+                }
+            } else {
+                label.textContent = 'Không áp dụng';
+                if (discount) {
+                    discount.textContent = '';
+                    discount.classList.add('d-none');
+                }
+            }
+        };
+
+        const selectPromotion = (promotionId) => {
+            selectedPromotion = promotionId
+                ? availablePromotions.find((promotion) => Number(promotion.id) === Number(promotionId)) || null
+                : null;
+            updatePaymentTotals();
+            renderPromotionDropdown();
+        };
+
+        const renderPromotionDropdown = () => {
+            const menu = document.getElementById('promotion-dropdown-menu');
+            if (!menu) return;
+            menu.innerHTML = '';
+            const noneItem = document.createElement('button');
+            noneItem.className = `dropdown-item ${!selectedPromotion ? 'active' : ''}`;
+            noneItem.type = 'button';
+            noneItem.innerHTML = `
+                <div class="promotion-option-main">
+                    <span class="promotion-option-title">Không áp dụng</span>
+                    <span class="promotion-option-side">
+                        <i class="fa-solid fa-check promotion-option-check"></i>
+                    </span>
+                </div>
+                <div class="promotion-option-meta">Giữ nguyên tổng tiền hóa đơn</div>
+            `;
+            noneItem.addEventListener('click', () => selectPromotion(null));
+            menu.appendChild(noneItem);
+
+            if (!availablePromotions.length) {
+                const empty = document.createElement('div');
+                empty.className = 'promotion-empty-state';
+                empty.textContent = 'Không có khuyến mãi hợp lệ.';
+                menu.appendChild(empty);
+                renderSelectedPromotionButton();
+                return;
+            }
+
+            availablePromotions.forEach((promotion) => {
+                const item = document.createElement('button');
+                item.className = `dropdown-item ${selectedPromotion && Number(selectedPromotion.id) === Number(promotion.id) ? 'active' : ''}`;
+                item.type = 'button';
+                item.innerHTML = `
+                    <div class="promotion-option-main">
+                        <span class="promotion-option-title">${escapeHtml(promotion.name || 'Khuyến mãi')}</span>
+                        <span class="promotion-option-side">
+                            <span class="promotion-discount">-${formatCurrency(promotion.discount_amount || 0)}</span>
+                            <i class="fa-solid fa-check promotion-option-check"></i>
+                        </span>
+                    </div>
+                    <div class="promotion-option-meta">${escapeHtml(promotion.discount_type_label || '')} · ${escapeHtml(promotionRuleText(promotion))}</div>
+                `;
+                item.addEventListener('click', () => selectPromotion(promotion.id));
+                menu.appendChild(item);
+            });
+            renderSelectedPromotionButton();
+        };
+
         const loadPromotionsForPayment = async () => {
-            const select = document.getElementById('promotion-select');
-            if (!select || !currentStoreId) return;
+            const menu = document.getElementById('promotion-dropdown-menu');
+            if (!menu || !currentStoreId) return;
             availablePromotions = [];
             selectedPromotion = null;
-            select.innerHTML = '<option value="">Không áp dụng</option>';
+            renderPromotionDropdown();
             try {
                 const payload = await fetchJson(`${API_PROMOTIONS_URL}?store_id=${currentStoreId}&subtotal=${encodeURIComponent(cartSubtotalAmount)}`);
+                hasPromotionFeature = payload.has_promotions !== false;
                 availablePromotions = payload.promotions || [];
-                availablePromotions.forEach((promotion) => {
-                    const opt = document.createElement('option');
-                    opt.value = String(promotion.id);
-                    opt.textContent = `${promotion.name} (-${formatCurrency(promotion.discount_amount || 0)})`;
-                    select.appendChild(opt);
-                });
+                renderPromotionDropdown();
             } catch (error) {
                 showToast(error.message || 'Không thể tải khuyến mãi.', 'warning');
             }
+            updatePaymentMetaVisibility();
             updatePaymentTotals();
         };
 
-        const handlePromotionChange = () => {
-            const promotionId = parseInt(document.getElementById('promotion-select')?.value || '0', 10) || null;
-            selectedPromotion = availablePromotions.find((promotion) => Number(promotion.id) === Number(promotionId)) || null;
-            updatePaymentTotals();
-        };
+        const handlePromotionChange = (promotionId = null) => selectPromotion(promotionId);
 
         const syncPaymentMethodUi = () => {
             const method = getSelectedPaymentMethod();
@@ -3168,7 +3647,7 @@
 
             updateSelectedCustomerUi();
             refreshQuickCashButtons();
-            await loadPromotionsForPayment();
+            await Promise.all([loadCustomerFeatureAvailability(), loadPromotionsForPayment()]);
             updatePaymentCardQrDisplay();
             syncPaymentMethodUi();
             paymentModalInstance.show();
@@ -3325,9 +3804,8 @@
                 const pointMsg = data.points_earned ? ` · +${data.points_earned} điểm` : '';
                 showToast(`Thanh toán thành công (${data.order_code})${pointMsg}!`, 'success');
                 selectedPromotion = null;
-                selectedCustomer = null;
                 currentDiscountAmount = 0;
-                updateSelectedCustomerUi();
+                clearSelectedCustomer();
                 const offcanvasInst = bootstrap.Offcanvas.getInstance(document.getElementById('cartOffcanvas'));
                 if (offcanvasInst) offcanvasInst.hide();
             } catch (error) {
@@ -3404,10 +3882,48 @@
         syncMobileSearchToggleVisibility();
         document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
+        document.getElementById('customer-search-input')?.addEventListener('input', scheduleCustomerSearch);
+        document.getElementById('customer-search-input')?.addEventListener('change', scheduleCustomerSearch);
+        document.getElementById('customer-search-input')?.addEventListener('focus', () => {
+            const value = document.getElementById('customer-search-input')?.value.trim() || '';
+            if (value.length >= 2) {
+                showCustomerResults();
+            }
+        });
         document.getElementById('customer-search-input')?.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                searchCustomers();
+                const firstResult = document.querySelector('#customer-search-results .customer-result-item');
+                if (firstResult && !document.getElementById('customer-search-results')?.classList.contains('d-none')) {
+                    firstResult.click();
+                } else {
+                    scheduleCustomerSearch();
+                }
+            }
+            if (event.key === 'Escape') {
+                hideCustomerResults();
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('#payment-customer-panel')) {
+                hideCustomerResults();
+            }
+        });
+        document.getElementById('quick-customer-modal-name')?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                document.getElementById('quick-customer-modal-phone')?.focus();
+            }
+        });
+        document.getElementById('quick-customer-modal-phone')?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                createQuickCustomer();
+            }
+        });
+        document.getElementById('quickCustomerModal')?.addEventListener('hidden.bs.modal', () => {
+            if (document.getElementById('paymentModal')?.classList.contains('show')) {
+                document.body.classList.add('modal-open');
             }
         });
         document.getElementById('themeSelector')?.addEventListener('change', (event) => {
@@ -3483,6 +3999,7 @@
         window.deleteItemNote = deleteItemNote;
         window.addQuickNote = addQuickNote;
         window.openPaymentModal = openPaymentModal;
+        window.openQuickCustomerModal = openQuickCustomerModal;
         window.searchCustomers = searchCustomers;
         window.createQuickCustomer = createQuickCustomer;
         window.clearSelectedCustomer = clearSelectedCustomer;

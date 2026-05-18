@@ -534,11 +534,12 @@ def api_customers(request):
 
     if request.method == 'GET':
         q = (request.GET.get('q') or '').strip()
+        has_customers = Customer.objects.filter(tenant=user.tenant).exists()
         customers = Customer.objects.filter(tenant=user.tenant, is_active=True)
         if q:
             customers = customers.filter(Q(name__icontains=q) | Q(phone__icontains=q))
         rows = [_serialize_customer(row) for row in customers.order_by('name', 'id')[:12]]
-        return JsonResponse({'customers': rows})
+        return JsonResponse({'customers': rows, 'has_customers': has_customers})
 
     payload = _parse_json_request(request)
     if payload is None:
@@ -591,9 +592,13 @@ def api_promotions(request):
     if subtotal < 0:
         return _json_error('subtotal không được âm.', 400)
 
+    has_promotions = Promotion.objects.filter(tenant=user.tenant).exists()
     promotions = get_available_promotions(tenant=user.tenant, store=store, subtotal=subtotal)
     return JsonResponse(
-        {'promotions': [_serialize_promotion(row, subtotal=subtotal) for row in promotions[:30]]}
+        {
+            'promotions': [_serialize_promotion(row, subtotal=subtotal) for row in promotions[:30]],
+            'has_promotions': has_promotions,
+        }
     )
 
 

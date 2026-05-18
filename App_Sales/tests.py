@@ -136,6 +136,21 @@ class SalesApiTests(TestCase):
         self.assertEqual(product_payload['toppings'][0]['name'], self.topping.name)
         self.assertEqual(Decimal(str(product_payload['toppings'][0]['price'])), Decimal('6000'))
 
+    def test_pos_checkout_modal_customer_and_promotion_ui_contract(self):
+        res = self.client.get(reverse('App_Sales:pos'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="quickCustomerModal"', html)
+        self.assertIn('id="customer-search-results"', html)
+        self.assertIn('customer-results-menu', html)
+        self.assertIn('id="promotion-dropdown-button"', html)
+        self.assertIn('id="promotion-dropdown-menu"', html)
+        self.assertNotIn('onclick="searchCustomers()"', html)
+        self.assertNotIn('id="customer-search-options"', html)
+        self.assertNotIn('id="promotion-select"', html)
+        self.assertNotIn('Gõ để tìm, chọn khách từ gợi ý.', html)
+        self.assertNotIn('Chọn khuyến mãi hợp lệ cho hóa đơn hiện tại.', html)
+
     def test_api_products_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:products')
         res = self.client.get(url, {'store_id': self.store_2.id})
@@ -358,6 +373,10 @@ class SalesApiTests(TestCase):
 
     def test_api_customers_search_and_create_quick_customer(self):
         create_url = reverse('App_Sales_API:customers')
+        empty_res = self.client.get(create_url)
+        self.assertEqual(empty_res.status_code, 200)
+        self.assertFalse(empty_res.json()['has_customers'])
+
         create_res = self.client.post(
             create_url,
             data=json.dumps({'name': 'Chị Lan', 'phone': '0911111111'}),
@@ -368,9 +387,16 @@ class SalesApiTests(TestCase):
 
         search_res = self.client.get(create_url, {'q': 'Lan'})
         self.assertEqual(search_res.status_code, 200)
-        self.assertEqual(search_res.json()['customers'][0]['id'], customer_id)
+        search_payload = search_res.json()
+        self.assertTrue(search_payload['has_customers'])
+        self.assertEqual(search_payload['customers'][0]['id'], customer_id)
 
     def test_api_promotions_returns_only_eligible_promotions(self):
+        url = reverse('App_Sales_API:promotions')
+        empty_res = self.client.get(url, {'store_id': self.store_1.id, 'subtotal': '25000'})
+        self.assertEqual(empty_res.status_code, 200)
+        self.assertFalse(empty_res.json()['has_promotions'])
+
         eligible = Promotion.objects.create(
             tenant=self.tenant,
             name='Giảm 5k',
@@ -385,10 +411,11 @@ class SalesApiTests(TestCase):
             discount_value=Decimal('10000'),
             min_order_amount=Decimal('100000'),
         )
-        url = reverse('App_Sales_API:promotions')
         res = self.client.get(url, {'store_id': self.store_1.id, 'subtotal': '25000'})
         self.assertEqual(res.status_code, 200)
-        ids = [row['id'] for row in res.json()['promotions']]
+        payload = res.json()
+        self.assertTrue(payload['has_promotions'])
+        ids = [row['id'] for row in payload['promotions']]
         self.assertEqual(ids, [eligible.id])
 
     def test_table_cart_add_and_checkout_clears_cart(self):
@@ -1005,7 +1032,10 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertIn('id="payment-cash"', html)
         self.assertIn('id="payment-card"', html)
         self.assertIn('id="customer-search-input"', html)
-        self.assertIn('id="promotion-select"', html)
+        self.assertIn('id="customer-search-results"', html)
+        self.assertIn('id="quickCustomerModal"', html)
+        self.assertIn('id="promotion-dropdown-button"', html)
+        self.assertIn('id="promotion-dropdown-menu"', html)
         self.assertIn('id="category-filter-container"', html)
         self.assertIn('id="themeSelector"', html)
         self.assertIn('Đơn hàng trong ngày', html)
