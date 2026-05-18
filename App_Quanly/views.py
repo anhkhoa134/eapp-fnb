@@ -29,10 +29,12 @@ from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, S
 from App_Quanly.catalog_excel import MAX_UPLOAD_BYTES, import_catalog_from_upload, template_workbook_bytes
 from App_Quanly.forms import (
     CategoryForm,
+    CustomerForm,
     DiningTableForm,
     ProductForm,
     ProductToppingForm,
     ProductUnitForm,
+    PromotionForm,
     StaffCreateForm,
     StaffEditForm,
     StaffPasswordResetForm,
@@ -40,7 +42,8 @@ from App_Quanly.forms import (
     StorePaymentForm,
     ToppingForm,
 )
-from App_Sales.models import DiningTable, Order, OrderItem, QROrder, QROrderItem, generate_qr_token
+from App_Sales.models import Customer, DiningTable, Order, OrderItem, Promotion, QROrder, QROrderItem, generate_qr_token
+from App_Sales.services import recompute_customer_stats
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -181,6 +184,12 @@ def _sync_topping_product_links(*, topping: Topping, selected_products):
             changed_fields.append('price')
         if changed_fields:
             row.save(update_fields=changed_fields + ['updated_at'])
+
+
+def _sync_promotion_store_links(promotion: Promotion, selected_store_ids):
+    selected_store_ids = set(selected_store_ids or [])
+    stores = Store.objects.filter(tenant=promotion.tenant, id__in=selected_store_ids)
+    promotion.stores.set(stores)
 
 
 @manager_required
@@ -399,7 +408,7 @@ def order_history(request):
         .order_by('username')
     )
 
-    orders = Order.objects.filter(tenant=tenant).select_related('store', 'cashier')
+    orders = Order.objects.filter(tenant=tenant).select_related('store', 'cashier', 'customer', 'promotion')
 
     selected_store = (request.GET.get('store') or '').strip()
     selected_payment = (request.GET.get('payment_method') or '').strip()
@@ -422,6 +431,9 @@ def order_history(request):
             Q(order_code__icontains=selected_q)
             | Q(cashier__username__icontains=selected_q)
             | Q(store__name__icontains=selected_q)
+            | Q(customer__name__icontains=selected_q)
+            | Q(customer__phone__icontains=selected_q)
+            | Q(promotion_snapshot_name__icontains=selected_q)
         )
 
     try:
@@ -482,7 +494,7 @@ def order_history(request):
     sales_by_id = {
         o.id: o
         for o in Order.objects.filter(pk__in=sale_ids)
-        .select_related('store', 'cashier')
+        .select_related('store', 'cashier', 'customer', 'promotion')
         .prefetch_related(
             Prefetch(
                 'items',
@@ -556,8 +568,11 @@ def order_history(request):
 def order_delete(request, pk):
     tenant = _tenant_or_404(request.user)
     order = get_object_or_404(Order, pk=pk, tenant=tenant)
+    customer = order.customer
     code = order.order_code
     order.delete()
+    if customer:
+        recompute_customer_stats(customer)
     messages.success(request, f'Đã xóa đơn hàng {code}.')
     next_url = (request.POST.get('next') or '').strip()
     if next_url and url_has_allowed_host_and_scheme(
@@ -567,6 +582,157 @@ def order_delete(request, pk):
     ):
         return redirect(next_url)
     return redirect('App_Quanly:orders')
+
+
+@manager_required
+def customer_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    customers = Customer.objects.filter(tenant=tenant).order_by('name', 'id')
+    selected_status = (request.GET.get('status') or 'active').strip()
+    selected_q = (request.GET.get('q') or '').strip()
+
+    if selected_status == 'active':
+        customers = customers.filter(is_active=True)
+    elif selected_status == 'inactive':
+        customers = customers.filter(is_active=False)
+    elif selected_status != 'all':
+        selected_status = 'active'
+        customers = customers.filter(is_active=True)
+
+    if selected_q:
+        customers = customers.filter(
+            Q(name__icontains=selected_q)
+            | Q(phone__icontains=selected_q)
+            | Q(email__icontains=selected_q)
+        )
+
+    form = CustomerForm(request.POST or None, tenant=tenant)
+    if request.method == 'POST' and form.is_valid():
+        customer = form.save(commit=False)
+        customer.tenant = tenant
+        customer.save()
+        messages.success(request, f'Đã tạo khách hàng "{customer.name}".')
+        return redirect('App_Quanly:customers')
+    if request.method == 'POST':
+        messages.error(request, 'Không thể tạo khách hàng, vui lòng kiểm tra dữ liệu.')
+
+    page_obj = Paginator(customers, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    return render(
+        request,
+        'App_Quanly/customers.html',
+        {
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
+            'form': form,
+            'selected_status': selected_status,
+            'selected_q': selected_q,
+            'open_create_modal': request.method == 'POST' and form.errors,
+        },
+    )
+
+
+@manager_required
+def customer_edit(request, pk):
+    tenant = _tenant_or_404(request.user)
+    customer = get_object_or_404(Customer, pk=pk, tenant=tenant)
+    if request.method != 'POST':
+        return redirect('App_Quanly:customers')
+    form = CustomerForm(request.POST, instance=customer, tenant=tenant)
+    if form.is_valid():
+        form.save()
+        messages.success(request, 'Đã cập nhật khách hàng.')
+    else:
+        messages.error(request, 'Không thể cập nhật khách hàng, vui lòng kiểm tra dữ liệu.')
+    return redirect('App_Quanly:customers')
+
+
+@manager_required
+@require_POST
+def customer_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    customer = get_object_or_404(Customer, pk=pk, tenant=tenant)
+    name = customer.name
+    customer.delete()
+    messages.success(request, f'Đã xóa khách hàng "{name}".')
+    return redirect('App_Quanly:customers')
+
+
+@manager_required
+def promotion_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+    promotions = Promotion.objects.filter(tenant=tenant).prefetch_related('stores').order_by('-is_active', '-created_at')
+    selected_status = (request.GET.get('status') or 'active').strip()
+    selected_store = (request.GET.get('store') or '').strip()
+    selected_q = (request.GET.get('q') or '').strip()
+
+    if selected_status == 'active':
+        promotions = promotions.filter(is_active=True)
+    elif selected_status == 'inactive':
+        promotions = promotions.filter(is_active=False)
+    elif selected_status != 'all':
+        selected_status = 'active'
+        promotions = promotions.filter(is_active=True)
+    if selected_store.isdigit():
+        promotions = promotions.filter(Q(stores__id=int(selected_store)) | Q(stores__isnull=True)).distinct()
+    if selected_q:
+        promotions = promotions.filter(name__icontains=selected_q)
+
+    form = PromotionForm(request.POST or None, tenant=tenant)
+    if request.method == 'POST' and form.is_valid():
+        promotion = form.save(commit=False)
+        promotion.tenant = tenant
+        promotion.save()
+        selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
+        _sync_promotion_store_links(promotion, selected_store_ids)
+        messages.success(request, f'Đã tạo khuyến mãi "{promotion.name}".')
+        return redirect('App_Quanly:promotions')
+    if request.method == 'POST':
+        messages.error(request, 'Không thể tạo khuyến mãi, vui lòng kiểm tra dữ liệu.')
+
+    page_obj = Paginator(promotions, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    return render(
+        request,
+        'App_Quanly/promotions.html',
+        {
+            'stores': stores,
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
+            'form': form,
+            'selected_status': selected_status,
+            'selected_store': selected_store,
+            'selected_q': selected_q,
+            'open_create_modal': request.method == 'POST' and form.errors,
+        },
+    )
+
+
+@manager_required
+def promotion_edit(request, pk):
+    tenant = _tenant_or_404(request.user)
+    promotion = get_object_or_404(Promotion, pk=pk, tenant=tenant)
+    if request.method != 'POST':
+        return redirect('App_Quanly:promotions')
+    form = PromotionForm(request.POST, instance=promotion, tenant=tenant)
+    if form.is_valid():
+        promotion = form.save()
+        selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
+        _sync_promotion_store_links(promotion, selected_store_ids)
+        messages.success(request, 'Đã cập nhật khuyến mãi.')
+    else:
+        messages.error(request, 'Không thể cập nhật khuyến mãi, vui lòng kiểm tra dữ liệu.')
+    return redirect('App_Quanly:promotions')
+
+
+@manager_required
+@require_POST
+def promotion_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    promotion = get_object_or_404(Promotion, pk=pk, tenant=tenant)
+    name = promotion.name
+    promotion.delete()
+    messages.success(request, f'Đã xóa khuyến mãi "{name}".')
+    return redirect('App_Quanly:promotions')
 
 
 @manager_required
@@ -831,7 +997,9 @@ def topping_list_create(request):
     )
 
     topping_form = ToppingForm(prefix='topping', tenant=tenant)
+    mapping_form = ProductToppingForm(prefix='mapping', tenant=tenant)
     open_topping_modal = False
+    open_mapping_modal = False
 
     if request.method == 'POST':
         form_type = (request.POST.get('form_type') or '').strip()
@@ -847,6 +1015,14 @@ def topping_list_create(request):
                 return redirect('App_Quanly:toppings')
             messages.error(request, 'Không thể tạo topping, vui lòng kiểm tra dữ liệu.')
             open_topping_modal = True
+        elif form_type == 'mapping':
+            mapping_form = ProductToppingForm(request.POST, prefix='mapping', tenant=tenant)
+            if mapping_form.is_valid():
+                mapping_form.save()
+                messages.success(request, 'Đã gán topping cho sản phẩm.')
+                return redirect('App_Quanly:toppings')
+            messages.error(request, 'Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.')
+            open_mapping_modal = True
 
     toppings_page = Paginator(toppings, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
     return render(
@@ -856,8 +1032,10 @@ def topping_list_create(request):
             'toppings_page': toppings_page,
             'toppings_query_string': _list_query_without_keys(request, 'page'),
             'topping_form': topping_form,
+            'mapping_form': mapping_form,
             'all_products': Product.objects.filter(tenant=tenant, is_active=True).order_by('name'),
             'open_topping_modal': open_topping_modal,
+            'open_mapping_modal': open_mapping_modal,
         },
     )
 

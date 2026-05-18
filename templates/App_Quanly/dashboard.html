@@ -214,11 +214,11 @@
             </div>
             <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small">Từ ngày</label>
-                <input type="date" class="form-control" name="date_from" value="{{ date_from }}" {% if selected_period %}readonly{% endif %}>
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}" placeholder="Từ ngày" {% if selected_period %}readonly{% endif %}>
             </div>
             <div class="col-12 col-md-6 col-xl-2">
                 <label class="form-label small">Đến ngày</label>
-                <input type="date" class="form-control" name="date_to" value="{{ date_to }}" {% if selected_period %}readonly{% endif %}>
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}" placeholder="Đến ngày" {% if selected_period %}readonly{% endif %}>
             </div>
             <div class="col-12 col-md-6 col-xl-auto d-flex flex-wrap gap-2 align-items-end">
                 <button type="submit" class="btn btn-primary" {% if selected_period %}title="Đổi cửa hàng hoặc chọn Tùy chỉnh để sửa ngày"{% endif %}>

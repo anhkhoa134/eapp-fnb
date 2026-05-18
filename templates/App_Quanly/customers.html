@@ -1,0 +1,246 @@
+{% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-person-hearts"></i>
+                Quản lý khách hàng
+            </h2>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createCustomerModal">
+                <i class="bi bi-plus-lg me-1"></i>Tạo khách hàng
+            </button>
+        </div>
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-5">
+                <label class="form-label small text-muted">Tìm kiếm</label>
+                <input class="form-control" type="text" name="q" value="{{ selected_q }}" placeholder="Tên, số điện thoại, email...">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small text-muted">Trạng thái</label>
+                <select class="form-select" name="status">
+                    <option value="active" {% if selected_status == 'active' %}selected{% endif %}>Đang hoạt động</option>
+                    <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Tạm ngưng</option>
+                    <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Tất cả</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-4 d-flex flex-wrap gap-2">
+                <button class="btn btn-primary" type="submit">Lọc</button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:customers' %}">
+                    <i class="bi bi-x-lg me-1"></i>Xóa lọc
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Khách hàng</th>
+                        <th>Hạng</th>
+                        <th class="text-end">Điểm</th>
+                        <th class="text-end">Tổng chi tiêu</th>
+                        <th>Lần mua gần nhất</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in page_obj %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ customer.name }}</div>
+                            <div class="small text-muted">{{ customer.phone }}{% if customer.email %} · {{ customer.email }}{% endif %}</div>
+                            {% if customer.note %}<div class="small text-muted fst-italic">{{ customer.note }}</div>{% endif %}
+                        </td>
+                        <td><span class="payment-pill pill-tag"><i class="bi bi-award" aria-hidden="true"></i>{{ customer.get_tier_display }}</span></td>
+                        <td class="text-end fw-semibold">{{ customer.points_balance|thousand_sep }}</td>
+                        <td class="text-end fw-semibold text-success">{{ customer.total_spent|thousand_sep }} đ</td>
+                        <td>{% if customer.last_order_at %}{{ customer.last_order_at|date:'d/m/Y H:i' }}{% else %}<span class="text-muted small">Chưa mua</span>{% endif %}</td>
+                        <td class="text-center">{% include 'App_Quanly/_status_icon.html' with active=customer.is_active %}</td>
+                        <td class="text-end">
+                            <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                <button
+                                    class="btn btn-sm btn-outline-primary js-edit-customer"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editCustomerModal"
+                                    data-action="{% url 'App_Quanly:customer_edit' customer.id %}"
+                                    data-name="{{ customer.name|escape }}"
+                                    data-phone="{{ customer.phone|escape }}"
+                                    data-email="{{ customer.email|escape }}"
+                                    data-note="{{ customer.note|escape }}"
+                                    data-active="{% if customer.is_active %}1{% else %}0{% endif %}"
+                                >
+                                    <i class="bi bi-pencil me-1"></i>Sửa
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-danger js-delete-customer"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteCustomerModal"
+                                    data-action="{% url 'App_Quanly:customer_delete' customer.id %}"
+                                    data-name="{{ customer.name|escape }}"
+                                >
+                                    <i class="bi bi-trash me-1"></i>Xóa
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Chưa có khách hàng phù hợp.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% include 'App_Quanly/_list_pagination.html' %}
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="createCustomerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2 text-primary"></i>Tạo khách hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:customers' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên khách hàng</label>
+                            {{ form.name }}{{ form.name.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.phone.id_for_label }}">Số điện thoại</label>
+                            {{ form.phone }}{{ form.phone.errors }}
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.email.id_for_label }}">Email</label>
+                            {{ form.email }}{{ form.email.errors }}
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.note.id_for_label }}">Ghi chú</label>
+                            {{ form.note }}{{ form.note.errors }}
+                        </div>
+                        <div class="switch-card full">
+                            <div class="form-check m-0">
+                                {{ form.is_active }}
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động</label>
+                            </div>
+                            {{ form.is_active.errors }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu khách hàng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editCustomerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa khách hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" id="editCustomerForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="crud-form-grid">
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-customer-name">Tên khách hàng</label>
+                            <input class="form-control" id="edit-customer-name" name="name" maxlength="150" placeholder="VD: Nguyễn Văn An" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-customer-phone">Số điện thoại</label>
+                            <input class="form-control" id="edit-customer-phone" name="phone" maxlength="24" inputmode="tel" placeholder="VD: 0901234567" required>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-customer-email">Email</label>
+                            <input class="form-control" id="edit-customer-email" name="email" type="email" placeholder="VD: khach@example.com">
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-customer-note">Ghi chú</label>
+                            <textarea class="form-control" id="edit-customer-note" name="note" rows="2" maxlength="500" placeholder="Ghi chú sở thích, dị ứng, thông tin chăm sóc..."></textarea>
+                        </div>
+                        <div class="switch-card full">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" id="edit-customer-active" name="is_active" type="checkbox">
+                                <label class="form-check-label fw-semibold" for="edit-customer-active">Đang hoạt động</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteCustomerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa khách hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" id="deleteCustomerForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-2">Bạn chắc chắn muốn xóa khách hàng <strong id="deleteCustomerName"></strong>?</p>
+                    <p class="small text-muted mb-0">Dữ liệu khách hàng sẽ bị xóa khỏi danh sách quản lý. Các đơn hàng cũ vẫn được giữ lại.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit">Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if open_create_modal %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => new bootstrap.Modal(document.getElementById('createCustomerModal')).show());
+</script>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.js-edit-customer').forEach((button) => {
+        button.addEventListener('click', () => {
+            document.getElementById('editCustomerForm').action = button.dataset.action || '';
+            document.getElementById('edit-customer-name').value = button.dataset.name || '';
+            document.getElementById('edit-customer-phone').value = button.dataset.phone || '';
+            document.getElementById('edit-customer-email').value = button.dataset.email || '';
+            document.getElementById('edit-customer-note').value = button.dataset.note || '';
+            document.getElementById('edit-customer-active').checked = button.dataset.active === '1';
+        });
+    });
+    document.querySelectorAll('.js-delete-customer').forEach((button) => {
+        button.addEventListener('click', () => {
+            document.getElementById('deleteCustomerForm').action = button.dataset.action || '';
+            document.getElementById('deleteCustomerName').textContent = button.dataset.name || '';
+        });
+    });
+});
+</script>
+{% endblock %}

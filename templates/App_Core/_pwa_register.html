@@ -1,9 +1,140 @@
 <script>
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-        navigator.serviceWorker
-            .register('{% url "pwa_service_worker" %}', { scope: '/' })
-            .catch(function () {});
+(function () {
+    let deferredInstallPrompt = null;
+
+    const isStandalone = function () {
+        return (
+            window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true
+        );
+    };
+
+    const isIosSafari = function () {
+        const userAgent = window.navigator.userAgent || '';
+        const isIos = /iphone|ipad|ipod/i.test(userAgent) || (
+            window.navigator.platform === 'MacIntel' &&
+            window.navigator.maxTouchPoints > 1
+        );
+        const isSafari = /safari/i.test(userAgent) && !/crios|fxios|edgios/i.test(userAgent);
+        return isIos && isSafari;
+    };
+
+    const getInstallItems = function () {
+        return Array.from(document.querySelectorAll('.js-pwa-install-action'));
+    };
+
+    const setInstallItemsVisible = function (visible) {
+        getInstallItems().forEach(function (item) {
+            item.classList.toggle('d-none', !visible);
+        });
+    };
+
+    const canShowInstallAction = function () {
+        if (isStandalone()) return false;
+        return Boolean(deferredInstallPrompt) || isIosSafari();
+    };
+
+    const refreshInstallAction = function () {
+        setInstallItemsVisible(canShowInstallAction());
+    };
+
+    const showIosInstallGuide = function () {
+        const modalId = 'pwaInstallGuideModal';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.className = 'modal fade';
+            modalEl.id = modalId;
+            modalEl.tabIndex = -1;
+            modalEl.setAttribute('aria-hidden', 'true');
+            modalEl.innerHTML = [
+                '<div class="modal-dialog modal-dialog-centered modal-sm">',
+                    '<div class="modal-content border-0 shadow">',
+                        '<div class="modal-body p-4 text-center">',
+                            '<div class="bg-primary-subtle rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 56px; height: 56px;">',
+                                '<span class="fs-3 text-primary">+</span>',
+                            '</div>',
+                            '<h6 class="fw-bold mb-2">Cài eApp FnB</h6>',
+                            '<p class="text-muted small mb-4">Trên Safari iPhone/iPad, bấm Chia sẻ rồi chọn Thêm vào Màn hình chính.</p>',
+                            '<button type="button" class="btn btn-primary w-100 fw-semibold" data-bs-dismiss="modal">Đã hiểu</button>',
+                        '</div>',
+                    '</div>',
+                '</div>',
+            ].join('');
+            document.body.appendChild(modalEl);
+        }
+
+        if (window.bootstrap && window.bootstrap.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+            window.alert('Trên Safari iPhone/iPad, bấm Chia sẻ rồi chọn Thêm vào Màn hình chính.');
+        }
+    };
+
+    const handleInstallClick = function (event) {
+        event.preventDefault();
+        if (isStandalone()) {
+            refreshInstallAction();
+            return;
+        }
+
+        if (deferredInstallPrompt) {
+            const promptEvent = deferredInstallPrompt;
+            deferredInstallPrompt = null;
+            promptEvent.prompt();
+            if (promptEvent.userChoice && typeof promptEvent.userChoice.finally === 'function') {
+                promptEvent.userChoice.finally(refreshInstallAction);
+            } else {
+                refreshInstallAction();
+            }
+            return;
+        }
+
+        if (isIosSafari()) {
+            showIosInstallGuide();
+        }
+    };
+
+    const bindInstallActions = function () {
+        getInstallItems().forEach(function (item) {
+            const trigger = item.querySelector('button, a') || item;
+            if (trigger.dataset.pwaInstallBound === '1') return;
+            trigger.dataset.pwaInstallBound = '1';
+            trigger.addEventListener('click', handleInstallClick);
+        });
+        refreshInstallAction();
+    };
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker
+                .register('{% url "pwa_service_worker" %}', { scope: '/' })
+                .catch(function () {});
+        });
+    }
+
+    window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        refreshInstallAction();
     });
-}
+
+    window.addEventListener('appinstalled', function () {
+        deferredInstallPrompt = null;
+        refreshInstallAction();
+    });
+
+    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
+    if (typeof standaloneQuery.addEventListener === 'function') {
+        standaloneQuery.addEventListener('change', refreshInstallAction);
+    } else if (typeof standaloneQuery.addListener === 'function') {
+        standaloneQuery.addListener(refreshInstallAction);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindInstallActions);
+    } else {
+        bindInstallActions();
+    }
+})();
 </script>

@@ -1,0 +1,350 @@
+{% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-tags"></i>
+                Quản lý khuyến mãi
+            </h2>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createPromotionModal">
+                <i class="bi bi-plus-lg me-1"></i>Tạo khuyến mãi
+            </button>
+        </div>
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label small text-muted">Tìm kiếm</label>
+                <input class="form-control" type="text" name="q" value="{{ selected_q }}" placeholder="Tên khuyến mãi...">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small text-muted">Cửa hàng</label>
+                <select class="form-select" name="store">
+                    <option value="">Tất cả</option>
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:'s' %}selected{% endif %}>{{ store.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label small text-muted">Trạng thái</label>
+                <select class="form-select" name="status">
+                    <option value="active" {% if selected_status == 'active' %}selected{% endif %}>Đang bật</option>
+                    <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Tạm ngưng</option>
+                    <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Tất cả</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3 d-flex flex-wrap gap-2">
+                <button class="btn btn-primary" type="submit">Lọc</button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:promotions' %}">
+                    <i class="bi bi-x-lg me-1"></i>Xóa lọc
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Khuyến mãi</th>
+                        <th>Giảm giá</th>
+                        <th>Điều kiện</th>
+                        <th>Cửa hàng</th>
+                        <th>Thời gian</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for promotion in page_obj %}
+                    <tr>
+                        <td class="fw-semibold">{{ promotion.name }}</td>
+                        <td>
+                            {% if promotion.discount_type == 'percent' %}
+                            {{ promotion.discount_value|thousand_sep }}%
+                            {% else %}
+                            {{ promotion.discount_value|thousand_sep }} đ
+                            {% endif %}
+                            {% if promotion.max_discount_amount %}
+                            <div class="small text-muted">Tối đa {{ promotion.max_discount_amount|thousand_sep }} đ</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if promotion.min_order_amount %}
+                            Đơn từ {{ promotion.min_order_amount|thousand_sep }} đ
+                            {% else %}
+                            <span class="text-muted small">Không giới hạn</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if promotion.stores.all %}
+                            {% for store in promotion.stores.all %}
+                            <span class="payment-pill pill-tag me-1 mb-1"><i class="bi bi-shop" aria-hidden="true"></i>{{ store.name }}</span>
+                            {% endfor %}
+                            {% else %}
+                            <span class="payment-pill pill-tag"><i class="bi bi-globe2" aria-hidden="true"></i>Tất cả cửa hàng</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            <div>{% if promotion.valid_from %}Từ {{ promotion.valid_from|date:'d/m/Y H:i' }}{% else %}Không giới hạn bắt đầu{% endif %}</div>
+                            <div>{% if promotion.valid_to %}Đến {{ promotion.valid_to|date:'d/m/Y H:i' }}{% else %}Không giới hạn kết thúc{% endif %}</div>
+                        </td>
+                        <td class="text-center">{% include 'App_Quanly/_status_icon.html' with active=promotion.is_active %}</td>
+                        <td class="text-end">
+                            <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                <button
+                                    class="btn btn-sm btn-outline-primary js-edit-promotion"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editPromotionModal"
+                                    data-action="{% url 'App_Quanly:promotion_edit' promotion.id %}"
+                                    data-name="{{ promotion.name|escape }}"
+                                    data-discount-type="{{ promotion.discount_type }}"
+                                    data-discount-value="{{ promotion.discount_value|stringformat:'s' }}"
+                                    data-min-order="{{ promotion.min_order_amount|stringformat:'s' }}"
+                                    data-max-discount="{% if promotion.max_discount_amount %}{{ promotion.max_discount_amount|stringformat:'s' }}{% endif %}"
+                                    data-valid-from="{% if promotion.valid_from %}{{ promotion.valid_from|date:'c' }}{% endif %}"
+                                    data-valid-to="{% if promotion.valid_to %}{{ promotion.valid_to|date:'c' }}{% endif %}"
+                                    data-active="{% if promotion.is_active %}1{% else %}0{% endif %}"
+                                    data-store-ids="{% for store in promotion.stores.all %}{{ store.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                >
+                                    <i class="bi bi-pencil me-1"></i>Sửa
+                                </button>
+                                <button
+                                    class="btn btn-sm btn-outline-danger js-delete-promotion"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deletePromotionModal"
+                                    data-action="{% url 'App_Quanly:promotion_delete' promotion.id %}"
+                                    data-name="{{ promotion.name|escape }}"
+                                >
+                                    <i class="bi bi-trash me-1"></i>Xóa
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Chưa có khuyến mãi phù hợp.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% include 'App_Quanly/_list_pagination.html' %}
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="createPromotionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-tag me-2 text-primary"></i>Tạo khuyến mãi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:promotions' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên khuyến mãi</label>
+                            {{ form.name }}{{ form.name.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.discount_type.id_for_label }}">Loại giảm</label>
+                            {{ form.discount_type }}{{ form.discount_type.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.discount_value.id_for_label }}">Giá trị giảm</label>
+                            {{ form.discount_value }}
+                            <div class="form-text">Nhập % nếu chọn giảm %, hoặc số tiền nếu chọn giảm tiền.</div>
+                            {{ form.discount_value.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.min_order_amount.id_for_label }}">Đơn tối thiểu</label>
+                            {{ form.min_order_amount }}{{ form.min_order_amount.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.max_discount_amount.id_for_label }}">Giảm tối đa</label>
+                            {{ form.max_discount_amount }}{{ form.max_discount_amount.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.valid_from.id_for_label }}">Bắt đầu</label>
+                            {{ form.valid_from }}{{ form.valid_from.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.valid_to.id_for_label }}">Kết thúc</label>
+                            {{ form.valid_to }}{{ form.valid_to.errors }}
+                        </div>
+                        <div class="switch-card full">
+                            <div class="form-check m-0">
+                                {{ form.is_active }}
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động</label>
+                            </div>
+                            {{ form.is_active.errors }}
+                        </div>
+                        <div class="full">
+                            <div class="form-section-title">Cửa hàng áp dụng</div>
+                            <div class="small text-muted mb-2">Không chọn cửa hàng nào nghĩa là áp dụng cho tất cả cửa hàng.</div>
+                            <div class="check-grid">
+                                {% for checkbox in form.store_ids %}
+                                <label class="check-chip">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có cửa hàng hoạt động.</span>
+                                {% endfor %}
+                            </div>
+                            {{ form.store_ids.errors }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu khuyến mãi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editPromotionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa khuyến mãi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" id="editPromotionForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-promotion-name">Tên khuyến mãi</label>
+                            <input class="form-control" id="edit-promotion-name" name="name" maxlength="150" placeholder="VD: Giảm 10% cuối tuần" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-promotion-discount-type">Loại giảm</label>
+                            <select class="form-select" id="edit-promotion-discount-type" name="discount_type" required>
+                                <option value="percent">Giảm %</option>
+                                <option value="fixed">Giảm tiền</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-promotion-discount-value">Giá trị giảm</label>
+                            <input class="form-control" id="edit-promotion-discount-value" name="discount_value" type="text" inputmode="decimal" placeholder="VD: 10 hoặc 50000" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-promotion-min-order">Đơn tối thiểu</label>
+                            <input class="form-control" id="edit-promotion-min-order" name="min_order_amount" type="text" inputmode="numeric" placeholder="VD: 100000" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-promotion-max-discount">Giảm tối đa</label>
+                            <input class="form-control" id="edit-promotion-max-discount" name="max_discount_amount" type="text" inputmode="numeric" placeholder="VD: 50000">
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-promotion-valid-from">Bắt đầu</label>
+                            <input class="form-control" id="edit-promotion-valid-from" name="valid_from" type="datetime-local" placeholder="Bắt đầu">
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-promotion-valid-to">Kết thúc</label>
+                            <input class="form-control" id="edit-promotion-valid-to" name="valid_to" type="datetime-local" placeholder="Kết thúc">
+                        </div>
+                        <div class="switch-card full">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" id="edit-promotion-active" name="is_active" type="checkbox">
+                                <label class="form-check-label fw-semibold" for="edit-promotion-active">Đang hoạt động</label>
+                            </div>
+                        </div>
+                        <div class="full">
+                            <div class="form-section-title">Cửa hàng áp dụng</div>
+                            <div class="small text-muted mb-2">Không chọn cửa hàng nào nghĩa là áp dụng cho tất cả cửa hàng.</div>
+                            <div class="check-grid">
+                                {% for store in stores %}
+                                <label class="check-chip">
+                                    <input class="form-check-input js-edit-promotion-store" type="checkbox" name="store_ids" value="{{ store.id }}" id="edit-promotion-store-{{ store.id }}">
+                                    <span>{{ store.name }}</span>
+                                </label>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có cửa hàng hoạt động.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deletePromotionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa khuyến mãi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" id="deletePromotionForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-2">Bạn chắc chắn muốn xóa khuyến mãi <strong id="deletePromotionName"></strong>?</p>
+                    <p class="small text-muted mb-0">Dữ liệu khuyến mãi sẽ bị xóa khỏi danh sách quản lý. Các đơn hàng cũ vẫn giữ số tiền giảm và tên khuyến mãi đã chụp lại.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit">Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if open_create_modal %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => new bootstrap.Modal(document.getElementById('createPromotionModal')).show());
+</script>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const toDateTimeLocal = (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+    document.querySelectorAll('.js-edit-promotion').forEach((button) => {
+        button.addEventListener('click', () => {
+            document.getElementById('editPromotionForm').action = button.dataset.action || '';
+            document.getElementById('edit-promotion-name').value = button.dataset.name || '';
+            document.getElementById('edit-promotion-discount-type').value = button.dataset.discountType || 'percent';
+            document.getElementById('edit-promotion-discount-value').value = button.dataset.discountValue || '';
+            document.getElementById('edit-promotion-min-order').value = button.dataset.minOrder || '0';
+            document.getElementById('edit-promotion-max-discount').value = button.dataset.maxDiscount || '';
+            document.getElementById('edit-promotion-valid-from').value = toDateTimeLocal(button.dataset.validFrom || '');
+            document.getElementById('edit-promotion-valid-to').value = toDateTimeLocal(button.dataset.validTo || '');
+            document.getElementById('edit-promotion-active').checked = button.dataset.active === '1';
+            const selected = new Set((button.dataset.storeIds || '').split(',').filter(Boolean));
+            document.querySelectorAll('.js-edit-promotion-store').forEach((input) => {
+                input.checked = selected.has(input.value);
+            });
+        });
+    });
+    document.querySelectorAll('.js-delete-promotion').forEach((button) => {
+        button.addEventListener('click', () => {
+            document.getElementById('deletePromotionForm').action = button.dataset.action || '';
+            document.getElementById('deletePromotionName').textContent = button.dataset.name || '';
+        });
+    });
+});
+</script>
+{% endblock %}

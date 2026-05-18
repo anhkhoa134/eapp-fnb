@@ -213,7 +213,7 @@
                     <div class="crud-form-grid">
                         <div>
                             <label class="form-label fw-semibold" for="edit-product-name">Tên sản phẩm</label>
-                            <input class="form-control" id="edit-product-name" name="name" maxlength="180" required>
+                            <input class="form-control" id="edit-product-name" name="name" maxlength="180" placeholder="VD: Cà phê sữa" required>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-product-category">Danh mục</label>
@@ -226,11 +226,11 @@
                         </div>
                         <div class="full">
                             <label class="form-label fw-semibold" for="edit-product-description">Mô tả</label>
-                            <textarea class="form-control" id="edit-product-description" name="description" rows="2"></textarea>
+                            <textarea class="form-control" id="edit-product-description" name="description" rows="2" placeholder="VD: Mô tả ngắn về hương vị, thành phần, ghi chú bán hàng..."></textarea>
                         </div>
                         <div class="full">
                             <label class="form-label fw-semibold" for="edit-product-image-url">Image URL</label>
-                            <input class="form-control" id="edit-product-image-url" name="image_url" type="url">
+                            <input class="form-control" id="edit-product-image-url" name="image_url" type="url" placeholder="https://...">
                             <div class="form-text">Hoặc tải ảnh mới từ máy (WebP + thumbnail).</div>
                         </div>
                         <div class="full" id="edit-product-upload-preview-wrap">
@@ -311,20 +311,20 @@
                     <div class="crud-form-grid">
                         <div>
                             <label class="form-label fw-semibold" for="add-unit-name">Tên đơn vị</label>
-                            <input class="form-control" id="add-unit-name" name="name" maxlength="120" required>
+                            <input class="form-control" id="add-unit-name" name="name" maxlength="120" placeholder="VD: Ly M" required>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="add-unit-price">Giá</label>
-                            <input class="form-control js-price-vnd" id="add-unit-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <input class="form-control js-price-vnd" id="add-unit-price" name="price" type="text" inputmode="numeric" autocomplete="off" placeholder="VD: 35000" required>
                             <div class="form-text">Số nguyên (đ), có thể gõ kèm dấu phân cách phần nghìn.</div>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="add-unit-sku">SKU</label>
-                            <input class="form-control" id="add-unit-sku" name="sku" maxlength="120">
+                            <input class="form-control" id="add-unit-sku" name="sku" maxlength="120" placeholder="VD: CF-SUA-M">
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="add-unit-display-order">Thứ tự hiển thị</label>
-                            <input class="form-control" id="add-unit-display-order" name="display_order" type="number" min="0" value="0">
+                            <input class="form-control" id="add-unit-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0">
                         </div>
                         <div class="full switch-card">
                             <div class="form-check m-0">
@@ -357,20 +357,20 @@
                     <div class="crud-form-grid">
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-name">Tên đơn vị</label>
-                            <input class="form-control" id="edit-unit-name" name="name" maxlength="120" required>
+                            <input class="form-control" id="edit-unit-name" name="name" maxlength="120" placeholder="VD: Ly M" required>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-price">Giá</label>
-                            <input class="form-control js-price-vnd" id="edit-unit-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <input class="form-control js-price-vnd" id="edit-unit-price" name="price" type="text" inputmode="numeric" autocomplete="off" placeholder="VD: 35000" required>
                             <div class="form-text">Số nguyên (đ).</div>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-sku">SKU</label>
-                            <input class="form-control" id="edit-unit-sku" name="sku" maxlength="120">
+                            <input class="form-control" id="edit-unit-sku" name="sku" maxlength="120" placeholder="VD: CF-SUA-M">
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-display-order">Thứ tự hiển thị</label>
-                            <input class="form-control" id="edit-unit-display-order" name="display_order" type="number" min="0" value="0">
+                            <input class="form-control" id="edit-unit-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0">
                         </div>
                         <div class="full switch-card">
                             <div class="form-check m-0">

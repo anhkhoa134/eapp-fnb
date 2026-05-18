@@ -20,6 +20,8 @@
 </style>
 <div class="card border-0 shadow-sm">
     <div class="card-body">
+        <div id="createMappingModal" class="d-none" aria-hidden="true"></div>
+        <div id="editMappingModal" class="d-none" aria-hidden="true"></div>
         <div class="crud-toolbar">
             <h2 class="admin-card-title mb-0">
                 <i class="bi bi-plus-circle"></i>
@@ -159,16 +161,16 @@
                     <div class="crud-form-grid">
                         <div class="full">
                             <label class="form-label fw-semibold" for="edit-topping-name">Tên topping</label>
-                            <input class="form-control" id="edit-topping-name" name="name" maxlength="120" required>
+                            <input class="form-control" id="edit-topping-name" name="name" maxlength="120" placeholder="VD: Trân châu" required>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-topping-price">Giá</label>
-                            <input class="form-control js-price-vnd" id="edit-topping-price" name="price" type="text" inputmode="numeric" autocomplete="off" required>
+                            <input class="form-control js-price-vnd" id="edit-topping-price" name="price" type="text" inputmode="numeric" autocomplete="off" placeholder="VD: 7000" required>
                             <div class="form-text">Số nguyên (đ).</div>
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-topping-display-order">Thứ tự</label>
-                            <input class="form-control" id="edit-topping-display-order" name="display_order" type="number" min="0" value="0" required>
+                            <input class="form-control" id="edit-topping-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0" required>
                         </div>
                         <div class="switch-card">
                             <div class="form-check m-0">

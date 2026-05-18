@@ -96,15 +96,15 @@
             </div>
             <div class="col-12 col-md-5 col-lg-4">
                 <label class="form-label small text-muted">Tìm kiếm</label>
-                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Mã đơn, thu ngân, cửa hàng...">
+                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Mã đơn, khách hàng, thu ngân, cửa hàng...">
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small text-muted">Từ ngày</label>
-                <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}" placeholder="Từ ngày">
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small text-muted">Đến ngày</label>
-                <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}" placeholder="Đến ngày">
             </div>
             <div class="col-12 col-md-3 col-lg-4 d-flex flex-wrap gap-2 align-items-end">
                 <button type="submit" class="btn btn-primary">Lọc dữ liệu</button>
@@ -156,8 +156,10 @@
                         <th>Mã đơn</th>
                         <th>Cửa hàng</th>
                         <th>Thu ngân</th>
+                        <th>Khách hàng</th>
                         <th>Loại đơn</th>
                         <th>Thanh toán</th>
+                        <th>Khuyến mãi</th>
                         <th>Trạng thái</th>
                         <th class="text-end">Tổng tiền</th>
                         <th>Thời gian</th>
@@ -173,6 +175,14 @@
                         <td>{{ order.store.name }}</td>
                         <td>{{ order.cashier.username }}</td>
                         <td>
+                            {% if order.customer %}
+                            <div class="fw-semibold">{{ order.customer.name }}</div>
+                            <div class="small text-muted">{{ order.customer.phone }}</div>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
                             {% if order.sale_channel == 'dine_in' %}
                             <span class="payment-pill pay-dinein"><i class="bi bi-shop" aria-hidden="true"></i>Tại quán</span>
                             {% elif order.sale_channel == 'takeaway' %}
@@ -186,6 +196,14 @@
                             <span class="payment-pill cash"><i class="bi bi-cash-coin" aria-hidden="true"></i>Tiền mặt</span>
                             {% else %}
                             <span class="payment-pill pay-card"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>Thẻ/QR</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.discount_amount %}
+                            <div class="fw-semibold text-success">-{{ order.discount_amount|thousand_sep }} đ</div>
+                            <div class="small text-muted">{{ order.promotion_snapshot_name|default:'Khuyến mãi' }}</div>
+                            {% else %}
+                            <span class="text-muted small">—</span>
                             {% endif %}
                         </td>
                         <td>
@@ -215,7 +233,9 @@
                         <td class="fw-semibold">QR-{{ q.id }}</td>
                         <td>{{ q.store.name }}</td>
                         <td>{% if q.rejected_by %}{{ q.rejected_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td><span class="text-muted small">—</span></td>
                         <td><span class="payment-pill pay-qr"><i class="bi bi-qr-code" aria-hidden="true"></i>Đặt qua QR</span></td>
+                        <td><span class="text-muted small">—</span></td>
                         <td><span class="text-muted small">—</span></td>
                         <td>
                             {% if row.qr_status == 'REJECTED' %}
@@ -238,7 +258,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">Không có đơn hàng phù hợp bộ lọc.</td>
+                        <td colspan="11" class="text-center text-muted py-4">Không có đơn hàng phù hợp bộ lọc.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -270,6 +290,12 @@
                         <div class="fw-semibold">{{ order.cashier.username }}</div>
                     </div>
                     <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Khách hàng</span>
+                        <div class="fw-semibold">
+                            {% if order.customer %}{{ order.customer.name }} · {{ order.customer.phone }}{% else %}Không ghi nhận{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Loại đơn</span>
                         <div class="fw-semibold">
                             {% if order.sale_channel == 'dine_in' %}Tại quán
@@ -291,6 +317,17 @@
                         <span class="text-muted">Trạng thái</span>
                         <div class="fw-semibold">
                             {% if order.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Tạm tính</span>
+                        <div class="fw-semibold">{{ order.subtotal|thousand_sep }} đ</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <span class="text-muted">Khuyến mãi</span>
+                        <div class="fw-semibold">
+                            {% if order.discount_amount %}-{{ order.discount_amount|thousand_sep }} đ{% if order.promotion_snapshot_name %} · {{ order.promotion_snapshot_name }}{% endif %}
+                            {% else %}Không áp dụng{% endif %}
                         </div>
                     </div>
                     <div class="col-sm-6 col-lg-4">

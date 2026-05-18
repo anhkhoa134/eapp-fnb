@@ -110,6 +110,8 @@ JAZZMIN_SETTINGS = {
         'App_Catalog.Product': 'fas fa-mug-hot',
         'App_Catalog.Topping': 'fas fa-plus-circle',
         'App_Sales.Order': 'fas fa-receipt',
+        'App_Sales.Customer': 'fas fa-user-tag',
+        'App_Sales.Promotion': 'fas fa-tags',
         'App_Sales.DiningTable': 'fas fa-table',
     },
 }

@@ -6,6 +6,8 @@ app_name = 'App_Sales_API'
 
 urlpatterns = [
     path('products/', views.api_products, name='products'),
+    path('customers/', views.api_customers, name='customers'),
+    path('promotions/', views.api_promotions, name='promotions'),
     path('checkout/', views.api_checkout, name='checkout'),
     path('tables/', views.api_tables, name='tables'),
     path('tables/<int:table_id>/cart/', views.api_table_cart, name='table_cart'),

@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
 from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload, clear_product_uploaded_images
-from App_Sales.models import DiningTable
+from App_Sales.models import Customer, DiningTable, Promotion
 from App_Tenant.models import Store
 
 
@@ -47,6 +47,10 @@ class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
         fields = ['name', 'description', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Đồ uống'}),
+            'description': forms.Textarea(attrs={'placeholder': 'Mô tả ngắn cho danh mục'}),
+        }
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -96,6 +100,11 @@ class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = ['name', 'category', 'description', 'image_url', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Cà phê sữa'}),
+            'description': forms.Textarea(attrs={'placeholder': 'Mô tả ngắn về món'}),
+            'image_url': forms.URLInput(attrs={'placeholder': 'https://...'}),
+        }
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -166,7 +175,10 @@ class ProductUnitForm(forms.ModelForm):
         model = ProductUnit
         fields = ['name', 'price', 'sku', 'display_order', 'is_active']
         widgets = {
-            'price': forms.TextInput(attrs={'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Ly M'}),
+            'price': forms.TextInput(attrs={'placeholder': 'VD: 35000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'sku': forms.TextInput(attrs={'placeholder': 'VD: CF-SUA-M'}),
+            'display_order': forms.NumberInput(attrs={'placeholder': 'VD: 0'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -194,7 +206,9 @@ class ToppingForm(forms.ModelForm):
         model = Topping
         fields = ['name', 'price', 'display_order', 'is_active']
         widgets = {
-            'price': forms.TextInput(attrs={'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Trân châu'}),
+            'price': forms.TextInput(attrs={'placeholder': 'VD: 7000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'display_order': forms.NumberInput(attrs={'placeholder': 'VD: 0'}),
         }
 
     def __init__(self, *args, tenant=None, **kwargs):
@@ -204,7 +218,7 @@ class ToppingForm(forms.ModelForm):
             self.fields['product_ids'].queryset = Product.objects.filter(tenant=tenant, is_active=True).order_by('name')
         else:
             self.fields['product_ids'].queryset = Product.objects.none()
-        self.fields['price'].required = True
+        self.fields['price'].required = False
         _apply_bootstrap_classes(self)
         cls = (self.fields['price'].widget.attrs.get('class', '') + ' js-price-vnd').strip()
         self.fields['price'].widget.attrs['class'] = cls
@@ -218,7 +232,7 @@ class ToppingForm(forms.ModelForm):
     def clean_price(self):
         price = self.cleaned_data.get('price')
         if price is None:
-            return price
+            return Decimal('0')
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
@@ -227,7 +241,8 @@ class ProductToppingForm(forms.ModelForm):
         model = ProductTopping
         fields = ['product', 'topping', 'price', 'display_order', 'is_active']
         widgets = {
-            'price': forms.TextInput(attrs={'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'price': forms.TextInput(attrs={'placeholder': 'VD: 7000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'display_order': forms.NumberInput(attrs={'placeholder': 'VD: 0'}),
         }
 
     def __init__(self, *args, tenant=None, **kwargs):
@@ -256,6 +271,133 @@ class ProductToppingForm(forms.ModelForm):
         if price is None:
             return price
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+
+
+class CustomerForm(forms.ModelForm):
+    class Meta:
+        model = Customer
+        fields = ['name', 'phone', 'email', 'note', 'is_active']
+        labels = {
+            'name': 'Tên khách hàng',
+            'phone': 'Số điện thoại',
+            'email': 'Email',
+            'note': 'Ghi chú',
+            'is_active': 'Đang hoạt động',
+        }
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Nguyễn Văn An'}),
+            'phone': forms.TextInput(attrs={'placeholder': 'VD: 0901234567', 'inputmode': 'tel', 'autocomplete': 'tel'}),
+            'email': forms.EmailInput(attrs={'placeholder': 'VD: khach@example.com'}),
+            'note': forms.Textarea(attrs={'placeholder': 'Ghi chú sở thích, dị ứng, thông tin chăm sóc...', 'rows': 2}),
+        }
+
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        self.fields['email'].required = False
+        self.fields['note'].required = False
+        _apply_bootstrap_classes(self)
+
+    def _post_clean(self):
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
+
+    def clean_phone(self):
+        raw = (self.cleaned_data.get('phone') or '').strip()
+        if not raw:
+            raise ValidationError('Vui lòng nhập số điện thoại.')
+        digits = ''.join(ch for ch in raw if ch.isdigit())
+        if len(digits) < 8:
+            raise ValidationError('Số điện thoại quá ngắn hoặc không hợp lệ.')
+        return raw
+
+
+class PromotionForm(forms.ModelForm):
+    store_ids = forms.ModelMultipleChoiceField(
+        queryset=Store.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label='Áp dụng tại cửa hàng',
+    )
+
+    class Meta:
+        model = Promotion
+        fields = [
+            'name',
+            'discount_type',
+            'discount_value',
+            'min_order_amount',
+            'max_discount_amount',
+            'valid_from',
+            'valid_to',
+            'is_active',
+        ]
+        labels = {
+            'name': 'Tên khuyến mãi',
+            'discount_type': 'Loại giảm',
+            'discount_value': 'Giá trị giảm',
+            'min_order_amount': 'Đơn tối thiểu',
+            'max_discount_amount': 'Giảm tối đa',
+            'valid_from': 'Bắt đầu',
+            'valid_to': 'Kết thúc',
+            'is_active': 'Đang hoạt động',
+        }
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Giảm 10% cuối tuần'}),
+            'discount_value': forms.TextInput(attrs={'placeholder': 'VD: 10 hoặc 50000', 'inputmode': 'decimal', 'autocomplete': 'off'}),
+            'min_order_amount': forms.TextInput(attrs={'placeholder': 'VD: 100000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'max_discount_amount': forms.TextInput(attrs={'placeholder': 'VD: 50000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
+            'valid_from': forms.DateTimeInput(attrs={'type': 'datetime-local', 'placeholder': 'Bắt đầu'}, format='%Y-%m-%dT%H:%M'),
+            'valid_to': forms.DateTimeInput(attrs={'type': 'datetime-local', 'placeholder': 'Kết thúc'}, format='%Y-%m-%dT%H:%M'),
+        }
+
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        if tenant:
+            self.fields['store_ids'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
+        else:
+            self.fields['store_ids'].queryset = Store.objects.none()
+        self.fields['valid_from'].required = False
+        self.fields['valid_to'].required = False
+        self.fields['valid_from'].input_formats = ['%Y-%m-%dT%H:%M']
+        self.fields['valid_to'].input_formats = ['%Y-%m-%dT%H:%M']
+        _apply_bootstrap_classes(self)
+
+    def _post_clean(self):
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
+
+    def clean(self):
+        cleaned = super().clean()
+        tenant = getattr(self, 'tenant', None)
+        if tenant:
+            for store in cleaned.get('store_ids') or []:
+                if store.tenant_id != tenant.id:
+                    raise ValidationError('Cửa hàng chọn không thuộc doanh nghiệp hiện tại.')
+        return cleaned
+
+    def clean_discount_value(self):
+        value = self.cleaned_data.get('discount_value')
+        if value is None:
+            return value
+        return value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+
+    def clean_min_order_amount(self):
+        value = self.cleaned_data.get('min_order_amount')
+        if value is None:
+            return Decimal('0')
+        return value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+
+    def clean_max_discount_amount(self):
+        value = self.cleaned_data.get('max_discount_amount')
+        if value is None:
+            return value
+        return value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
 STORE_PAYMENT_QR_MAX_BYTES = 2 * 1024 * 1024
@@ -401,9 +543,19 @@ class DiningTableForm(forms.ModelForm):
 
 
 class StaffCreateForm(forms.Form):
-    username = forms.CharField(label='Tên đăng nhập', max_length=150)
-    password1 = forms.CharField(label='Mật khẩu', widget=forms.PasswordInput)
-    password2 = forms.CharField(label='Xác nhận mật khẩu', widget=forms.PasswordInput)
+    username = forms.CharField(
+        label='Tên đăng nhập',
+        max_length=150,
+        widget=forms.TextInput(attrs={'placeholder': 'VD: demo_thu_ngan'}),
+    )
+    password1 = forms.CharField(
+        label='Mật khẩu',
+        widget=forms.PasswordInput(attrs={'placeholder': 'Nhập mật khẩu'}),
+    )
+    password2 = forms.CharField(
+        label='Xác nhận mật khẩu',
+        widget=forms.PasswordInput(attrs={'placeholder': 'Nhập lại mật khẩu'}),
+    )
     store_ids = forms.ModelMultipleChoiceField(
         queryset=Store.objects.none(),
         required=True,
@@ -529,4 +681,6 @@ class StaffPasswordResetForm(SetPasswordForm):
         super().__init__(*args, **kwargs)
         self.fields['new_password1'].label = 'Mật khẩu mới'
         self.fields['new_password2'].label = 'Xác nhận mật khẩu mới'
+        self.fields['new_password1'].widget.attrs.setdefault('placeholder', 'Nhập mật khẩu mới')
+        self.fields['new_password2'].widget.attrs.setdefault('placeholder', 'Nhập lại mật khẩu mới')
         _apply_bootstrap_classes(self)

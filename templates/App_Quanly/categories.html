@@ -173,6 +173,7 @@
                             class="form-control"
                             id="{{ form.description.id_for_label }}"
                             name="{{ form.description.html_name }}"
+                            placeholder="VD: Nhóm món bán chạy, đồ uống lạnh..."
                             rows="2"
                         >{{ form.description.value|default_if_none:'' }}</textarea>
                         {{ form.description.errors }}
@@ -221,11 +222,11 @@
                     {% csrf_token %}
                     <div class="mb-3">
                         <label class="form-label">Tên</label>
-                        <input type="text" class="form-control" id="edit-category-name" name="name" maxlength="120" required>
+                        <input type="text" class="form-control" id="edit-category-name" name="name" maxlength="120" placeholder="VD: Đồ uống" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Mô tả</label>
-                        <textarea class="form-control" id="edit-category-description" name="description" rows="2"></textarea>
+                        <textarea class="form-control" id="edit-category-description" name="description" rows="2" placeholder="VD: Nhóm món bán chạy, đồ uống lạnh..."></textarea>
                     </div>
                     <div class="mb-3">
                         <div class="form-section-title">Hiển thị ở cửa hàng</div>

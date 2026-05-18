@@ -192,6 +192,12 @@
 
                     <li><hr class="dropdown-divider"></li>
 
+                    <li class="js-pwa-install-action d-none">
+                        <button class="dropdown-item account-action mx-2" type="button">
+                            <span class="account-icon-pill"><i class="bi bi-download"></i></span>Cài ứng dụng
+                        </button>
+                    </li>
+
                     {% if user.is_authenticated %}
                     {% if user.is_manager %}
                     <li>
@@ -207,7 +213,7 @@
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li class="px-2 pb-2">
-                        <button class="dropdown-item text-danger fw-bold rounded-3" type="button" onclick="openLogoutConfirm('globalLogoutForm')">
+                        <button class="dropdown-item text-danger fw-bold mx-2" type="button" onclick="openLogoutConfirm('globalLogoutForm')">
                             <span class="account-icon-pill"><i class="bi bi-box-arrow-right"></i></span>Đăng xuất
                         </button>
                     </li>

@@ -3,6 +3,7 @@ from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
@@ -16,17 +17,29 @@ from App_Accounts.permissions import staff_or_manager_required
 from App_Catalog.models import Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, parse_topping_ids, resolve_product_topping_links
 from App_Sales.models import (
+    Customer,
     DiningTable,
     Order,
     OrderItem,
     OrderItemTopping,
+    Promotion,
     QROrder,
     QROrderItemTopping,
     TableCartItem,
     TableCartItemTopping,
 )
 from App_Sales.realtime import notify_qr_order_changed
-from App_Sales.services import get_accessible_store_or_default, get_effective_unit_price
+from App_Sales.services import (
+    calculate_order_totals,
+    calculate_points_for_amount,
+    calculate_promotion_discount,
+    get_accessible_store_or_default,
+    get_available_promotions,
+    get_effective_unit_price,
+    recompute_customer_stats,
+    resolve_customer_for_checkout,
+    resolve_promotion_for_checkout,
+)
 from App_Tenant.services import get_user_accessible_stores
 
 
@@ -171,6 +184,49 @@ def _snapshot_rows_from_product_toppings(links):
             }
         )
     return rows
+
+
+def _serialize_customer(customer: Customer):
+    return {
+        'id': customer.id,
+        'name': customer.name,
+        'phone': customer.phone,
+        'email': customer.email,
+        'note': customer.note,
+        'tier': customer.tier,
+        'tier_label': customer.get_tier_display(),
+        'points_balance': customer.points_balance,
+        'total_spent': float(customer.total_spent),
+        'last_order_at': timezone.localtime(customer.last_order_at).strftime('%d/%m/%Y %H:%M') if customer.last_order_at else '',
+    }
+
+
+def _serialize_promotion(promotion: Promotion, *, subtotal: Decimal):
+    discount_amount = calculate_promotion_discount(promotion=promotion, subtotal=subtotal)
+    return {
+        'id': promotion.id,
+        'name': promotion.name,
+        'discount_type': promotion.discount_type,
+        'discount_type_label': promotion.get_discount_type_display(),
+        'discount_value': float(promotion.discount_value),
+        'min_order_amount': float(promotion.min_order_amount),
+        'max_discount_amount': float(promotion.max_discount_amount) if promotion.max_discount_amount is not None else None,
+        'discount_amount': float(discount_amount),
+    }
+
+
+def _snapshot_promotion_fields(promotion: Promotion | None):
+    if not promotion:
+        return {
+            'promotion_snapshot_name': '',
+            'promotion_snapshot_type': '',
+            'promotion_snapshot_value': Decimal('0'),
+        }
+    return {
+        'promotion_snapshot_name': promotion.name,
+        'promotion_snapshot_type': promotion.discount_type,
+        'promotion_snapshot_value': promotion.discount_value,
+    }
 
 
 def _snapshot_rows_from_qr_item_toppings(qr_item):
@@ -470,6 +526,79 @@ def api_products(request):
 
 @login_required
 @staff_or_manager_required
+@require_http_methods(['GET', 'POST'])
+def api_customers(request):
+    user = request.user
+    if not user.tenant_id:
+        return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
+
+    if request.method == 'GET':
+        q = (request.GET.get('q') or '').strip()
+        customers = Customer.objects.filter(tenant=user.tenant, is_active=True)
+        if q:
+            customers = customers.filter(Q(name__icontains=q) | Q(phone__icontains=q))
+        rows = [_serialize_customer(row) for row in customers.order_by('name', 'id')[:12]]
+        return JsonResponse({'customers': rows})
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    name = (payload.get('name') or '').strip()
+    phone = (payload.get('phone') or '').strip()
+    if not name:
+        return _json_error('Vui lòng nhập tên khách hàng.', 400)
+    if not phone:
+        return _json_error('Vui lòng nhập số điện thoại khách hàng.', 400)
+
+    existing = Customer.objects.filter(tenant=user.tenant, phone=phone).first()
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            existing.save(update_fields=['is_active', 'updated_at'])
+        return JsonResponse({'customer': _serialize_customer(existing), 'detail': 'Khách hàng đã tồn tại.'})
+
+    customer = Customer(
+        tenant=user.tenant,
+        name=name,
+        phone=phone,
+        email=(payload.get('email') or '').strip(),
+        note=(payload.get('note') or '').strip()[:500],
+    )
+    try:
+        customer.save()
+    except ValidationError as exc:
+        return _json_error('; '.join(exc.messages), 400)
+    return JsonResponse({'customer': _serialize_customer(customer)}, status=201)
+
+
+@login_required
+@staff_or_manager_required
+@require_GET
+def api_promotions(request):
+    user = request.user
+    if not user.tenant_id:
+        return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
+
+    store = get_accessible_store_or_default(user, request.GET.get('store_id'))
+    if not store:
+        return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
+
+    try:
+        subtotal = _parse_decimal(request.GET.get('subtotal', '0'), field='subtotal')
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    if subtotal < 0:
+        return _json_error('subtotal không được âm.', 400)
+
+    promotions = get_available_promotions(tenant=user.tenant, store=store, subtotal=subtotal)
+    return JsonResponse(
+        {'promotions': [_serialize_promotion(row, subtotal=subtotal) for row in promotions[:30]]}
+    )
+
+
+@login_required
+@staff_or_manager_required
 @require_POST
 def api_checkout(request):
     user = request.user
@@ -555,8 +684,25 @@ def api_checkout(request):
                 }
             )
 
-        tax_amount = subtotal * tax_rate
-        total_amount = subtotal + tax_amount
+        customer_id = payload.get('customer_id')
+        customer = resolve_customer_for_checkout(tenant=user.tenant, customer_id=customer_id)
+        if customer_id and not customer:
+            return _json_error('Khách hàng không hợp lệ hoặc đã ngưng hoạt động.', 400)
+
+        promotion_id = payload.get('promotion_id')
+        promotion = resolve_promotion_for_checkout(
+            tenant=user.tenant,
+            store=store,
+            promotion_id=promotion_id,
+            subtotal=subtotal,
+        )
+        if promotion_id and not promotion:
+            return _json_error('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.', 400)
+
+        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion)
+        discount_amount = totals['discount_amount']
+        tax_amount = totals['tax_amount']
+        total_amount = totals['total_amount']
 
         if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
             return _json_error('Khách đưa chưa đủ tiền.', 400)
@@ -570,14 +716,18 @@ def api_checkout(request):
             tenant=user.tenant,
             store=store,
             cashier=user,
+            customer=customer,
+            promotion=promotion,
             payment_method=payment_method,
             sale_channel=Order.SaleChannel.TAKEAWAY,
             subtotal=subtotal,
+            discount_amount=discount_amount,
             tax_rate=tax_rate,
             tax_amount=tax_amount,
             total_amount=total_amount,
             customer_paid=customer_paid,
             change_amount=change_amount,
+            **_snapshot_promotion_fields(promotion),
         )
 
         for item in prepared_items:
@@ -604,15 +754,22 @@ def api_checkout(request):
                 ]
             )
 
+        points_earned = calculate_points_for_amount(total_amount) if customer else 0
+        if customer:
+            customer = recompute_customer_stats(customer)
+
     return JsonResponse(
         {
             'order_id': order.id,
             'order_code': order.order_code,
             'subtotal': float(subtotal),
+            'discount_amount': float(discount_amount),
             'tax_amount': float(tax_amount),
             'total_amount': float(total_amount),
             'customer_paid': float(customer_paid),
             'change_amount': float(change_amount),
+            'points_earned': points_earned,
+            'customer_tier': customer.tier if customer else '',
         },
         status=201,
     )
@@ -1042,8 +1199,25 @@ def api_table_checkout(request, table_id):
         for item in cart_items:
             subtotal += item.unit_price_snapshot * item.quantity
 
-        tax_amount = subtotal * tax_rate
-        total_amount = subtotal + tax_amount
+        customer_id = payload.get('customer_id')
+        customer = resolve_customer_for_checkout(tenant=user.tenant, customer_id=customer_id)
+        if customer_id and not customer:
+            return _json_error('Khách hàng không hợp lệ hoặc đã ngưng hoạt động.', 400)
+
+        promotion_id = payload.get('promotion_id')
+        promotion = resolve_promotion_for_checkout(
+            tenant=user.tenant,
+            store=table.store,
+            promotion_id=promotion_id,
+            subtotal=subtotal,
+        )
+        if promotion_id and not promotion:
+            return _json_error('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.', 400)
+
+        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion)
+        discount_amount = totals['discount_amount']
+        tax_amount = totals['tax_amount']
+        total_amount = totals['total_amount']
 
         if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
             return _json_error('Khách đưa chưa đủ tiền.', 400)
@@ -1057,14 +1231,18 @@ def api_table_checkout(request, table_id):
             tenant=user.tenant,
             store=table.store,
             cashier=user,
+            customer=customer,
+            promotion=promotion,
             payment_method=payment_method,
             sale_channel=Order.SaleChannel.DINE_IN,
             subtotal=subtotal,
+            discount_amount=discount_amount,
             tax_rate=tax_rate,
             tax_amount=tax_amount,
             total_amount=total_amount,
             customer_paid=customer_paid,
             change_amount=change_amount,
+            **_snapshot_promotion_fields(promotion),
         )
 
         for item in cart_items:
@@ -1093,13 +1271,20 @@ def api_table_checkout(request, table_id):
 
         TableCartItem.objects.filter(table=table).delete()
 
+        points_earned = calculate_points_for_amount(total_amount) if customer else 0
+        if customer:
+            customer = recompute_customer_stats(customer)
+
     return JsonResponse(
         {
             'detail': 'Thanh toán bàn thành công.',
             'order_id': order.id,
             'order_code': order.order_code,
+            'discount_amount': float(discount_amount),
             'total_amount': float(total_amount),
             'change_amount': float(change_amount),
+            'points_earned': points_earned,
+            'customer_tier': customer.tier if customer else '',
             'table_status': 'empty',
         },
         status=201,

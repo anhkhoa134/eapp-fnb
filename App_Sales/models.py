@@ -28,6 +28,20 @@ class Order(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.PROTECT, related_name='orders')
     store = models.ForeignKey('App_Tenant.Store', on_delete=models.PROTECT, related_name='orders')
     cashier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='orders')
+    customer = models.ForeignKey(
+        'App_Sales.Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+    )
+    promotion = models.ForeignKey(
+        'App_Sales.Promotion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+    )
     order_code = models.CharField(max_length=30, unique=True, editable=False)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
     sale_channel = models.CharField(
@@ -40,6 +54,10 @@ class Order(TimeStampedModel):
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.COMPLETED)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    promotion_snapshot_name = models.CharField(max_length=150, blank=True)
+    promotion_snapshot_type = models.CharField(max_length=20, blank=True)
+    promotion_snapshot_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0)
     tax_amount = models.DecimalField(max_digits=14, decimal_places=2)
     total_amount = models.DecimalField(max_digits=14, decimal_places=2)
@@ -50,6 +68,8 @@ class Order(TimeStampedModel):
         indexes = [
             models.Index(fields=['tenant', 'store', 'created_at']),
             models.Index(fields=['tenant', 'status', 'created_at']),
+            models.Index(fields=['tenant', 'customer', 'created_at']),
+            models.Index(fields=['tenant', 'promotion', 'created_at']),
         ]
         ordering = ['-created_at']
 
@@ -60,6 +80,107 @@ class Order(TimeStampedModel):
 
     def __str__(self):
         return self.order_code
+
+
+class Customer(TimeStampedModel):
+    class Tier(models.TextChoices):
+        MEMBER = 'member', 'Member'
+        SILVER = 'silver', 'Silver'
+        GOLD = 'gold', 'Gold'
+        VIP = 'vip', 'VIP'
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='customers')
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=24)
+    email = models.EmailField(blank=True)
+    note = models.CharField(max_length=500, blank=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
+    points_balance = models.PositiveIntegerField(default=0)
+    total_spent = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tier = models.CharField(max_length=20, choices=Tier.choices, default=Tier.MEMBER)
+    last_order_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'phone'], name='uq_customer_tenant_phone'),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'is_active', 'name']),
+            models.Index(fields=['tenant', 'phone']),
+            models.Index(fields=['tenant', 'tier']),
+        ]
+        ordering = ['name', 'id']
+        verbose_name = 'Khách hàng'
+        verbose_name_plural = 'Khách hàng'
+
+    def clean(self):
+        self.name = (self.name or '').strip()
+        self.phone = (self.phone or '').strip()
+        self.email = (self.email or '').strip()
+        if not self.name:
+            raise ValidationError({'name': 'Vui lòng nhập tên khách hàng.'})
+        if not self.phone:
+            raise ValidationError({'phone': 'Vui lòng nhập số điện thoại.'})
+        digits = ''.join(ch for ch in self.phone if ch.isdigit())
+        if len(digits) < 8:
+            raise ValidationError({'phone': 'Số điện thoại quá ngắn hoặc không hợp lệ.'})
+        if self.total_spent < 0:
+            raise ValidationError({'total_spent': 'Tổng chi tiêu không được âm.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.name} - {self.phone}'
+
+
+class Promotion(TimeStampedModel):
+    class DiscountType(models.TextChoices):
+        PERCENT = 'percent', 'Giảm %'
+        FIXED = 'fixed', 'Giảm tiền'
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='promotions')
+    stores = models.ManyToManyField('App_Tenant.Store', related_name='promotions', blank=True)
+    name = models.CharField(max_length=150)
+    discount_type = models.CharField(max_length=20, choices=DiscountType.choices)
+    discount_value = models.DecimalField(max_digits=14, decimal_places=2)
+    min_order_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    max_discount_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    valid_from = models.DateTimeField(null=True, blank=True)
+    valid_to = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'is_active']),
+            models.Index(fields=['tenant', 'valid_from', 'valid_to']),
+        ]
+        ordering = ['-is_active', '-created_at']
+        verbose_name = 'Khuyến mãi'
+        verbose_name_plural = 'Khuyến mãi'
+
+    def clean(self):
+        self.name = (self.name or '').strip()
+        if not self.name:
+            raise ValidationError({'name': 'Vui lòng nhập tên khuyến mãi.'})
+        if self.discount_value <= 0:
+            raise ValidationError({'discount_value': 'Giá trị giảm phải lớn hơn 0.'})
+        if self.discount_type == self.DiscountType.PERCENT and self.discount_value > 100:
+            raise ValidationError({'discount_value': 'Giảm theo phần trăm không được vượt quá 100%.'})
+        if self.min_order_amount < 0:
+            raise ValidationError({'min_order_amount': 'Điều kiện đơn tối thiểu không được âm.'})
+        if self.max_discount_amount is not None and self.max_discount_amount < 0:
+            raise ValidationError({'max_discount_amount': 'Giới hạn giảm tối đa không được âm.'})
+        if self.valid_from and self.valid_to and self.valid_to < self.valid_from:
+            raise ValidationError({'valid_to': 'Thời gian kết thúc phải sau thời gian bắt đầu.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 
 
 class DiningTable(TimeStampedModel):

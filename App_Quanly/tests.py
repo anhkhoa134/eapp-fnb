@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
-from App_Sales.models import DiningTable, Order, OrderItem, OrderItemTopping
+from App_Sales.models import Customer, DiningTable, Order, OrderItem, OrderItemTopping, Promotion
 from App_Quanly.forms import StaffCreateForm
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
@@ -73,6 +73,16 @@ class QuanlyPermissionTests(TestCase):
         self.client.login(username='staff_demo', password='123456')
         self.assertEqual(self.client.get(reverse('App_Quanly:toppings')).status_code, 403)
         self.assertEqual(self.client.get(reverse('App_Quanly:product_toppings')).status_code, 403)
+
+    def test_manager_can_access_customer_and_promotion_pages(self):
+        self.client.login(username='manager_demo', password='123456')
+        self.assertEqual(self.client.get(reverse('App_Quanly:customers')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('App_Quanly:promotions')).status_code, 200)
+
+    def test_staff_cannot_access_customer_and_promotion_pages(self):
+        self.client.login(username='staff_demo', password='123456')
+        self.assertEqual(self.client.get(reverse('App_Quanly:customers')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Quanly:promotions')).status_code, 403)
 
     def test_categories_page_uses_modal_crud_actions(self):
         self.client.login(username='manager_demo', password='123456')
@@ -153,6 +163,62 @@ class QuanlyPermissionTests(TestCase):
             f'href="{reverse("App_Quanly:staff_password_reset", kwargs={"pk": self.staff.id})}"',
             html,
         )
+
+    def test_customers_page_uses_modal_crud_actions(self):
+        self.client.login(username='manager_demo', password='123456')
+        customer = Customer.objects.create(tenant=self.tenant, name='Khách test', phone='0900000000')
+        res = self.client.get(reverse('App_Quanly:customers'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="createCustomerModal"', html)
+        self.assertIn('id="editCustomerModal"', html)
+        self.assertIn('id="edit-customer-active"', html)
+        self.assertIn('id="deleteCustomerModal"', html)
+        self.assertIn('js-delete-customer', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:customer_edit", kwargs={"pk": customer.id})}"',
+            html,
+        )
+
+    def test_promotions_page_uses_modal_crud_actions(self):
+        self.client.login(username='manager_demo', password='123456')
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm test',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('10000'),
+        )
+        res = self.client.get(reverse('App_Quanly:promotions'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="createPromotionModal"', html)
+        self.assertIn('id="editPromotionModal"', html)
+        self.assertIn('id="edit-promotion-active"', html)
+        self.assertIn('id="deletePromotionModal"', html)
+        self.assertIn('js-delete-promotion', html)
+        self.assertNotIn(
+            f'href="{reverse("App_Quanly:promotion_edit", kwargs={"pk": promotion.id})}"',
+            html,
+        )
+
+    def test_customer_delete_hard_deletes_record(self):
+        self.client.login(username='manager_demo', password='123456')
+        customer = Customer.objects.create(tenant=self.tenant, name='Khách xóa', phone='0911111111')
+        res = self.client.post(reverse('App_Quanly:customer_delete', kwargs={'pk': customer.id}))
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(Customer.objects.filter(pk=customer.id).exists())
+
+    def test_promotion_delete_hard_deletes_record(self):
+        self.client.login(username='manager_demo', password='123456')
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Khuyến mãi xóa',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('10000'),
+        )
+        res = self.client.post(reverse('App_Quanly:promotion_delete', kwargs={'pk': promotion.id}))
+        self.assertEqual(res.status_code, 302)
+        self.assertFalse(Promotion.objects.filter(pk=promotion.id).exists())
 
     def test_staff_edit_get_redirects_to_list(self):
         self.client.login(username='manager_demo', password='123456')
@@ -327,14 +393,31 @@ class QuanlyOrderHistoryTests(TestCase):
         product = Product.objects.create(tenant=self.tenant, category=category, name='Phở Bò')
         unit = ProductUnit.objects.create(product=product, name='Thường', price=Decimal('90000'))
         topping = Topping.objects.create(tenant=self.tenant, name='Thêm trứng')
+        self.customer = Customer.objects.create(
+            tenant=self.tenant,
+            name='Khách lịch sử',
+            phone='0933333333',
+        )
+        self.promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm lịch sử',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('10000'),
+        )
 
         self.order_1 = Order.objects.create(
             tenant=self.tenant,
             store=self.store_1,
             cashier=self.cashier_1,
+            customer=self.customer,
+            promotion=self.promotion,
             payment_method=Order.PaymentMethod.CASH,
             status=Order.Status.COMPLETED,
-            subtotal=Decimal('100000'),
+            subtotal=Decimal('110000'),
+            discount_amount=Decimal('10000'),
+            promotion_snapshot_name='Giảm lịch sử',
+            promotion_snapshot_type=Promotion.DiscountType.FIXED,
+            promotion_snapshot_value=Decimal('10000'),
             tax_rate=Decimal('0'),
             tax_amount=Decimal('0'),
             total_amount=Decimal('100000'),
@@ -400,6 +483,28 @@ class QuanlyOrderHistoryTests(TestCase):
         html = res.content.decode('utf-8')
         self.assertIn('ORD-HISTORY-A', html)
         self.assertNotIn('ORD-HISTORY-B', html)
+
+    def test_order_history_shows_customer_and_discount(self):
+        self.client.login(username='manager_orders', password='123456')
+        res = self.client.get(reverse('App_Quanly:orders'), {'q': 'Khách lịch sử'})
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('Khách lịch sử', html)
+        self.assertIn('0933333333', html)
+        self.assertIn('Giảm lịch sử', html)
+        self.assertIn('-10.000 đ', html)
+
+    def test_order_delete_recomputes_customer_loyalty(self):
+        self.customer.total_spent = Decimal('100000')
+        self.customer.points_balance = 10
+        self.customer.save(update_fields=['total_spent', 'points_balance', 'updated_at'])
+
+        self.client.login(username='manager_orders', password='123456')
+        res = self.client.post(reverse('App_Quanly:order_delete', kwargs={'pk': self.order_1.id}))
+        self.assertEqual(res.status_code, 302)
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.total_spent, Decimal('0'))
+        self.assertEqual(self.customer.points_balance, 0)
 
     def test_order_history_pagination_keeps_query_params(self):
         self.client.login(username='manager_orders', password='123456')

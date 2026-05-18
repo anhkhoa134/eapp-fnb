@@ -1,17 +1,21 @@
 import json
+from datetime import timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Sales.models import (
+    Customer,
     DiningTable,
     Order,
     OrderItemTopping,
+    Promotion,
     QROrder,
     QROrderItem,
     QROrderItemTopping,
@@ -188,6 +192,113 @@ class SalesApiTests(TestCase):
         self.assertEqual(row.snapshot_topping_name, self.topping.name)
         self.assertEqual(row.snapshot_price, Decimal('6000'))
 
+    def test_checkout_applies_fixed_promotion_and_updates_customer_loyalty(self):
+        customer = Customer.objects.create(
+            tenant=self.tenant,
+            name='Anh Minh',
+            phone='0900000001',
+        )
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm 10k',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('10000'),
+            min_order_amount=Decimal('20000'),
+        )
+        promotion.stores.add(self.store_1)
+
+        url = reverse('App_Sales_API:checkout')
+        payload = {
+            'store_id': self.store_1.id,
+            'payment_method': 'cash',
+            'tax_rate': '0',
+            'customer_paid': '20000',
+            'customer_id': customer.id,
+            'promotion_id': promotion.id,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 201)
+        body = res.json()
+        self.assertEqual(Decimal(str(body['discount_amount'])), Decimal('10000'))
+        self.assertEqual(Decimal(str(body['total_amount'])), Decimal('15000'))
+        self.assertEqual(body['points_earned'], 1)
+
+        order = Order.objects.select_related('customer', 'promotion').get()
+        self.assertEqual(order.customer, customer)
+        self.assertEqual(order.promotion, promotion)
+        self.assertEqual(order.discount_amount, Decimal('10000'))
+        self.assertEqual(order.promotion_snapshot_name, 'Giảm 10k')
+
+        customer.refresh_from_db()
+        self.assertEqual(customer.total_spent, Decimal('15000'))
+        self.assertEqual(customer.points_balance, 1)
+        self.assertEqual(customer.tier, Customer.Tier.MEMBER)
+
+    def test_checkout_applies_percent_promotion_with_max_discount(self):
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm 20 tối đa 5k',
+            discount_type=Promotion.DiscountType.PERCENT,
+            discount_value=Decimal('20'),
+            max_discount_amount=Decimal('5000'),
+        )
+
+        url = reverse('App_Sales_API:checkout')
+        payload = {
+            'store_id': self.store_1.id,
+            'payment_method': 'cash',
+            'tax_rate': '0',
+            'customer_paid': '45000',
+            'promotion_id': promotion.id,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 2,
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 201)
+        order = Order.objects.get()
+        self.assertEqual(order.subtotal, Decimal('50000'))
+        self.assertEqual(order.discount_amount, Decimal('5000'))
+        self.assertEqual(order.total_amount, Decimal('45000'))
+
+    def test_checkout_rejects_ineligible_promotion(self):
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Đơn lớn',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('10000'),
+            min_order_amount=Decimal('100000'),
+        )
+        url = reverse('App_Sales_API:checkout')
+        payload = {
+            'store_id': self.store_1.id,
+            'payment_method': 'cash',
+            'tax_rate': '0',
+            'customer_paid': '30000',
+            'promotion_id': promotion.id,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
     def test_checkout_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:checkout')
         payload = {
@@ -245,6 +356,41 @@ class SalesApiTests(TestCase):
         self.assertEqual(table_payload[self.table_1.id]['status'], 'pending')
         self.assertEqual(table_payload[self.table_2.id]['status'], 'occupied')
 
+    def test_api_customers_search_and_create_quick_customer(self):
+        create_url = reverse('App_Sales_API:customers')
+        create_res = self.client.post(
+            create_url,
+            data=json.dumps({'name': 'Chị Lan', 'phone': '0911111111'}),
+            content_type='application/json',
+        )
+        self.assertEqual(create_res.status_code, 201)
+        customer_id = create_res.json()['customer']['id']
+
+        search_res = self.client.get(create_url, {'q': 'Lan'})
+        self.assertEqual(search_res.status_code, 200)
+        self.assertEqual(search_res.json()['customers'][0]['id'], customer_id)
+
+    def test_api_promotions_returns_only_eligible_promotions(self):
+        eligible = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm 5k',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('5000'),
+            min_order_amount=Decimal('20000'),
+        )
+        Promotion.objects.create(
+            tenant=self.tenant,
+            name='Chưa đủ điều kiện',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('10000'),
+            min_order_amount=Decimal('100000'),
+        )
+        url = reverse('App_Sales_API:promotions')
+        res = self.client.get(url, {'store_id': self.store_1.id, 'subtotal': '25000'})
+        self.assertEqual(res.status_code, 200)
+        ids = [row['id'] for row in res.json()['promotions']]
+        self.assertEqual(ids, [eligible.id])
+
     def test_table_cart_add_and_checkout_clears_cart(self):
         add_url = reverse('App_Sales_API:table_cart_add', kwargs={'table_id': self.table_1.id})
         add_payload = {
@@ -276,6 +422,52 @@ class SalesApiTests(TestCase):
         self.assertEqual(order.items.first().quantity, 2)
         self.assertEqual(order.sale_channel, Order.SaleChannel.DINE_IN)
         self.assertEqual(TableCartItem.objects.filter(table=self.table_1).count(), 0)
+
+    def test_table_checkout_applies_promotion_and_customer(self):
+        customer = Customer.objects.create(
+            tenant=self.tenant,
+            name='Khách bàn',
+            phone='0922222222',
+        )
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm 10%',
+            discount_type=Promotion.DiscountType.PERCENT,
+            discount_value=Decimal('10'),
+        )
+        TableCartItem.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('25000'),
+            quantity=2,
+            source=TableCartItem.Source.STAFF,
+        )
+
+        checkout_url = reverse('App_Sales_API:table_checkout', kwargs={'table_id': self.table_1.id})
+        checkout_payload = {
+            'payment_method': 'cash',
+            'tax_rate': 0,
+            'customer_paid': 50000,
+            'customer_id': customer.id,
+            'promotion_id': promotion.id,
+        }
+        checkout_res = self.client.post(
+            checkout_url,
+            data=json.dumps(checkout_payload),
+            content_type='application/json',
+        )
+        self.assertEqual(checkout_res.status_code, 201)
+        order = Order.objects.get()
+        self.assertEqual(order.customer, customer)
+        self.assertEqual(order.discount_amount, Decimal('5000'))
+        self.assertEqual(order.total_amount, Decimal('45000'))
+        customer.refresh_from_db()
+        self.assertEqual(customer.points_balance, 4)
 
     def test_table_cart_add_with_toppings_snapshot(self):
         add_url = reverse('App_Sales_API:table_cart_add', kwargs={'table_id': self.table_1.id})
@@ -634,6 +826,64 @@ class SalesApiTests(TestCase):
 
 
 class SalesModelTests(TestCase):
+    def test_customer_phone_unique_per_tenant(self):
+        tenant = Tenant.objects.create(name='Tenant CRM', public_slug='tenant-crm')
+        Customer.objects.create(tenant=tenant, name='Khách 1', phone='0901234567')
+        with self.assertRaises(ValidationError):
+            Customer.objects.create(tenant=tenant, name='Khách 2', phone='0901234567')
+
+    def test_promotion_rejects_invalid_percent_and_date_range(self):
+        tenant = Tenant.objects.create(name='Tenant Promo', public_slug='tenant-promo')
+        with self.assertRaises(ValidationError):
+            Promotion.objects.create(
+                tenant=tenant,
+                name='Giảm quá mức',
+                discount_type=Promotion.DiscountType.PERCENT,
+                discount_value=Decimal('120'),
+            )
+
+        now = timezone.now()
+        with self.assertRaises(ValidationError):
+            Promotion.objects.create(
+                tenant=tenant,
+                name='Sai thời gian',
+                discount_type=Promotion.DiscountType.FIXED,
+                discount_value=Decimal('10000'),
+                valid_from=now,
+                valid_to=now - timedelta(days=1),
+            )
+
+    def test_customer_tier_updates_from_total_spent(self):
+        from App_Sales.services import recompute_customer_stats
+
+        tenant = Tenant.objects.create(name='Tenant Tier', public_slug='tenant-tier')
+        store = Store.objects.create(tenant=tenant, name='Store Tier', is_default=True)
+        cashier = User.objects.create_user(
+            username='tier_staff',
+            password='123456',
+            tenant=tenant,
+            role=User.Role.STAFF,
+        )
+        customer = Customer.objects.create(tenant=tenant, name='Khách VIP', phone='0987654321')
+        Order.objects.create(
+            tenant=tenant,
+            store=store,
+            cashier=cashier,
+            customer=customer,
+            payment_method=Order.PaymentMethod.CASH,
+            subtotal=Decimal('50000000'),
+            discount_amount=Decimal('0'),
+            tax_rate=Decimal('0'),
+            tax_amount=Decimal('0'),
+            total_amount=Decimal('50000000'),
+            customer_paid=Decimal('50000000'),
+            change_amount=Decimal('0'),
+        )
+        recompute_customer_stats(customer)
+        customer.refresh_from_db()
+        self.assertEqual(customer.tier, Customer.Tier.VIP)
+        self.assertEqual(customer.points_balance, 5000)
+
     def test_dining_table_unique_code_per_store(self):
         tenant = Tenant.objects.create(name='Tenant A', public_slug='tenant-a')
         store = Store.objects.create(tenant=tenant, name='Store A', is_default=True)
@@ -754,6 +1004,8 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertIn('id="options-modal-toppings-container"', html)
         self.assertIn('id="payment-cash"', html)
         self.assertIn('id="payment-card"', html)
+        self.assertIn('id="customer-search-input"', html)
+        self.assertIn('id="promotion-select"', html)
         self.assertIn('id="category-filter-container"', html)
         self.assertIn('id="themeSelector"', html)
         self.assertIn('Đơn hàng trong ngày', html)
@@ -761,6 +1013,8 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertNotIn('Xin chào,', html)
 
         self.assertIn('const API_PRODUCTS_URL', html)
+        self.assertIn('const API_CUSTOMERS_URL', html)
+        self.assertIn('const API_PROMOTIONS_URL', html)
         self.assertIn('const API_TABLES_URL', html)
         self.assertIn('const API_QR_ORDERS_URL', html)
         self.assertIn('const renderCategoryFilters', html)

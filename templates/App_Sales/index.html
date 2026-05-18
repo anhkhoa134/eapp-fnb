@@ -846,6 +846,11 @@
                             </div>
                         </li>
                         <li><hr class="dropdown-divider"></li>
+                        <li class="js-pwa-install-action d-none">
+                            <button class="dropdown-item account-action mx-2" type="button">
+                                <span class="account-icon-pill"><i class="fa-solid fa-download"></i></span>Cài ứng dụng
+                            </button>
+                        </li>
                         <li>
                             <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
                                 <span class="account-icon-pill"><i class="fa-solid fa-receipt"></i></span>Đơn hàng trong ngày
@@ -1066,6 +1071,53 @@
                             <div class="text-center mb-4">
                                 <p class="text-muted mb-1">Số tiền cần thanh toán</p>
                                 <h2 class="text-danger fw-bold" id="modal-total-due">0 đ</h2>
+                            </div>
+
+                            <div class="bg-light rounded-3 p-3 mb-3">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">Tạm tính</span>
+                                    <span class="fw-semibold" id="modal-subtotal-due">0 đ</span>
+                                </div>
+                                <div class="d-flex justify-content-between small mb-0" id="modal-discount-row">
+                                    <span class="text-muted">Khuyến mãi</span>
+                                    <span class="fw-semibold text-success" id="modal-discount-amount">-0 đ</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted">Khách hàng:</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="customer-search-input" placeholder="Tìm tên hoặc SĐT...">
+                                    <button class="btn btn-outline-primary" type="button" onclick="searchCustomers()">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                    </button>
+                                </div>
+                                <div id="customer-search-results" class="list-group mt-2 d-none"></div>
+                                <div class="d-flex align-items-center justify-content-between gap-2 mt-2 d-none" id="selected-customer-row">
+                                    <span class="badge rounded-pill bg-primary-subtle text-primary border" id="selected-customer-label"></span>
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="clearSelectedCustomer()">Bỏ chọn</button>
+                                </div>
+                                <div class="row g-2 mt-2">
+                                    <div class="col-6">
+                                        <input type="text" class="form-control form-control-sm" id="quick-customer-name" placeholder="Tên khách mới">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="text" class="form-control form-control-sm" id="quick-customer-phone" placeholder="SĐT">
+                                    </div>
+                                    <div class="col-12">
+                                        <button class="btn btn-outline-primary btn-sm w-100" type="button" onclick="createQuickCustomer()">
+                                            <i class="fa-solid fa-user-plus me-1"></i>Tạo nhanh khách hàng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted" for="promotion-select">Khuyến mãi:</label>
+                                <select class="form-select" id="promotion-select" onchange="handlePromotionChange()">
+                                    <option value="">Không áp dụng</option>
+                                </select>
+                                <div class="form-text" id="promotion-help-text">Chọn khuyến mãi hợp lệ cho hóa đơn hiện tại.</div>
                             </div>
 
                             <div class="mb-3">
@@ -1358,6 +1410,8 @@
     <script>
         const API_PRODUCTS_URL = "{% url 'App_Sales_API:products' %}";
         const API_CHECKOUT_URL = "{% url 'App_Sales_API:checkout' %}";
+        const API_CUSTOMERS_URL = "{% url 'App_Sales_API:customers' %}";
+        const API_PROMOTIONS_URL = "{% url 'App_Sales_API:promotions' %}";
         const API_TABLES_URL = "{% url 'App_Sales_API:tables' %}";
         const API_QR_ORDERS_URL = "{% url 'App_Sales_API:qr_orders' %}";
         const API_TABLES_BASE = '/api/pos/tables/';
@@ -1368,6 +1422,7 @@
         const QR_NEW_ORDER_CLIP_URL = "{% static 'sounds/co-don-moi.mp3' %}";
         const POS_WS_RECONNECT_BASE_MS = 1000;
         const POS_WS_RECONNECT_MAX_MS = 20000;
+        const POS_THEME_STORAGE_KEY = 'eapp_pos_theme';
         const QR_SOUND_STORAGE_KEY = 'eapp_pos_qr_sound_enabled';
         const QR_VOICE_STORAGE_KEY = 'eapp_pos_qr_voice_enabled';
 
@@ -1381,7 +1436,12 @@
         let takeawayCart = [];
         let cart = [];
         let currentFilter = 'all';
+        let cartSubtotalAmount = 0;
         let totalAmountDue = 0;
+        let selectedCustomer = null;
+        let availablePromotions = [];
+        let selectedPromotion = null;
+        let currentDiscountAmount = 0;
         let currentSearchTerm = '';
         let currentReviewingOrderId = null;
         let paymentModalInstance = null;
@@ -1419,6 +1479,25 @@
             purple: { primary: '#9333ea', hover: '#7e22ce' },
             pink: { primary: '#ec4899', hover: '#db2777' },
         };
+
+        const readStoredTheme = () => {
+            try {
+                const themeName = window.localStorage.getItem(POS_THEME_STORAGE_KEY);
+                return themes[themeName] ? themeName : 'green';
+            } catch (error) {
+                return 'green';
+            }
+        };
+
+        const writeStoredTheme = (themeName) => {
+            try {
+                window.localStorage.setItem(POS_THEME_STORAGE_KEY, themeName);
+            } catch (error) {
+                console.warn('Cannot save theme setting:', error);
+            }
+        };
+
+        currentTheme = readStoredTheme();
 
         const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
         const escapeHtml = (text) => String(text || '')
@@ -1900,10 +1979,10 @@
             });
 
             let totalQty = 0;
-            totalAmountDue = 0;
+            cartSubtotalAmount = 0;
             cart.forEach((item) => {
                 totalQty += item.qty;
-                totalAmountDue += item.price * item.qty;
+                cartSubtotalAmount += item.price * item.qty;
                 const noteHtml = item.note ? `<div class="text-muted fst-italic mt-1" style="font-size: 0.75rem; line-height: 1.2;"><i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(item.note)}</div>` : '';
                 const sourceHtml = item.source === 'QR' ? '<span class="badge bg-warning text-dark ms-1">QR</span>' : '';
                 const toppingSummary = toppingText(item.toppings);
@@ -1938,6 +2017,7 @@
                     </div>
                 `);
             });
+            totalAmountDue = cartSubtotalAmount;
 
             emptyMsg.style.display = cart.length ? 'none' : 'block';
             btnPay.disabled = !cart.length;
@@ -1947,9 +2027,9 @@
             }
 
             document.getElementById('cart-total-qty').textContent = totalQty;
-            document.getElementById('cart-total-price').textContent = formatCurrency(totalAmountDue);
+            document.getElementById('cart-total-price').textContent = formatCurrency(cartSubtotalAmount);
             document.getElementById('mobile-qty').textContent = totalQty;
-            document.getElementById('mobile-total').textContent = formatCurrency(totalAmountDue);
+            document.getElementById('mobile-total').textContent = formatCurrency(cartSubtotalAmount);
 
             if (currentSelectedTableId === null) {
                 takeawayCart = cart.map((item) => ({ ...item, toppings: [...(item.toppings || [])], toppingIds: [...(item.toppingIds || [])] }));
@@ -2309,6 +2389,7 @@
             const theme = themes[themeName];
             if (!theme) return;
             currentTheme = themeName;
+            writeStoredTheme(themeName);
             document.documentElement.style.setProperty('--primary-color', theme.primary);
             document.documentElement.style.setProperty('--primary-hover', theme.hover);
             const themeSelector = document.getElementById('themeSelector');
@@ -2895,6 +2976,143 @@
             return Array.from(new Set([total, roundUp(total, 10000), roundUp(total, 50000), roundUp(total, 100000), roundUp(total, 500000)])).sort((a, b) => a - b).slice(0, 4);
         };
 
+        const refreshQuickCashButtons = () => {
+            const btnContainer = document.getElementById('quick-cash-container');
+            if (!btnContainer) return;
+            btnContainer.innerHTML = '';
+            getSuggestedAmounts(totalAmountDue).forEach((amount, index) => {
+                const badge = index === 0 ? '<span class="badge bg-danger ms-1" style="font-size:0.6rem;">Vừa đủ</span>' : '';
+                btnContainer.insertAdjacentHTML('beforeend', `<button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="setCashReceived(${amount})">${formatCurrency(amount)} ${badge}</button>`);
+            });
+        };
+
+        const updateSelectedCustomerUi = () => {
+            const row = document.getElementById('selected-customer-row');
+            const label = document.getElementById('selected-customer-label');
+            if (!row || !label) return;
+            row.classList.toggle('d-none', !selectedCustomer);
+            if (selectedCustomer) {
+                label.textContent = `${selectedCustomer.name} · ${selectedCustomer.phone} · ${selectedCustomer.tier_label || selectedCustomer.tier || 'Member'}`;
+            } else {
+                label.textContent = '';
+            }
+        };
+
+        const setSelectedCustomer = (customer) => {
+            selectedCustomer = customer || null;
+            const results = document.getElementById('customer-search-results');
+            if (results) {
+                results.innerHTML = '';
+                results.classList.add('d-none');
+            }
+            updateSelectedCustomerUi();
+        };
+
+        const clearSelectedCustomer = () => setSelectedCustomer(null);
+
+        const searchCustomers = async () => {
+            const input = document.getElementById('customer-search-input');
+            const results = document.getElementById('customer-search-results');
+            if (!input || !results) return;
+            const q = input.value.trim();
+            if (!q) {
+                results.innerHTML = '';
+                results.classList.add('d-none');
+                return;
+            }
+            try {
+                const payload = await fetchJson(`${API_CUSTOMERS_URL}?q=${encodeURIComponent(q)}`);
+                const customers = payload.customers || [];
+                results.innerHTML = '';
+                if (!customers.length) {
+                    results.innerHTML = '<div class="list-group-item small text-muted">Không tìm thấy khách hàng.</div>';
+                } else {
+                    customers.forEach((customer) => {
+                        const meta = `${customer.phone}${customer.points_balance ? ` · ${customer.points_balance} điểm` : ''}`;
+                        results.insertAdjacentHTML('beforeend', `
+                            <button type="button" class="list-group-item list-group-item-action" data-customer-id="${customer.id}">
+                                <div class="fw-semibold">${escapeHtml(customer.name)}</div>
+                                <div class="small text-muted">${escapeHtml(meta)}</div>
+                            </button>
+                        `);
+                        results.lastElementChild.addEventListener('click', () => setSelectedCustomer(customer));
+                    });
+                }
+                results.classList.remove('d-none');
+            } catch (error) {
+                showToast(error.message || 'Không thể tìm khách hàng.', 'danger');
+            }
+        };
+
+        const createQuickCustomer = async () => {
+            const nameEl = document.getElementById('quick-customer-name');
+            const phoneEl = document.getElementById('quick-customer-phone');
+            const name = (nameEl?.value || '').trim();
+            const phone = (phoneEl?.value || '').trim();
+            if (!name || !phone) {
+                showToast('Vui lòng nhập tên và số điện thoại khách hàng.', 'warning');
+                return;
+            }
+            try {
+                const payload = await fetchJson(API_CUSTOMERS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ name, phone }),
+                });
+                setSelectedCustomer(payload.customer);
+                if (nameEl) nameEl.value = '';
+                if (phoneEl) phoneEl.value = '';
+                showToast(payload.detail || 'Đã chọn khách hàng.', 'success');
+            } catch (error) {
+                showToast(error.message || 'Không thể tạo khách hàng.', 'danger');
+            }
+        };
+
+        const updatePaymentTotals = () => {
+            currentDiscountAmount = selectedPromotion ? Number(selectedPromotion.discount_amount || 0) : 0;
+            totalAmountDue = Math.max(0, cartSubtotalAmount - currentDiscountAmount);
+            document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
+            document.getElementById('modal-discount-amount').textContent = currentDiscountAmount ? `-${formatCurrency(currentDiscountAmount)}` : '-0 đ';
+            document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
+            const help = document.getElementById('promotion-help-text');
+            if (help) {
+                help.textContent = selectedPromotion
+                    ? `Đã giảm ${formatCurrency(currentDiscountAmount)} cho hóa đơn này.`
+                    : 'Chọn khuyến mãi hợp lệ cho hóa đơn hiện tại.';
+            }
+            refreshQuickCashButtons();
+            if (getSelectedPaymentMethod() === 'card') {
+                document.getElementById('input-cash-received').value = '';
+            }
+            calculateChange();
+        };
+
+        const loadPromotionsForPayment = async () => {
+            const select = document.getElementById('promotion-select');
+            if (!select || !currentStoreId) return;
+            availablePromotions = [];
+            selectedPromotion = null;
+            select.innerHTML = '<option value="">Không áp dụng</option>';
+            try {
+                const payload = await fetchJson(`${API_PROMOTIONS_URL}?store_id=${currentStoreId}&subtotal=${encodeURIComponent(cartSubtotalAmount)}`);
+                availablePromotions = payload.promotions || [];
+                availablePromotions.forEach((promotion) => {
+                    const opt = document.createElement('option');
+                    opt.value = String(promotion.id);
+                    opt.textContent = `${promotion.name} (-${formatCurrency(promotion.discount_amount || 0)})`;
+                    select.appendChild(opt);
+                });
+            } catch (error) {
+                showToast(error.message || 'Không thể tải khuyến mãi.', 'warning');
+            }
+            updatePaymentTotals();
+        };
+
+        const handlePromotionChange = () => {
+            const promotionId = parseInt(document.getElementById('promotion-select')?.value || '0', 10) || null;
+            selectedPromotion = availablePromotions.find((promotion) => Number(promotion.id) === Number(promotionId)) || null;
+            updatePaymentTotals();
+        };
+
         const syncPaymentMethodUi = () => {
             const method = getSelectedPaymentMethod();
             const showCash = method === 'cash';
@@ -2914,9 +3132,12 @@
             }
         };
 
-        const openPaymentModal = () => {
+        const openPaymentModal = async () => {
             if (!cart.length) return;
             if (!paymentModalInstance) paymentModalInstance = new bootstrap.Modal(document.getElementById('paymentModal'));
+            cartSubtotalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            selectedPromotion = null;
+            currentDiscountAmount = 0;
             const modalItemsContainer = document.getElementById('modal-cart-items');
             modalItemsContainer.innerHTML = '';
             cart.forEach((item) => {
@@ -2937,18 +3158,17 @@
                     </div>
                 `);
             });
+            totalAmountDue = cartSubtotalAmount;
             document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
+            document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
+            document.getElementById('modal-discount-amount').textContent = '-0 đ';
             document.getElementById('input-cash-received').value = '';
             document.getElementById('modal-change-due').textContent = '0 đ';
             document.getElementById('modal-change-due').className = 'fs-4 fw-bold text-muted';
 
-            const btnContainer = document.getElementById('quick-cash-container');
-            btnContainer.innerHTML = '';
-            getSuggestedAmounts(totalAmountDue).forEach((amount, index) => {
-                const badge = index === 0 ? '<span class="badge bg-danger ms-1" style="font-size:0.6rem;">Vừa đủ</span>' : '';
-                btnContainer.insertAdjacentHTML('beforeend', `<button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="setCashReceived(${amount})">${formatCurrency(amount)} ${badge}</button>`);
-            });
-
+            updateSelectedCustomerUi();
+            refreshQuickCashButtons();
+            await loadPromotionsForPayment();
             updatePaymentCardQrDisplay();
             syncPaymentMethodUi();
             paymentModalInstance.show();
@@ -3073,6 +3293,8 @@
                             payment_method: paymentMethod,
                             tax_rate: 0,
                             customer_paid: received,
+                            customer_id: selectedCustomer ? selectedCustomer.id : null,
+                            promotion_id: selectedPromotion ? selectedPromotion.id : null,
                         }),
                     });
                     await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi(), loadTableCart(currentSelectedTableId)]);
@@ -3084,6 +3306,8 @@
                             payment_method: paymentMethod,
                             tax_rate: 0,
                             customer_paid: received,
+                            customer_id: selectedCustomer ? selectedCustomer.id : null,
+                            promotion_id: selectedPromotion ? selectedPromotion.id : null,
                             items: cart.map((item) => ({
                                 product_id: item.id,
                                 unit_id: item.unitId,
@@ -3098,7 +3322,12 @@
                     renderCart();
                 }
                 if (paymentModalInstance) paymentModalInstance.hide();
-                showToast(`Thanh toán thành công (${data.order_code})!`, 'success');
+                const pointMsg = data.points_earned ? ` · +${data.points_earned} điểm` : '';
+                showToast(`Thanh toán thành công (${data.order_code})${pointMsg}!`, 'success');
+                selectedPromotion = null;
+                selectedCustomer = null;
+                currentDiscountAmount = 0;
+                updateSelectedCustomerUi();
                 const offcanvasInst = bootstrap.Offcanvas.getInstance(document.getElementById('cartOffcanvas'));
                 if (offcanvasInst) offcanvasInst.hide();
             } catch (error) {
@@ -3175,6 +3404,12 @@
         syncMobileSearchToggleVisibility();
         document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
+        document.getElementById('customer-search-input')?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                searchCustomers();
+            }
+        });
         document.getElementById('themeSelector')?.addEventListener('change', (event) => {
             changeTheme(event.target.value);
         });
@@ -3195,6 +3430,7 @@
             lastTableContextId = null;
             cart = [];
             takeawayCart = [];
+            selectedPromotion = null;
             resetOnlineOrdersTracking();
             await bootstrapPage();
         });
@@ -3247,6 +3483,10 @@
         window.deleteItemNote = deleteItemNote;
         window.addQuickNote = addQuickNote;
         window.openPaymentModal = openPaymentModal;
+        window.searchCustomers = searchCustomers;
+        window.createQuickCustomer = createQuickCustomer;
+        window.clearSelectedCustomer = clearSelectedCustomer;
+        window.handlePromotionChange = handlePromotionChange;
         window.formatCashInput = formatCashInput;
         window.setCashReceived = setCashReceived;
         window.processPayment = processPayment;

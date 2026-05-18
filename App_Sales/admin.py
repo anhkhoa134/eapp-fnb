@@ -4,10 +4,12 @@ from django.contrib import admin
 from App_Accounts.models import User
 from App_Catalog.models import Product, ProductUnit, Topping
 from App_Sales.models import (
+    Customer,
     DiningTable,
     Order,
     OrderItem,
     OrderItemTopping,
+    Promotion,
     QROrder,
     QROrderItem,
     QROrderItemTopping,
@@ -93,6 +95,8 @@ class OrderAdminForm(forms.ModelForm):
         if tenant_id is not None:
             self.fields['store'].queryset = Store.objects.filter(tenant_id=tenant_id, is_active=True).order_by('name')
             self.fields['cashier'].queryset = User.objects.filter(tenant_id=tenant_id).order_by('username')
+            self.fields['customer'].queryset = Customer.objects.filter(tenant_id=tenant_id).order_by('name')
+            self.fields['promotion'].queryset = Promotion.objects.filter(tenant_id=tenant_id).order_by('name')
 
 
 class TableCartItemAdminForm(forms.ModelForm):
@@ -213,14 +217,31 @@ class OrderAdmin(admin.ModelAdmin):
         'tenant',
         'store',
         'cashier',
+        'customer',
         'sale_channel',
+        'discount_amount',
         'total_amount',
         'payment_method',
         'created_at',
     )
     list_filter = ('tenant', 'store', 'payment_method', 'status', 'sale_channel')
-    search_fields = ('order_code', 'cashier__username')
+    search_fields = ('order_code', 'cashier__username', 'customer__name', 'customer__phone')
     inlines = [OrderItemInline]
+
+
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ('name', 'phone', 'tenant', 'tier', 'points_balance', 'total_spent', 'is_active')
+    list_filter = ('tenant', 'tier', 'is_active')
+    search_fields = ('name', 'phone', 'email')
+
+
+@admin.register(Promotion)
+class PromotionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tenant', 'discount_type', 'discount_value', 'min_order_amount', 'is_active')
+    list_filter = ('tenant', 'discount_type', 'is_active')
+    search_fields = ('name',)
+    filter_horizontal = ('stores',)
 
 
 @admin.register(DiningTable)

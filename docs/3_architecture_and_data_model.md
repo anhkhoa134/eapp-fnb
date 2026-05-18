@@ -25,6 +25,9 @@
 - `TableCartItem` + `TableCartItemTopping`.
 - `Order` + `OrderItem` + `OrderItemTopping`.
 - `Order.sale_channel`: `dine_in` (tại quán) / `takeaway` (mang về) — gán lúc checkout POS; dùng hiển thị loại đơn (lịch sử, đơn trong ngày).
+- `Customer`: hồ sơ khách hàng theo tenant, tích điểm và hạng thành viên theo tổng chi tiêu.
+- `Promotion`: khuyến mãi giảm hóa đơn theo % hoặc số tiền; POS nhân viên chọn khi thanh toán.
+- `Order.discount_amount` và snapshot khuyến mãi lưu lại số tiền giảm đã áp dụng tại thời điểm checkout.
 - `QROrder.rejection_reason`: lý do từ chối (text, tùy chọn) khi staff reject đơn QR.
 
 ## Lifecycle QR
