@@ -19,6 +19,11 @@ class TenantModelTests(TestCase):
         with self.assertRaises(ValidationError):
             tenant.full_clean()
 
+    def test_feature_visibility_defaults_enabled(self):
+        tenant = Tenant.objects.create(name='Tenant Features', public_slug='tenant-features')
+        self.assertTrue(tenant.show_customer_feature)
+        self.assertTrue(tenant.show_promotion_feature)
+
     def test_unique_manager_per_tenant(self):
         tenant = Tenant.objects.create(name='Tenant A', public_slug='tenant-a')
         User.objects.create_user(username='manager_1', password='123456', role=User.Role.MANAGER, tenant=tenant)
@@ -82,6 +87,8 @@ class TenantAdminPermissionTests(TestCase):
                 'name': 'Demo Tenant',
                 'public_slug': '',
                 'is_active': True,
+                'show_customer_feature': True,
+                'show_promotion_feature': True,
                 'max_stores': '1',
                 'max_dining_tables': '12',
                 'max_staff_users': '2',

@@ -36,6 +36,37 @@
     </div>
 </div>
 
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <div>
+                <h3 class="admin-card-title mb-1">
+                    <i class="bi bi-award"></i>
+                    Cấu hình hạng
+                </h3>
+                <div class="small text-muted">Ngưỡng tổng chi tiêu và ưu đãi tự động khi POS chọn khách hàng.</div>
+            </div>
+            <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#tierSettingsModal">
+                <i class="bi bi-sliders me-1"></i>Chỉnh cấu hình
+            </button>
+        </div>
+        <div class="row g-2">
+            {% for setting in tier_settings %}
+            <div class="col-6 col-lg-3">
+                <div class="border rounded-3 p-3 h-100">
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <span class="payment-pill pill-tag"><i class="bi bi-award" aria-hidden="true"></i>{{ setting.get_tier_display }}</span>
+                        <span class="fw-bold text-success">{{ setting.discount_percent|floatformat:2 }}%</span>
+                    </div>
+                    <div class="small text-muted">Từ tổng chi tiêu</div>
+                    <div class="fw-semibold">{{ setting.min_total_spent|thousand_sep }} đ</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         <div class="table-responsive">
@@ -115,6 +146,7 @@
             <form method="post" action="{% url 'App_Quanly:customers' %}">
                 <div class="modal-body">
                     {% csrf_token %}
+                    <input type="hidden" name="form_kind" value="customer">
                     {{ form.non_field_errors }}
                     <div class="crud-form-grid">
                         <div>
@@ -145,6 +177,62 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
                     <button class="btn btn-primary" type="submit">Lưu khách hàng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="tierSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-award me-2 text-primary"></i>Cấu hình hạng khách hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:customers' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_kind" value="tier_settings">
+                    {{ tier_settings_form.non_field_errors }}
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Hạng</th>
+                                    <th>Ngưỡng tổng chi tiêu</th>
+                                    <th>% giảm tự động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>Member</span></td>
+                                    <td>{{ tier_settings_form.member_min_total_spent }}{{ tier_settings_form.member_min_total_spent.errors }}</td>
+                                    <td>{{ tier_settings_form.member_discount_percent }}{{ tier_settings_form.member_discount_percent.errors }}</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>Silver</span></td>
+                                    <td>{{ tier_settings_form.silver_min_total_spent }}{{ tier_settings_form.silver_min_total_spent.errors }}</td>
+                                    <td>{{ tier_settings_form.silver_discount_percent }}{{ tier_settings_form.silver_discount_percent.errors }}</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>Gold</span></td>
+                                    <td>{{ tier_settings_form.gold_min_total_spent }}{{ tier_settings_form.gold_min_total_spent.errors }}</td>
+                                    <td>{{ tier_settings_form.gold_discount_percent }}{{ tier_settings_form.gold_discount_percent.errors }}</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>VIP</span></td>
+                                    <td>{{ tier_settings_form.vip_min_total_spent }}{{ tier_settings_form.vip_min_total_spent.errors }}</td>
+                                    <td>{{ tier_settings_form.vip_discount_percent }}{{ tier_settings_form.vip_discount_percent.errors }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="small text-muted">Sau khi lưu, hệ thống tính lại hạng của toàn bộ khách hàng theo ngưỡng mới.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit">Lưu cấu hình</button>
                 </div>
             </form>
         </div>
@@ -222,9 +310,25 @@
     document.addEventListener('DOMContentLoaded', () => new bootstrap.Modal(document.getElementById('createCustomerModal')).show());
 </script>
 {% endif %}
+{% if open_tier_settings_modal %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => new bootstrap.Modal(document.getElementById('tierSettingsModal')).show());
+</script>
+{% endif %}
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const formatThousands = (value) => {
+        const digits = String(value || '').replace(/\D/g, '');
+        if (!digits) return '0';
+        return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    };
+    document.querySelectorAll('[data-money-thousand-input="1"]').forEach((input) => {
+        input.value = formatThousands(input.value);
+        input.addEventListener('input', () => {
+            input.value = formatThousands(input.value);
+        });
+    });
     document.querySelectorAll('.js-edit-customer').forEach((button) => {
         button.addEventListener('click', () => {
             document.getElementById('editCustomerForm').action = button.dataset.action || '';

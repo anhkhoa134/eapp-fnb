@@ -12,6 +12,7 @@ from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Sales.models import (
     Customer,
+    CustomerTierSetting,
     DiningTable,
     Order,
     OrderItemTopping,
@@ -145,11 +146,25 @@ class SalesApiTests(TestCase):
         self.assertIn('customer-results-menu', html)
         self.assertIn('id="promotion-dropdown-button"', html)
         self.assertIn('id="promotion-dropdown-menu"', html)
+        self.assertIn('const TENANT_SHOW_CUSTOMER_FEATURE = true;', html)
+        self.assertIn('const TENANT_SHOW_PROMOTION_FEATURE = true;', html)
         self.assertNotIn('onclick="searchCustomers()"', html)
         self.assertNotIn('id="customer-search-options"', html)
         self.assertNotIn('id="promotion-select"', html)
         self.assertNotIn('Gõ để tìm, chọn khách từ gợi ý.', html)
         self.assertNotIn('Chọn khuyến mãi hợp lệ cho hóa đơn hiện tại.', html)
+
+    def test_pos_checkout_modal_uses_tenant_feature_visibility(self):
+        self.tenant.show_customer_feature = False
+        self.tenant.show_promotion_feature = False
+        self.tenant.save(update_fields=['show_customer_feature', 'show_promotion_feature', 'updated_at'])
+        res = self.client.get(reverse('App_Sales:pos'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('id="payment-customer-panel"', html)
+        self.assertIn('id="payment-promotion-panel"', html)
+        self.assertIn('const TENANT_SHOW_CUSTOMER_FEATURE = false;', html)
+        self.assertIn('const TENANT_SHOW_PROMOTION_FEATURE = false;', html)
 
     def test_api_products_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:products')
@@ -242,12 +257,15 @@ class SalesApiTests(TestCase):
         self.assertEqual(res.status_code, 201)
         body = res.json()
         self.assertEqual(Decimal(str(body['discount_amount'])), Decimal('10000'))
+        self.assertEqual(body['discount_source'], Order.DiscountSource.PROMOTION)
+        self.assertEqual(Decimal(str(body['tier_discount_amount'])), Decimal('0'))
         self.assertEqual(Decimal(str(body['total_amount'])), Decimal('15000'))
         self.assertEqual(body['points_earned'], 1)
 
         order = Order.objects.select_related('customer', 'promotion').get()
         self.assertEqual(order.customer, customer)
         self.assertEqual(order.promotion, promotion)
+        self.assertEqual(order.discount_source, Order.DiscountSource.PROMOTION)
         self.assertEqual(order.discount_amount, Decimal('10000'))
         self.assertEqual(order.promotion_snapshot_name, 'Giảm 10k')
 
@@ -286,6 +304,69 @@ class SalesApiTests(TestCase):
         self.assertEqual(order.subtotal, Decimal('50000'))
         self.assertEqual(order.discount_amount, Decimal('5000'))
         self.assertEqual(order.total_amount, Decimal('45000'))
+
+    def test_checkout_applies_tier_discount_when_better_than_promotion(self):
+        from App_Sales.services import recompute_customer_stats
+
+        customer = Customer.objects.create(
+            tenant=self.tenant,
+            name='Chị VIP',
+            phone='0900000099',
+        )
+        Order.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            cashier=self.staff,
+            customer=customer,
+            payment_method=Order.PaymentMethod.CASH,
+            subtotal=Decimal('50000000'),
+            tax_rate=Decimal('0'),
+            tax_amount=Decimal('0'),
+            total_amount=Decimal('50000000'),
+            customer_paid=Decimal('50000000'),
+            change_amount=Decimal('0'),
+        )
+        recompute_customer_stats(customer)
+        customer.refresh_from_db()
+        self.assertEqual(customer.tier, Customer.Tier.VIP)
+
+        promotion = Promotion.objects.create(
+            tenant=self.tenant,
+            name='Giảm 1k',
+            discount_type=Promotion.DiscountType.FIXED,
+            discount_value=Decimal('1000'),
+        )
+        url = reverse('App_Sales_API:checkout')
+        payload = {
+            'store_id': self.store_1.id,
+            'payment_method': 'cash',
+            'tax_rate': '0',
+            'customer_paid': '22500',
+            'customer_id': customer.id,
+            'promotion_id': promotion.id,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 201)
+        body = res.json()
+        self.assertEqual(Decimal(str(body['discount_amount'])), Decimal('2500'))
+        self.assertEqual(body['discount_source'], Order.DiscountSource.TIER)
+        self.assertEqual(Decimal(str(body['tier_discount_amount'])), Decimal('2500'))
+        self.assertEqual(Decimal(str(body['tier_discount_percent'])), Decimal('10'))
+        self.assertEqual(Decimal(str(body['total_amount'])), Decimal('22500'))
+
+        order = Order.objects.order_by('-created_at').first()
+        self.assertEqual(order.promotion, promotion)
+        self.assertEqual(order.discount_source, Order.DiscountSource.TIER)
+        self.assertEqual(order.tier_snapshot, Customer.Tier.VIP)
+        self.assertEqual(order.tier_discount_percent, Decimal('10'))
+        self.assertEqual(order.tier_discount_amount, Decimal('2500'))
 
     def test_checkout_rejects_ineligible_promotion(self):
         promotion = Promotion.objects.create(
@@ -858,6 +939,39 @@ class SalesModelTests(TestCase):
         Customer.objects.create(tenant=tenant, name='Khách 1', phone='0901234567')
         with self.assertRaises(ValidationError):
             Customer.objects.create(tenant=tenant, name='Khách 2', phone='0901234567')
+
+    def test_customer_tier_setting_defaults_and_validation(self):
+        tenant = Tenant.objects.create(name='Tenant Tier Settings', public_slug='tenant-tier-settings')
+        settings = CustomerTierSetting.ensure_defaults_for_tenant(tenant)
+        self.assertEqual(len(settings), 4)
+        by_tier = {row.tier: row for row in settings}
+        self.assertEqual(by_tier[Customer.Tier.MEMBER].min_total_spent, Decimal('0'))
+        self.assertEqual(by_tier[Customer.Tier.SILVER].min_total_spent, Decimal('5000000'))
+        self.assertEqual(by_tier[Customer.Tier.VIP].discount_percent, Decimal('10'))
+
+        with self.assertRaises(ValidationError):
+            CustomerTierSetting(
+                tenant=tenant,
+                tier=Customer.Tier.MEMBER,
+                min_total_spent=Decimal('1'),
+                discount_percent=Decimal('0'),
+            ).full_clean()
+        with self.assertRaises(ValidationError):
+            CustomerTierSetting(
+                tenant=tenant,
+                tier=Customer.Tier.VIP,
+                min_total_spent=Decimal('50000000'),
+                discount_percent=Decimal('101'),
+            ).full_clean()
+        with self.assertRaises(ValidationError):
+            CustomerTierSetting.validate_tier_rows(
+                [
+                    {'tier': Customer.Tier.MEMBER, 'min_total_spent': Decimal('0'), 'discount_percent': Decimal('0')},
+                    {'tier': Customer.Tier.SILVER, 'min_total_spent': Decimal('20000000'), 'discount_percent': Decimal('3')},
+                    {'tier': Customer.Tier.GOLD, 'min_total_spent': Decimal('10000000'), 'discount_percent': Decimal('5')},
+                    {'tier': Customer.Tier.VIP, 'min_total_spent': Decimal('50000000'), 'discount_percent': Decimal('10')},
+                ]
+            )
 
     def test_promotion_rejects_invalid_percent_and_date_range(self):
         tenant = Tenant.objects.create(name='Tenant Promo', public_slug='tenant-promo')

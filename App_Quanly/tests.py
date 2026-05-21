@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
-from App_Sales.models import Customer, DiningTable, Order, OrderItem, OrderItemTopping, Promotion
+from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Order, OrderItem, OrderItemTopping, Promotion
 from App_Quanly.forms import StaffCreateForm
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
@@ -78,6 +78,53 @@ class QuanlyPermissionTests(TestCase):
         self.client.login(username='manager_demo', password='123456')
         self.assertEqual(self.client.get(reverse('App_Quanly:customers')).status_code, 200)
         self.assertEqual(self.client.get(reverse('App_Quanly:promotions')).status_code, 200)
+
+    def test_sidebar_shows_customer_and_promotion_links_by_default(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:account'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn(f'href="{reverse("App_Quanly:customers")}"', html)
+        self.assertIn(f'href="{reverse("App_Quanly:promotions")}"', html)
+
+    def test_sidebar_hides_customer_and_promotion_links_when_disabled(self):
+        self.tenant.show_customer_feature = False
+        self.tenant.show_promotion_feature = False
+        self.tenant.save(update_fields=['show_customer_feature', 'show_promotion_feature', 'updated_at'])
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:account'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertNotIn(f'href="{reverse("App_Quanly:customers")}"', html)
+        self.assertNotIn(f'href="{reverse("App_Quanly:promotions")}"', html)
+
+    def test_manager_can_update_feature_visibility_settings(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.post(
+            reverse('App_Quanly:account'),
+            {
+                'form_action': 'feature_settings',
+                'show_customer_feature': 'on',
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        self.tenant.refresh_from_db()
+        self.assertTrue(self.tenant.show_customer_feature)
+        self.assertFalse(self.tenant.show_promotion_feature)
+
+    def test_staff_cannot_update_feature_visibility_settings(self):
+        self.client.login(username='staff_demo', password='123456')
+        res = self.client.post(
+            reverse('App_Quanly:account'),
+            {
+                'form_action': 'feature_settings',
+                'show_customer_feature': 'on',
+            },
+        )
+        self.assertEqual(res.status_code, 403)
+        self.tenant.refresh_from_db()
+        self.assertTrue(self.tenant.show_customer_feature)
+        self.assertTrue(self.tenant.show_promotion_feature)
 
     def test_staff_cannot_access_customer_and_promotion_pages(self):
         self.client.login(username='staff_demo', password='123456')
@@ -174,11 +221,62 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="editCustomerModal"', html)
         self.assertIn('id="edit-customer-active"', html)
         self.assertIn('id="deleteCustomerModal"', html)
+        self.assertIn('id="tierSettingsModal"', html)
+        self.assertIn('Cấu hình hạng', html)
+        self.assertIn('data-money-thousand-input="1"', html)
+        self.assertIn('5.000.000', html)
+        self.assertNotIn('5000000.00', html)
+        self.assertIn('name="silver_min_total_spent" value="5.000.000" placeholder="VD: 5.000.000" inputmode="numeric" autocomplete="off" data-money-thousand-input="1" class="form-control"', html)
+        self.assertIn('name="silver_discount_percent" value="3.00" placeholder="VD: 3" inputmode="decimal" autocomplete="off" class="form-control"', html)
         self.assertIn('js-delete-customer', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:customer_edit", kwargs={"pk": customer.id})}"',
             html,
         )
+
+    def test_manager_updates_customer_tier_settings_and_recomputes_customers(self):
+        from App_Sales.services import recompute_customer_stats
+
+        self.client.login(username='manager_demo', password='123456')
+        customer = Customer.objects.create(tenant=self.tenant, name='Khách hạng', phone='0900000001')
+        Order.objects.create(
+            tenant=self.tenant,
+            store=self.store,
+            cashier=self.staff,
+            customer=customer,
+            payment_method=Order.PaymentMethod.CASH,
+            status=Order.Status.COMPLETED,
+            subtotal=Decimal('6000000'),
+            tax_rate=Decimal('0'),
+            tax_amount=Decimal('0'),
+            total_amount=Decimal('6000000'),
+            customer_paid=Decimal('6000000'),
+            change_amount=Decimal('0'),
+        )
+        recompute_customer_stats(customer)
+        customer.refresh_from_db()
+        self.assertEqual(customer.tier, Customer.Tier.SILVER)
+
+        res = self.client.post(
+            reverse('App_Quanly:customers'),
+            {
+                'form_kind': 'tier_settings',
+                'member_min_total_spent': '0',
+                'member_discount_percent': '0',
+                'silver_min_total_spent': '7.000.000',
+                'silver_discount_percent': '4',
+                'gold_min_total_spent': '20.000.000',
+                'gold_discount_percent': '6',
+                'vip_min_total_spent': '50.000.000',
+                'vip_discount_percent': '12',
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        silver = CustomerTierSetting.objects.get(tenant=self.tenant, tier=Customer.Tier.SILVER)
+        self.assertEqual(silver.min_total_spent, Decimal('7000000'))
+        self.assertEqual(silver.discount_percent, Decimal('4.00'))
+        customer.refresh_from_db()
+        self.assertEqual(customer.tier, Customer.Tier.MEMBER)
 
     def test_promotions_page_uses_modal_crud_actions(self):
         self.client.login(username='manager_demo', password='123456')

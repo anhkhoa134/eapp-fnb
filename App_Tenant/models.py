@@ -40,6 +40,8 @@ class Tenant(TimeStampedModel):
     name = models.CharField(max_length=150)
     public_slug = models.SlugField(max_length=120, unique=True, validators=[validate_public_slug])
     is_active = models.BooleanField('Đang hoạt động', default=True)
+    show_customer_feature = models.BooleanField('Hiển thị Khách hàng', default=True)
+    show_promotion_feature = models.BooleanField('Hiển thị Khuyến mãi', default=True)
     max_stores = models.PositiveIntegerField(
         'Giới hạn cửa hàng',
         default=1,

@@ -67,7 +67,34 @@
         </div>
     </div>
     <div class="col-12 col-lg-7">
-        <div class="card border-0 shadow-sm h-100">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="admin-card-title h5 mb-3">
+                    <i class="bi bi-sliders"></i>
+                    Tính năng nâng cao
+                </h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="feature_settings">
+                    {% for field in feature_form %}
+                    <div class="form-check mb-2">
+                        {{ field }}
+                        <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {% if field.errors %}
+                        <div class="invalid-feedback d-block">{{ field.errors|join:' ' }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary" {% if not can_manage_features %}disabled{% endif %}>
+                        <i class="bi bi-check2 me-1"></i>Lưu hiển thị
+                    </button>
+                    {% if not can_manage_features %}
+                    <p class="small text-muted mb-0 mt-2">Chỉ tài khoản quản lý được cập nhật cấu hình này.</p>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <h2 class="admin-card-title h5 mb-3">
                     <i class="bi bi-shield-lock"></i>
@@ -75,6 +102,7 @@
                 </h2>
                 <form method="post" class="quanly-account-password-form">
                     {% csrf_token %}
+                    <input type="hidden" name="form_action" value="password_change">
                     {% for field in form %}
                     <div class="mb-3">
                         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>

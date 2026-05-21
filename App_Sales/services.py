@@ -5,7 +5,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from App_Catalog.models import ProductUnit, StoreProduct
-from App_Sales.models import Customer, Order, Promotion
+from App_Sales.models import Customer, CustomerTierSetting, Order, Promotion
 from App_Tenant.services import get_default_store_for_user, get_user_accessible_stores
 
 
@@ -26,15 +26,37 @@ def get_effective_unit_price(*, unit: ProductUnit, store_id: int) -> Decimal:
 LOYALTY_POINT_STEP = Decimal('10000')
 
 
-def get_customer_tier(total_spent: Decimal) -> str:
+def ensure_customer_tier_settings(tenant):
+    return CustomerTierSetting.ensure_defaults_for_tenant(tenant)
+
+
+def get_customer_tier(total_spent: Decimal, tenant=None) -> str:
     total_spent = total_spent or Decimal('0')
-    if total_spent >= Decimal('50000000'):
-        return Customer.Tier.VIP
-    if total_spent >= Decimal('20000000'):
-        return Customer.Tier.GOLD
-    if total_spent >= Decimal('5000000'):
-        return Customer.Tier.SILVER
+    if tenant:
+        settings = ensure_customer_tier_settings(tenant)
+        rows = sorted(settings, key=lambda row: row.min_total_spent, reverse=True)
+        for row in rows:
+            if total_spent >= row.min_total_spent:
+                return row.tier
+    for tier in reversed(CustomerTierSetting.TIER_ORDER):
+        min_total_spent, _discount_percent = CustomerTierSetting.DEFAULTS[tier]
+        if total_spent >= min_total_spent:
+            return tier
     return Customer.Tier.MEMBER
+
+
+def get_customer_tier_setting(*, tenant, tier):
+    settings = ensure_customer_tier_settings(tenant)
+    for row in settings:
+        if row.tier == tier:
+            return row
+    min_total_spent, discount_percent = CustomerTierSetting.DEFAULTS.get(tier, (Decimal('0'), Decimal('0')))
+    return CustomerTierSetting(
+        tenant=tenant,
+        tier=tier,
+        min_total_spent=min_total_spent,
+        discount_percent=discount_percent,
+    )
 
 
 def calculate_points_for_amount(amount: Decimal) -> int:
@@ -58,10 +80,15 @@ def recompute_customer_stats(customer: Customer):
     total_spent = stats['total_spent'] or Decimal('0')
     customer.total_spent = total_spent
     customer.points_balance = calculate_points_for_amount(total_spent)
-    customer.tier = get_customer_tier(total_spent)
+    customer.tier = get_customer_tier(total_spent, tenant=customer.tenant)
     customer.last_order_at = stats['last_order_at']
     customer.save(update_fields=['total_spent', 'points_balance', 'tier', 'last_order_at', 'updated_at'])
     return customer
+
+
+def recompute_all_customer_stats(tenant):
+    for customer in Customer.objects.filter(tenant=tenant).iterator():
+        recompute_customer_stats(customer)
 
 
 def get_available_promotions(*, tenant, store, subtotal: Decimal, at=None):
@@ -90,13 +117,45 @@ def calculate_promotion_discount(*, promotion: Promotion | None, subtotal: Decim
     return max(Decimal('0'), min(discount, subtotal))
 
 
-def calculate_order_totals(*, subtotal: Decimal, tax_rate: Decimal, promotion: Promotion | None = None):
-    discount_amount = calculate_promotion_discount(promotion=promotion, subtotal=subtotal)
+def calculate_tier_discount(*, customer: Customer | None, subtotal: Decimal):
+    subtotal = subtotal or Decimal('0')
+    if not customer or subtotal <= 0:
+        return {
+            'customer_tier': '',
+            'tier_discount_percent': Decimal('0'),
+            'tier_discount_amount': Decimal('0'),
+        }
+    tier = get_customer_tier(customer.total_spent, tenant=customer.tenant)
+    setting = get_customer_tier_setting(tenant=customer.tenant, tier=tier)
+    discount_percent = setting.discount_percent or Decimal('0')
+    discount_amount = subtotal * (discount_percent / Decimal('100'))
+    return {
+        'customer_tier': tier,
+        'tier_discount_percent': discount_percent,
+        'tier_discount_amount': max(Decimal('0'), min(discount_amount, subtotal)),
+    }
+
+
+def calculate_order_totals(*, subtotal: Decimal, tax_rate: Decimal, promotion: Promotion | None = None, customer: Customer | None = None):
+    promotion_discount_amount = calculate_promotion_discount(promotion=promotion, subtotal=subtotal)
+    tier_discount = calculate_tier_discount(customer=customer, subtotal=subtotal)
+    tier_discount_amount = tier_discount['tier_discount_amount']
+    if tier_discount_amount > promotion_discount_amount:
+        discount_amount = tier_discount_amount
+        discount_source = Order.DiscountSource.TIER if discount_amount > 0 else Order.DiscountSource.NONE
+    else:
+        discount_amount = promotion_discount_amount
+        discount_source = Order.DiscountSource.PROMOTION if discount_amount > 0 else Order.DiscountSource.NONE
     taxable_amount = max(Decimal('0'), subtotal - discount_amount)
     tax_amount = taxable_amount * tax_rate
     total_amount = taxable_amount + tax_amount
     return {
         'discount_amount': discount_amount,
+        'discount_source': discount_source,
+        'promotion_discount_amount': promotion_discount_amount,
+        'tier_discount_amount': tier_discount_amount,
+        'tier_discount_percent': tier_discount['tier_discount_percent'],
+        'customer_tier': tier_discount['customer_tier'],
         'tax_amount': tax_amount,
         'total_amount': total_amount,
     }

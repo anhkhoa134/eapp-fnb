@@ -1,5 +1,6 @@
 import secrets
 import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -24,6 +25,11 @@ class Order(TimeStampedModel):
     class SaleChannel(models.TextChoices):
         DINE_IN = 'dine_in', 'Tại quán'
         TAKEAWAY = 'takeaway', 'Mang về'
+
+    class DiscountSource(models.TextChoices):
+        NONE = 'none', 'Không giảm'
+        PROMOTION = 'promotion', 'Khuyến mãi'
+        TIER = 'tier', 'Ưu đãi hạng'
 
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.PROTECT, related_name='orders')
     store = models.ForeignKey('App_Tenant.Store', on_delete=models.PROTECT, related_name='orders')
@@ -55,9 +61,13 @@ class Order(TimeStampedModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.COMPLETED)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2)
     discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_source = models.CharField(max_length=20, choices=DiscountSource.choices, default=DiscountSource.NONE)
     promotion_snapshot_name = models.CharField(max_length=150, blank=True)
     promotion_snapshot_type = models.CharField(max_length=20, blank=True)
     promotion_snapshot_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tier_snapshot = models.CharField(max_length=20, blank=True)
+    tier_discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tier_discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0)
     tax_amount = models.DecimalField(max_digits=14, decimal_places=2)
     total_amount = models.DecimalField(max_digits=14, decimal_places=2)
@@ -133,6 +143,128 @@ class Customer(TimeStampedModel):
 
     def __str__(self):
         return f'{self.name} - {self.phone}'
+
+
+class CustomerTierSetting(TimeStampedModel):
+    DEFAULTS = {
+        Customer.Tier.MEMBER: (Decimal('0'), Decimal('0')),
+        Customer.Tier.SILVER: (Decimal('5000000'), Decimal('3')),
+        Customer.Tier.GOLD: (Decimal('20000000'), Decimal('5')),
+        Customer.Tier.VIP: (Decimal('50000000'), Decimal('10')),
+    }
+    TIER_ORDER = [
+        Customer.Tier.MEMBER,
+        Customer.Tier.SILVER,
+        Customer.Tier.GOLD,
+        Customer.Tier.VIP,
+    ]
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='customer_tier_settings')
+    tier = models.CharField(max_length=20, choices=Customer.Tier.choices)
+    min_total_spent = models.DecimalField(max_digits=14, decimal_places=2)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'tier'], name='uq_customer_tier_setting_tenant_tier'),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'tier'], name='App_Sales_c_tenant__8af4bc_idx'),
+        ]
+        ordering = ['min_total_spent', 'id']
+        verbose_name = 'Cấu hình hạng khách hàng'
+        verbose_name_plural = 'Cấu hình hạng khách hàng'
+
+    @classmethod
+    def default_rows(cls):
+        return [
+            {
+                'tier': tier,
+                'min_total_spent': cls.DEFAULTS[tier][0],
+                'discount_percent': cls.DEFAULTS[tier][1],
+            }
+            for tier in cls.TIER_ORDER
+        ]
+
+    @classmethod
+    def ensure_defaults_for_tenant(cls, tenant):
+        if not tenant:
+            return []
+        existing = {row.tier: row for row in cls.objects.filter(tenant=tenant)}
+        created = []
+        for row in cls.default_rows():
+            if row['tier'] in existing:
+                continue
+            created.append(
+                cls(
+                    tenant=tenant,
+                    tier=row['tier'],
+                    min_total_spent=row['min_total_spent'],
+                    discount_percent=row['discount_percent'],
+                )
+            )
+        if created:
+            cls.objects.bulk_create(created)
+        return list(cls.objects.filter(tenant=tenant).order_by('min_total_spent', 'id'))
+
+    @classmethod
+    def validate_tier_rows(cls, rows):
+        by_tier = {row['tier']: row for row in rows}
+        missing = [tier for tier in cls.TIER_ORDER if tier not in by_tier]
+        if missing:
+            raise ValidationError('Thiếu cấu hình hạng khách hàng.')
+        if by_tier[Customer.Tier.MEMBER]['min_total_spent'] != Decimal('0'):
+            raise ValidationError('Ngưỡng Member phải bằng 0.')
+        previous = None
+        for tier in cls.TIER_ORDER:
+            min_total_spent = by_tier[tier]['min_total_spent']
+            discount_percent = by_tier[tier]['discount_percent']
+            if min_total_spent < 0:
+                raise ValidationError('Ngưỡng tổng chi tiêu không được âm.')
+            if discount_percent < 0 or discount_percent > 100:
+                raise ValidationError('Phần trăm ưu đãi phải từ 0 đến 100.')
+            if previous is not None and min_total_spent <= previous:
+                raise ValidationError('Ngưỡng hạng phải tăng dần từ Member đến VIP.')
+            previous = min_total_spent
+
+    def clean(self):
+        if self.min_total_spent is None or self.discount_percent is None:
+            return
+        if self.tier == Customer.Tier.MEMBER and self.min_total_spent != Decimal('0'):
+            raise ValidationError({'min_total_spent': 'Ngưỡng Member phải bằng 0.'})
+        if self.min_total_spent < 0:
+            raise ValidationError({'min_total_spent': 'Ngưỡng tổng chi tiêu không được âm.'})
+        if self.discount_percent < 0 or self.discount_percent > 100:
+            raise ValidationError({'discount_percent': 'Phần trăm ưu đãi phải từ 0 đến 100.'})
+        rows = []
+        if self.tenant_id:
+            settings = CustomerTierSetting.objects.filter(tenant=self.tenant)
+            if self.pk:
+                settings = settings.exclude(pk=self.pk)
+            for row in settings:
+                rows.append(
+                    {
+                        'tier': row.tier,
+                        'min_total_spent': row.min_total_spent,
+                        'discount_percent': row.discount_percent,
+                    }
+                )
+        rows.append(
+            {
+                'tier': self.tier,
+                'min_total_spent': self.min_total_spent,
+                'discount_percent': self.discount_percent,
+            }
+        )
+        if len({row['tier'] for row in rows}) == len(CustomerTierSetting.TIER_ORDER):
+            CustomerTierSetting.validate_tier_rows(rows)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.tenant} - {self.get_tier_display()}'
 
 
 class Promotion(TimeStampedModel):

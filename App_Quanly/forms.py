@@ -4,12 +4,13 @@ from django import forms
 from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
 from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload, clear_product_uploaded_images
-from App_Sales.models import Customer, DiningTable, Promotion
-from App_Tenant.models import Store
+from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Promotion
+from App_Tenant.models import Store, Tenant
 
 
 def _apply_bootstrap_classes(form):
@@ -34,6 +35,37 @@ def _apply_bootstrap_classes(form):
             continue
 
         widget.attrs['class'] = f'{existing_class} form-control'.strip()
+
+
+class ThousandSeparatedDecimalField(forms.DecimalField):
+    def prepare_value(self, value):
+        if value in (None, ''):
+            return value
+        try:
+            number = Decimal(str(value)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+        except Exception:
+            return value
+        return f'{int(number):,}'.replace(',', '.')
+
+    def to_python(self, value):
+        if isinstance(value, str):
+            value = value.replace('.', '').replace(',', '').strip()
+        return super().to_python(value)
+
+
+class TenantFeatureSettingsForm(forms.ModelForm):
+    class Meta:
+        model = Tenant
+        fields = ['show_customer_feature', 'show_promotion_feature']
+        labels = {
+            'show_customer_feature': 'Hiển thị Khách hàng',
+            'show_promotion_feature': 'Hiển thị Khuyến mãi',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'form-check-input'
 
 
 class CategoryForm(forms.ModelForm):
@@ -312,6 +344,103 @@ class CustomerForm(forms.ModelForm):
         if len(digits) < 8:
             raise ValidationError('Số điện thoại quá ngắn hoặc không hợp lệ.')
         return raw
+
+
+class CustomerTierSettingsForm(forms.Form):
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        settings = {
+            row.tier: row
+            for row in CustomerTierSetting.ensure_defaults_for_tenant(tenant)
+        } if tenant else {}
+        for tier in CustomerTierSetting.TIER_ORDER:
+            label = Customer.Tier(tier).label
+            setting = settings.get(tier)
+            min_initial, discount_initial = CustomerTierSetting.DEFAULTS[tier]
+            if setting:
+                min_initial = setting.min_total_spent
+                discount_initial = setting.discount_percent
+            min_attrs = {
+                'placeholder': 'VD: 5.000.000',
+                'inputmode': 'numeric',
+                'autocomplete': 'off',
+                'data-money-thousand-input': '1',
+            }
+            if tier == Customer.Tier.MEMBER:
+                min_attrs['readonly'] = 'readonly'
+            self.fields[f'{tier}_min_total_spent'] = ThousandSeparatedDecimalField(
+                label=f'Ngưỡng {label}',
+                min_value=Decimal('0'),
+                decimal_places=0,
+                max_digits=14,
+                initial=min_initial,
+                widget=forms.TextInput(attrs=min_attrs),
+            )
+            self.fields[f'{tier}_discount_percent'] = forms.DecimalField(
+                label=f'% giảm {label}',
+                min_value=Decimal('0'),
+                max_value=Decimal('100'),
+                decimal_places=2,
+                max_digits=5,
+                initial=discount_initial,
+                widget=forms.TextInput(
+                    attrs={
+                        'placeholder': 'VD: 3',
+                        'inputmode': 'decimal',
+                        'autocomplete': 'off',
+                    }
+                ),
+            )
+        _apply_bootstrap_classes(self)
+
+    def clean(self):
+        cleaned = super().clean()
+        rows = []
+        for tier in CustomerTierSetting.TIER_ORDER:
+            min_total_spent = cleaned.get(f'{tier}_min_total_spent')
+            discount_percent = cleaned.get(f'{tier}_discount_percent')
+            if min_total_spent is None or discount_percent is None:
+                continue
+            if tier == Customer.Tier.MEMBER:
+                min_total_spent = Decimal('0')
+                cleaned[f'{tier}_min_total_spent'] = min_total_spent
+            rows.append(
+                {
+                    'tier': tier,
+                    'min_total_spent': min_total_spent.quantize(Decimal('1'), rounding=ROUND_HALF_UP),
+                    'discount_percent': discount_percent.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                }
+            )
+        if len(rows) == len(CustomerTierSetting.TIER_ORDER):
+            CustomerTierSetting.validate_tier_rows(rows)
+            self.cleaned_tier_rows = rows
+        return cleaned
+
+    def save(self):
+        if not self.tenant:
+            return []
+        rows = getattr(self, 'cleaned_tier_rows', [])
+        saved = []
+        for row in rows:
+            setting, _created = CustomerTierSetting.objects.get_or_create(
+                tenant=self.tenant,
+                tier=row['tier'],
+                defaults={
+                    'min_total_spent': row['min_total_spent'],
+                    'discount_percent': row['discount_percent'],
+                },
+            )
+            if setting.min_total_spent != row['min_total_spent'] or setting.discount_percent != row['discount_percent']:
+                CustomerTierSetting.objects.filter(pk=setting.pk).update(
+                    min_total_spent=row['min_total_spent'],
+                    discount_percent=row['discount_percent'],
+                    updated_at=timezone.now(),
+                )
+                setting.min_total_spent = row['min_total_spent']
+                setting.discount_percent = row['discount_percent']
+            saved.append(setting)
+        return saved
 
 
 class PromotionForm(forms.ModelForm):

@@ -5,6 +5,7 @@ from App_Accounts.models import User
 from App_Catalog.models import Product, ProductUnit, Topping
 from App_Sales.models import (
     Customer,
+    CustomerTierSetting,
     DiningTable,
     Order,
     OrderItem,
@@ -234,6 +235,12 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ('name', 'phone', 'tenant', 'tier', 'points_balance', 'total_spent', 'is_active')
     list_filter = ('tenant', 'tier', 'is_active')
     search_fields = ('name', 'phone', 'email')
+
+
+@admin.register(CustomerTierSetting)
+class CustomerTierSettingAdmin(admin.ModelAdmin):
+    list_display = ('tenant', 'tier', 'min_total_spent', 'discount_percent')
+    list_filter = ('tenant', 'tier')
 
 
 @admin.register(Promotion)

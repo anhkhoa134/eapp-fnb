@@ -1304,7 +1304,7 @@
                                     <span class="fw-semibold" id="modal-subtotal-due">0 đ</span>
                                 </div>
                                 <div class="d-flex justify-content-between small mb-0" id="modal-discount-row">
-                                    <span class="text-muted">Khuyến mãi</span>
+                                    <span class="text-muted" id="modal-discount-label">Khuyến mãi</span>
                                     <span class="fw-semibold text-success" id="modal-discount-amount">-0 đ</span>
                                 </div>
                             </div>
@@ -1359,6 +1359,7 @@
                                             <button class="dropdown-item" type="button" data-promotion-id="">Không áp dụng</button>
                                         </div>
                                     </div>
+                                    <div class="payment-mini-help mt-2 d-none" id="promotion-tier-override-note">Đang áp dụng ưu đãi hạng tốt hơn.</div>
                                 </div>
                             </div>
 
@@ -1688,6 +1689,8 @@
         const API_QR_ORDERS_URL = "{% url 'App_Sales_API:qr_orders' %}";
         const API_TABLES_BASE = '/api/pos/tables/';
         const API_QR_ORDERS_BASE = '/api/pos/qr/orders/';
+        const TENANT_SHOW_CUSTOMER_FEATURE = {{ user.tenant.show_customer_feature|yesno:"true,false" }};
+        const TENANT_SHOW_PROMOTION_FEATURE = {{ user.tenant.show_promotion_feature|yesno:"true,false" }};
         const QR_FALLBACK_POLL_INTERVAL_MS = 15000;
         const QR_ALERT_COOLDOWN_MS = 2500;
         const QR_BELL_VOLUME = 0.5;
@@ -1714,11 +1717,14 @@
         let customerOptionMap = new Map();
         let customerSearchTimer = null;
         let customerSearchRequestSeq = 0;
-        let hasCustomerFeature = true;
+        let hasCustomerFeature = TENANT_SHOW_CUSTOMER_FEATURE;
         let availablePromotions = [];
         let selectedPromotion = null;
-        let hasPromotionFeature = true;
+        let hasPromotionFeature = TENANT_SHOW_PROMOTION_FEATURE;
         let currentDiscountAmount = 0;
+        let currentDiscountSource = 'none';
+        let currentTierDiscountAmount = 0;
+        let currentTierDiscountPercent = 0;
         let currentSearchTerm = '';
         let currentReviewingOrderId = null;
         let paymentModalInstance = null;
@@ -3271,7 +3277,7 @@
             const discountRow = document.getElementById('modal-discount-row');
             if (customerPanel) customerPanel.classList.toggle('d-none', !hasCustomerFeature);
             if (promotionPanel) promotionPanel.classList.toggle('d-none', !hasPromotionFeature);
-            if (discountRow) discountRow.classList.toggle('d-none', !hasPromotionFeature);
+            if (discountRow) discountRow.classList.toggle('d-none', !(hasCustomerFeature || hasPromotionFeature));
             if (grid) {
                 const visibleCount = (hasCustomerFeature ? 1 : 0) + (hasPromotionFeature ? 1 : 0);
                 grid.classList.toggle('d-none', visibleCount === 0);
@@ -3285,12 +3291,6 @@
         };
 
         const loadCustomerFeatureAvailability = async () => {
-            try {
-                const payload = await fetchJson(API_CUSTOMERS_URL);
-                hasCustomerFeature = payload.has_customers !== false;
-            } catch (error) {
-                hasCustomerFeature = true;
-            }
             updatePaymentMetaVisibility();
         };
 
@@ -3309,8 +3309,10 @@
             if (selectedCustomer) {
                 const tier = selectedCustomer.tier_label || selectedCustomer.tier || 'Member';
                 const points = Number(selectedCustomer.points_balance || 0);
+                const discountPercent = Number(selectedCustomer.tier_discount_percent || 0);
+                const discountText = discountPercent > 0 ? ` · Ưu đãi ${discountPercent}%` : '';
                 nameEl.textContent = selectedCustomer.name || '';
-                metaEl.textContent = `${selectedCustomer.phone || ''} · ${tier} · ${points} điểm`;
+                metaEl.textContent = `${selectedCustomer.phone || ''} · ${tier} · ${points} điểm${discountText}`;
             } else {
                 nameEl.textContent = '';
                 metaEl.textContent = '';
@@ -3325,6 +3327,7 @@
             }
             hideCustomerResults();
             updateSelectedCustomerUi();
+            updatePaymentTotals();
         };
 
         const clearSelectedCustomer = () => {
@@ -3338,6 +3341,7 @@
             }
             customerOptionMap.clear();
             updateSelectedCustomerUi();
+            updatePaymentTotals();
         };
 
         const hideCustomerResults = () => {
@@ -3380,9 +3384,11 @@
                 item.dataset.customerValue = value;
                 const tier = customer.tier_label || customer.tier || 'Member';
                 const points = Number(customer.points_balance || 0);
+                const discountPercent = Number(customer.tier_discount_percent || 0);
+                const discountText = discountPercent > 0 ? ` · Ưu đãi ${discountPercent}%` : '';
                 item.innerHTML = `
                     <div class="customer-result-name">${escapeHtml(customer.name || '')}</div>
-                    <div class="customer-result-meta">${escapeHtml(customer.phone || '')} · ${escapeHtml(tier)} · ${points} điểm</div>
+                    <div class="customer-result-meta">${escapeHtml(customer.phone || '')} · ${escapeHtml(tier)} · ${points} điểm${discountText}</div>
                 `;
                 item.addEventListener('click', () => setSelectedCustomer(customer));
                 results.appendChild(item);
@@ -3400,7 +3406,6 @@
             try {
                 const payload = await fetchJson(`${API_CUSTOMERS_URL}?q=${encodeURIComponent(q)}`);
                 if (requestSeq !== customerSearchRequestSeq) return;
-                hasCustomerFeature = payload.has_customers !== false;
                 const customers = payload.customers || [];
                 renderCustomerOptions(customers);
                 updatePaymentMetaVisibility();
@@ -3472,9 +3477,31 @@
             }
         };
 
+        const calculateSelectedTierDiscount = () => {
+            currentTierDiscountPercent = selectedCustomer ? Number(selectedCustomer.tier_discount_percent || 0) : 0;
+            currentTierDiscountAmount = Math.max(0, Math.min(cartSubtotalAmount, cartSubtotalAmount * (currentTierDiscountPercent / 100)));
+            return currentTierDiscountAmount;
+        };
+
         const updatePaymentTotals = () => {
-            currentDiscountAmount = selectedPromotion ? Number(selectedPromotion.discount_amount || 0) : 0;
+            const promotionDiscountAmount = selectedPromotion ? Number(selectedPromotion.discount_amount || 0) : 0;
+            const tierDiscountAmount = calculateSelectedTierDiscount();
+            if (tierDiscountAmount > promotionDiscountAmount) {
+                currentDiscountAmount = tierDiscountAmount;
+                currentDiscountSource = currentDiscountAmount > 0 ? 'tier' : 'none';
+            } else {
+                currentDiscountAmount = promotionDiscountAmount;
+                currentDiscountSource = currentDiscountAmount > 0 ? 'promotion' : 'none';
+            }
             totalAmountDue = Math.max(0, cartSubtotalAmount - currentDiscountAmount);
+            const discountLabel = document.getElementById('modal-discount-label');
+            const tierNote = document.getElementById('promotion-tier-override-note');
+            if (discountLabel) {
+                discountLabel.textContent = currentDiscountSource === 'tier' ? 'Ưu đãi hạng' : 'Khuyến mãi';
+            }
+            if (tierNote) {
+                tierNote.classList.toggle('d-none', !(selectedPromotion && currentDiscountSource === 'tier'));
+            }
             document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
             document.getElementById('modal-discount-amount').textContent = currentDiscountAmount ? `-${formatCurrency(currentDiscountAmount)}` : '-0 đ';
             document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
@@ -3504,7 +3531,7 @@
             if (selectedPromotion) {
                 label.textContent = selectedPromotion.name || 'Khuyến mãi';
                 if (discount) {
-                    discount.textContent = `-${formatCurrency(currentDiscountAmount)}`;
+                    discount.textContent = `-${formatCurrency(selectedPromotion.discount_amount || 0)}`;
                     discount.classList.remove('d-none');
                 }
             } else {
@@ -3578,9 +3605,13 @@
             availablePromotions = [];
             selectedPromotion = null;
             renderPromotionDropdown();
+            if (!hasPromotionFeature) {
+                updatePaymentMetaVisibility();
+                updatePaymentTotals();
+                return;
+            }
             try {
                 const payload = await fetchJson(`${API_PROMOTIONS_URL}?store_id=${currentStoreId}&subtotal=${encodeURIComponent(cartSubtotalAmount)}`);
-                hasPromotionFeature = payload.has_promotions !== false;
                 availablePromotions = payload.promotions || [];
                 renderPromotionDropdown();
             } catch (error) {
@@ -3617,6 +3648,9 @@
             cartSubtotalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
             selectedPromotion = null;
             currentDiscountAmount = 0;
+            currentDiscountSource = 'none';
+            currentTierDiscountAmount = 0;
+            currentTierDiscountPercent = 0;
             const modalItemsContainer = document.getElementById('modal-cart-items');
             modalItemsContainer.innerHTML = '';
             cart.forEach((item) => {
@@ -3772,8 +3806,8 @@
                             payment_method: paymentMethod,
                             tax_rate: 0,
                             customer_paid: received,
-                            customer_id: selectedCustomer ? selectedCustomer.id : null,
-                            promotion_id: selectedPromotion ? selectedPromotion.id : null,
+                            customer_id: hasCustomerFeature && selectedCustomer ? selectedCustomer.id : null,
+                            promotion_id: hasPromotionFeature && selectedPromotion ? selectedPromotion.id : null,
                         }),
                     });
                     await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi(), loadTableCart(currentSelectedTableId)]);
@@ -3785,8 +3819,8 @@
                             payment_method: paymentMethod,
                             tax_rate: 0,
                             customer_paid: received,
-                            customer_id: selectedCustomer ? selectedCustomer.id : null,
-                            promotion_id: selectedPromotion ? selectedPromotion.id : null,
+                            customer_id: hasCustomerFeature && selectedCustomer ? selectedCustomer.id : null,
+                            promotion_id: hasPromotionFeature && selectedPromotion ? selectedPromotion.id : null,
                             items: cart.map((item) => ({
                                 product_id: item.id,
                                 unit_id: item.unitId,
@@ -3805,6 +3839,9 @@
                 showToast(`Thanh toán thành công (${data.order_code})${pointMsg}!`, 'success');
                 selectedPromotion = null;
                 currentDiscountAmount = 0;
+                currentDiscountSource = 'none';
+                currentTierDiscountAmount = 0;
+                currentTierDiscountPercent = 0;
                 clearSelectedCustomer();
                 const offcanvasInst = bootstrap.Offcanvas.getInstance(document.getElementById('cartOffcanvas'));
                 if (offcanvasInst) offcanvasInst.hide();

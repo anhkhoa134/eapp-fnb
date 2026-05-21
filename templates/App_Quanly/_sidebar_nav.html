@@ -24,12 +24,16 @@
             <a class="admin-nav-link {% if '/quanly/orders/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:orders' %}" title="Lịch sử đơn" data-quanly-tip="Lịch sử đơn">
                 <i class="bi bi-receipt-cutoff" aria-hidden="true"></i><span class="admin-nav-label">Lịch sử đơn</span>
             </a>
+            {% if user.tenant.show_customer_feature %}
             <a class="admin-nav-link {% if '/quanly/customers/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:customers' %}" title="Khách hàng" data-quanly-tip="Khách hàng">
                 <i class="bi bi-person-hearts" aria-hidden="true"></i><span class="admin-nav-label">Khách hàng</span>
             </a>
+            {% endif %}
+            {% if user.tenant.show_promotion_feature %}
             <a class="admin-nav-link {% if '/quanly/promotions/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:promotions' %}" title="Khuyến mãi" data-quanly-tip="Khuyến mãi">
                 <i class="bi bi-tags" aria-hidden="true"></i><span class="admin-nav-label">Khuyến mãi</span>
             </a>
+            {% endif %}
             <a class="admin-nav-link {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}" title="Danh mục" data-quanly-tip="Danh mục">
                 <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span class="admin-nav-label">Danh mục</span>
             </a>

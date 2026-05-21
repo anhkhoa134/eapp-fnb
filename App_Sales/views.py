@@ -33,6 +33,7 @@ from App_Sales.services import (
     calculate_order_totals,
     calculate_points_for_amount,
     calculate_promotion_discount,
+    get_customer_tier_setting,
     get_accessible_store_or_default,
     get_available_promotions,
     get_effective_unit_price,
@@ -187,6 +188,7 @@ def _snapshot_rows_from_product_toppings(links):
 
 
 def _serialize_customer(customer: Customer):
+    tier_setting = get_customer_tier_setting(tenant=customer.tenant, tier=customer.tier)
     return {
         'id': customer.id,
         'name': customer.name,
@@ -195,6 +197,8 @@ def _serialize_customer(customer: Customer):
         'note': customer.note,
         'tier': customer.tier,
         'tier_label': customer.get_tier_display(),
+        'tier_min_total_spent': float(tier_setting.min_total_spent),
+        'tier_discount_percent': float(tier_setting.discount_percent),
         'points_balance': customer.points_balance,
         'total_spent': float(customer.total_spent),
         'last_order_at': timezone.localtime(customer.last_order_at).strftime('%d/%m/%Y %H:%M') if customer.last_order_at else '',
@@ -226,6 +230,15 @@ def _snapshot_promotion_fields(promotion: Promotion | None):
         'promotion_snapshot_name': promotion.name,
         'promotion_snapshot_type': promotion.discount_type,
         'promotion_snapshot_value': promotion.discount_value,
+    }
+
+
+def _snapshot_tier_discount_fields(totals):
+    return {
+        'discount_source': totals['discount_source'],
+        'tier_snapshot': totals.get('customer_tier') or '',
+        'tier_discount_percent': totals.get('tier_discount_percent') or Decimal('0'),
+        'tier_discount_amount': totals.get('tier_discount_amount') or Decimal('0'),
     }
 
 
@@ -704,8 +717,11 @@ def api_checkout(request):
         if promotion_id and not promotion:
             return _json_error('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.', 400)
 
-        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion)
+        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion, customer=customer)
         discount_amount = totals['discount_amount']
+        tier_discount_amount = totals['tier_discount_amount']
+        tier_discount_percent = totals['tier_discount_percent']
+        discount_source = totals['discount_source']
         tax_amount = totals['tax_amount']
         total_amount = totals['total_amount']
 
@@ -733,6 +749,7 @@ def api_checkout(request):
             customer_paid=customer_paid,
             change_amount=change_amount,
             **_snapshot_promotion_fields(promotion),
+            **_snapshot_tier_discount_fields(totals),
         )
 
         for item in prepared_items:
@@ -769,6 +786,9 @@ def api_checkout(request):
             'order_code': order.order_code,
             'subtotal': float(subtotal),
             'discount_amount': float(discount_amount),
+            'discount_source': discount_source,
+            'tier_discount_amount': float(tier_discount_amount),
+            'tier_discount_percent': float(tier_discount_percent),
             'tax_amount': float(tax_amount),
             'total_amount': float(total_amount),
             'customer_paid': float(customer_paid),
@@ -1219,8 +1239,11 @@ def api_table_checkout(request, table_id):
         if promotion_id and not promotion:
             return _json_error('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.', 400)
 
-        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion)
+        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion, customer=customer)
         discount_amount = totals['discount_amount']
+        tier_discount_amount = totals['tier_discount_amount']
+        tier_discount_percent = totals['tier_discount_percent']
+        discount_source = totals['discount_source']
         tax_amount = totals['tax_amount']
         total_amount = totals['total_amount']
 
@@ -1248,6 +1271,7 @@ def api_table_checkout(request, table_id):
             customer_paid=customer_paid,
             change_amount=change_amount,
             **_snapshot_promotion_fields(promotion),
+            **_snapshot_tier_discount_fields(totals),
         )
 
         for item in cart_items:
@@ -1286,6 +1310,9 @@ def api_table_checkout(request, table_id):
             'order_id': order.id,
             'order_code': order.order_code,
             'discount_amount': float(discount_amount),
+            'discount_source': discount_source,
+            'tier_discount_amount': float(tier_discount_amount),
+            'tier_discount_percent': float(tier_discount_percent),
             'total_amount': float(total_amount),
             'change_amount': float(change_amount),
             'points_earned': points_earned,

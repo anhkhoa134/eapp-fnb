@@ -102,6 +102,8 @@ class TenantAdmin(admin.ModelAdmin):
         'name',
         'public_slug',
         'is_active',
+        'show_customer_feature',
+        'show_promotion_feature',
         'subscription_ends_on',
         'store_usage_display',
         'table_usage_display',
@@ -113,6 +115,13 @@ class TenantAdmin(admin.ModelAdmin):
     ordering = ('name',)
     fieldsets = (
         (None, {'fields': ('name', 'public_slug', 'is_active')}),
+        (
+            'Tính năng nâng cao',
+            {
+                'fields': ('show_customer_feature', 'show_promotion_feature'),
+                'description': 'Điều khiển hiển thị các mục CRM/marketing trong sidebar quản lý và modal thanh toán POS.',
+            },
+        ),
         (
             'Gói dịch vụ (thời hạn)',
             {

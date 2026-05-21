@@ -30,6 +30,7 @@ from App_Quanly.catalog_excel import MAX_UPLOAD_BYTES, import_catalog_from_uploa
 from App_Quanly.forms import (
     CategoryForm,
     CustomerForm,
+    CustomerTierSettingsForm,
     DiningTableForm,
     ProductForm,
     ProductToppingForm,
@@ -40,10 +41,11 @@ from App_Quanly.forms import (
     StaffPasswordResetForm,
     StoreForm,
     StorePaymentForm,
+    TenantFeatureSettingsForm,
     ToppingForm,
 )
 from App_Sales.models import Customer, DiningTable, Order, OrderItem, Promotion, QROrder, QROrderItem, generate_qr_token
-from App_Sales.services import recompute_customer_stats
+from App_Sales.services import ensure_customer_tier_settings, recompute_all_customer_stats, recompute_customer_stats
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
 
@@ -587,6 +589,7 @@ def order_delete(request, pk):
 @manager_required
 def customer_list_create(request):
     tenant = _tenant_or_404(request.user)
+    ensure_customer_tier_settings(tenant)
     customers = Customer.objects.filter(tenant=tenant).order_by('name', 'id')
     selected_status = (request.GET.get('status') or 'active').strip()
     selected_q = (request.GET.get('q') or '').strip()
@@ -606,14 +609,28 @@ def customer_list_create(request):
             | Q(email__icontains=selected_q)
         )
 
-    form = CustomerForm(request.POST or None, tenant=tenant)
-    if request.method == 'POST' and form.is_valid():
+    is_tier_settings_post = request.method == 'POST' and request.POST.get('form_kind') == 'tier_settings'
+    form_data = request.POST if request.method == 'POST' and not is_tier_settings_post else None
+    tier_settings_data = request.POST if is_tier_settings_post else None
+    form = CustomerForm(form_data, tenant=tenant)
+    tier_settings_form = CustomerTierSettingsForm(tier_settings_data, tenant=tenant)
+    open_tier_settings_modal = False
+    if is_tier_settings_post and tier_settings_form.is_valid():
+        tier_settings_form.save()
+        recompute_all_customer_stats(tenant)
+        messages.success(request, 'Đã cập nhật cấu hình hạng khách hàng.')
+        return redirect('App_Quanly:customers')
+    if is_tier_settings_post:
+        open_tier_settings_modal = True
+        messages.error(request, 'Không thể cập nhật cấu hình hạng, vui lòng kiểm tra dữ liệu.')
+
+    if request.method == 'POST' and not is_tier_settings_post and form.is_valid():
         customer = form.save(commit=False)
         customer.tenant = tenant
         customer.save()
         messages.success(request, f'Đã tạo khách hàng "{customer.name}".')
         return redirect('App_Quanly:customers')
-    if request.method == 'POST':
+    if request.method == 'POST' and not is_tier_settings_post:
         messages.error(request, 'Không thể tạo khách hàng, vui lòng kiểm tra dữ liệu.')
 
     page_obj = Paginator(customers, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
@@ -624,9 +641,12 @@ def customer_list_create(request):
             'page_obj': page_obj,
             'query_string': _list_query_without_keys(request, 'page'),
             'form': form,
+            'tier_settings': ensure_customer_tier_settings(tenant),
+            'tier_settings_form': tier_settings_form,
             'selected_status': selected_status,
             'selected_q': selected_q,
             'open_create_modal': request.method == 'POST' and form.errors,
+            'open_tier_settings_modal': open_tier_settings_modal,
         },
     )
 
@@ -1584,9 +1604,22 @@ def account_settings(request):
         raise Http404('Tài khoản chưa được gán doanh nghiệp')
 
     role_label = 'Quản lý' if user.role == User.Role.MANAGER else 'Nhân viên'
+    tenant_obj = Tenant.objects.get(pk=user.tenant_id)
+    can_manage_features = user.role == User.Role.MANAGER
 
-    if request.method == 'POST':
+    if request.method == 'POST' and request.POST.get('form_action') == 'feature_settings':
+        if not can_manage_features:
+            return HttpResponse('Bạn không có quyền cập nhật cấu hình tính năng.', status=403)
+        feature_form = TenantFeatureSettingsForm(request.POST, instance=tenant_obj)
+        form = POSPasswordChangeForm(user)
+        if feature_form.is_valid():
+            feature_form.save()
+            messages.success(request, 'Đã cập nhật hiển thị tính năng nâng cao.')
+            return redirect('App_Quanly:account')
+        messages.error(request, 'Không thể cập nhật cấu hình tính năng. Vui lòng kiểm tra lại.')
+    elif request.method == 'POST':
         form = POSPasswordChangeForm(user, request.POST)
+        feature_form = TenantFeatureSettingsForm(instance=tenant_obj)
         if form.is_valid():
             form.save()
             update_session_auth_hash(request, user)
@@ -1595,8 +1628,8 @@ def account_settings(request):
         messages.error(request, 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại.')
     else:
         form = POSPasswordChangeForm(user)
+        feature_form = TenantFeatureSettingsForm(instance=tenant_obj)
 
-    tenant_obj = Tenant.objects.get(pk=user.tenant_id)
     usage = {
         'stores_used': tenant_obj.stores.count(),
         'stores_max': tenant_obj.max_stores,
@@ -1613,6 +1646,8 @@ def account_settings(request):
         'App_Quanly/account.html',
         {
             'form': form,
+            'feature_form': feature_form,
+            'can_manage_features': can_manage_features,
             'role_label': role_label,
             'usage': usage,
             'today': timezone.now().date(),
