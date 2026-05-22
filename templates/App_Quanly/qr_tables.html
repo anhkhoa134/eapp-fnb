@@ -59,7 +59,7 @@
                         <td>
                             <div class="input-group input-group-sm">
                                 <input class="form-control" value="{{ row.qr_url }}" readonly>
-                                <button class="btn btn-outline-primary" type="button" onclick="copyQrLink('{{ row.qr_url|escapejs }}')">Copy</button>
+                                    <button class="btn btn-outline-primary" type="button" onclick="copyQrLink('{{ row.qr_url|escapejs }}')"><i class="bi bi-clipboard me-1"></i>Copy</button>
                             </div>
                         </td>
                         <td class="text-end">
@@ -76,10 +76,14 @@
                                 data-table-code="{{ row.table.code|escape }}"
                                 data-table-display-order="{{ row.table.display_order }}"
                                 data-table-store-id="{{ row.table.store_id }}"
-                                data-table-active="{% if row.table.is_active %}1{% else %}0{% endif %}"
-                            >
-                                <i class="bi bi-pencil-square me-1"></i>Sửa
-                            </button>
+                                    data-table-active="{% if row.table.is_active %}1{% else %}0{% endif %}"
+                                    data-delete-action="{% url 'App_Quanly:qr_table_delete' row.table.id %}"
+                                    data-delete-name="{{ row.table.name|escape }}"
+                                    title="Sửa"
+                                    aria-label="Sửa"
+                                >
+                                    <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                </button>
                             <button
                                 class="btn btn-sm btn-outline-warning mb-1 js-reset-token"
                                 type="button"
@@ -89,16 +93,6 @@
                                 data-table-name="{{ row.table.name|escape }}"
                             >
                                 <i class="bi bi-arrow-repeat me-1"></i>Reset token
-                            </button>
-                            <button
-                                class="btn btn-sm btn-outline-danger mb-1 js-delete-table"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#deleteTableModal"
-                                data-action="{% url 'App_Quanly:qr_table_delete' row.table.id %}"
-                                data-table-name="{{ row.table.name|escape }}"
-                            >
-                                <i class="bi bi-trash me-1"></i>Xóa
                             </button>
                         </td>
                     </tr>
@@ -149,15 +143,15 @@
                         <div class="switch-card">
                             <div class="form-check m-0 mt-4">
                                 {{ form.is_active }}
-                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động</label>
                             </div>
                             {{ form.is_active.errors }}
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu bàn</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu bàn</button>
                 </div>
             </form>
         </div>
@@ -198,15 +192,18 @@
                         <div class="switch-card">
                             <div class="form-check m-0 mt-4">
                                 <input class="form-check-input" id="edit-table-active" name="is_active" type="checkbox">
-                                <label class="form-check-label fw-semibold" for="edit-table-active">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="edit-table-active">Đang hoạt động</label>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
-                </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteTableModal">
+                            <i class="bi bi-trash me-1"></i>Xóa
+                        </button>
+                            <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
+                    </div>
             </form>
         </div>
     </div>
@@ -225,8 +222,8 @@
                     <p class="mb-0">Xác nhận reset token cho bàn <strong id="resetTokenTableName"></strong>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-warning" type="submit">Reset token</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-warning" type="submit"><i class="bi bi-arrow-repeat me-1"></i>Reset token</button>
                 </div>
             </form>
         </div>
@@ -246,8 +243,8 @@
                     <p class="mb-0">Bạn chắc chắn muốn xóa bàn <strong id="deleteTableName"></strong>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -273,23 +270,27 @@
     window.copyQrLink = copyQrLink;
 
     document.addEventListener('DOMContentLoaded', () => {
-        const editTableForm = document.getElementById('editTableForm');
-        const editTableStore = document.getElementById('edit-table-store');
-        const editTableCode = document.getElementById('edit-table-code');
-        const editTableName = document.getElementById('edit-table-name');
-        const editTableDisplayOrder = document.getElementById('edit-table-display-order');
-        const editTableActive = document.getElementById('edit-table-active');
+            const editTableForm = document.getElementById('editTableForm');
+            const editTableStore = document.getElementById('edit-table-store');
+            const editTableCode = document.getElementById('edit-table-code');
+            const editTableName = document.getElementById('edit-table-name');
+            const editTableDisplayOrder = document.getElementById('edit-table-display-order');
+            const editTableActive = document.getElementById('edit-table-active');
+            const deleteTableForm = document.getElementById('deleteTableForm');
+            const deleteTableName = document.getElementById('deleteTableName');
 
-        document.querySelectorAll('.js-edit-table').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (editTableForm) editTableForm.action = button.dataset.action || '';
-                if (editTableStore) editTableStore.value = button.dataset.tableStoreId || '';
-                if (editTableCode) editTableCode.value = button.dataset.tableCode || '';
-                if (editTableName) editTableName.value = button.dataset.tableName || '';
-                if (editTableDisplayOrder) editTableDisplayOrder.value = button.dataset.tableDisplayOrder || '0';
-                if (editTableActive) editTableActive.checked = button.dataset.tableActive === '1';
+            document.querySelectorAll('.js-edit-table').forEach((button) => {
+                button.addEventListener('click', () => {
+                    if (editTableForm) editTableForm.action = button.dataset.action || '';
+                    if (editTableStore) editTableStore.value = button.dataset.tableStoreId || '';
+                    if (editTableCode) editTableCode.value = button.dataset.tableCode || '';
+                    if (editTableName) editTableName.value = button.dataset.tableName || '';
+                    if (editTableDisplayOrder) editTableDisplayOrder.value = button.dataset.tableDisplayOrder || '0';
+                    if (editTableActive) editTableActive.checked = button.dataset.tableActive === '1';
+                    if (deleteTableForm) deleteTableForm.action = button.dataset.deleteAction || '';
+                    if (deleteTableName) deleteTableName.textContent = button.dataset.deleteName || '';
+                });
             });
-        });
 
         const resetTokenForm = document.getElementById('resetTokenForm');
         const resetTokenTableName = document.getElementById('resetTokenTableName');
@@ -300,16 +301,7 @@
             });
         });
 
-        const deleteTableForm = document.getElementById('deleteTableForm');
-        const deleteTableName = document.getElementById('deleteTableName');
-        document.querySelectorAll('.js-delete-table').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteTableForm) deleteTableForm.action = button.dataset.action || '';
-                if (deleteTableName) deleteTableName.textContent = button.dataset.tableName || '';
-            });
-        });
-
-        {% if open_create_modal %}
+            {% if open_create_modal %}
         const createModalEl = document.getElementById('createTableModal');
         if (createModalEl) {
             bootstrap.Modal.getOrCreateInstance(createModalEl).show();

@@ -66,19 +66,13 @@
                                 data-topping-display-order="{{ topping.display_order }}"
                                 data-topping-active="{% if topping.is_active %}1{% else %}0{% endif %}"
                                 data-topping-product-ids="{% for link in topping.product_links.all %}{{ link.product_id }}{% if not forloop.last %},{% endif %}{% endfor %}"
-                            >
-                                Sửa
-                            </button>
-                            <button
-                                class="btn btn-sm btn-outline-danger js-delete-topping"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#deleteToppingModal"
-                                data-action="{% url 'App_Quanly:topping_delete' topping.id %}"
-                                data-topping-name="{{ topping.name|escape }}"
-                            >
-                                Xóa
-                            </button>
+                                    data-delete-action="{% url 'App_Quanly:topping_delete' topping.id %}"
+                                    data-delete-name="{{ topping.name|escape }}"
+                                    title="Sửa"
+                                    aria-label="Sửa"
+                                >
+                                    <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                </button>
                         </td>
                     </tr>
                     {% empty %}
@@ -125,7 +119,7 @@
                         <div class="switch-card">
                             <div class="form-check m-0">
                                 {{ topping_form.is_active }}
-                                <label class="form-check-label fw-semibold" for="{{ topping_form.is_active.id_for_label }}">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="{{ topping_form.is_active.id_for_label }}">Đang hoạt động</label>
                             </div>
                             {{ topping_form.is_active.errors }}
                         </div>
@@ -140,8 +134,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu topping</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu topping</button>
                 </div>
             </form>
         </div>
@@ -175,7 +169,7 @@
                         <div class="switch-card">
                             <div class="form-check m-0">
                                 <input class="form-check-input" id="edit-topping-active" name="is_active" type="checkbox">
-                                <label class="form-check-label fw-semibold" for="edit-topping-active">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="edit-topping-active">Đang hoạt động</label>
                             </div>
                         </div>
                         <div class="full">
@@ -193,8 +187,11 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                    <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteToppingModal">
+                        <i class="bi bi-trash me-1"></i>Xóa
+                    </button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
                 </div>
             </form>
         </div>
@@ -214,8 +211,8 @@
                     <p class="mb-0">Bạn chắc chắn muốn xóa topping <strong id="deleteToppingName"></strong>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -233,6 +230,8 @@
         const editToppingDisplayOrder = document.getElementById('edit-topping-display-order');
         const editToppingActive = document.getElementById('edit-topping-active');
         const editToppingProducts = document.querySelectorAll('.js-edit-topping-product');
+        const deleteToppingForm = document.getElementById('deleteToppingForm');
+        const deleteToppingName = document.getElementById('deleteToppingName');
         document.querySelectorAll('.js-edit-topping').forEach((button) => {
             button.addEventListener('click', () => {
                 if (editToppingForm) editToppingForm.action = button.dataset.action || '';
@@ -249,15 +248,8 @@
                 editToppingProducts.forEach((cb) => {
                     cb.checked = selected.has(cb.value);
                 });
-            });
-        });
-
-        const deleteToppingForm = document.getElementById('deleteToppingForm');
-        const deleteToppingName = document.getElementById('deleteToppingName');
-        document.querySelectorAll('.js-delete-topping').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteToppingForm) deleteToppingForm.action = button.dataset.action || '';
-                if (deleteToppingName) deleteToppingName.textContent = button.dataset.toppingName || '';
+                if (deleteToppingForm) deleteToppingForm.action = button.dataset.deleteAction || '';
+                if (deleteToppingName) deleteToppingName.textContent = button.dataset.deleteName || '';
             });
         });
 

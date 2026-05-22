@@ -104,6 +104,8 @@ class TenantAdmin(admin.ModelAdmin):
         'is_active',
         'show_customer_feature',
         'show_promotion_feature',
+        'show_topping_feature',
+        'show_qr_order_feature',
         'subscription_ends_on',
         'store_usage_display',
         'table_usage_display',
@@ -118,7 +120,12 @@ class TenantAdmin(admin.ModelAdmin):
         (
             'Tính năng nâng cao',
             {
-                'fields': ('show_customer_feature', 'show_promotion_feature'),
+                'fields': (
+                    'show_customer_feature',
+                    'show_promotion_feature',
+                    'show_topping_feature',
+                    'show_qr_order_feature',
+                ),
                 'description': 'Điều khiển hiển thị các mục CRM/marketing trong sidebar quản lý và modal thanh toán POS.',
             },
         ),

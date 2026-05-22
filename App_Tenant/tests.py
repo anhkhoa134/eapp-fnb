@@ -23,6 +23,8 @@ class TenantModelTests(TestCase):
         tenant = Tenant.objects.create(name='Tenant Features', public_slug='tenant-features')
         self.assertTrue(tenant.show_customer_feature)
         self.assertTrue(tenant.show_promotion_feature)
+        self.assertTrue(tenant.show_topping_feature)
+        self.assertTrue(tenant.show_qr_order_feature)
 
     def test_unique_manager_per_tenant(self):
         tenant = Tenant.objects.create(name='Tenant A', public_slug='tenant-a')
@@ -89,6 +91,8 @@ class TenantAdminPermissionTests(TestCase):
                 'is_active': True,
                 'show_customer_feature': True,
                 'show_promotion_feature': True,
+                'show_topping_feature': True,
+                'show_qr_order_feature': True,
                 'max_stores': '1',
                 'max_dining_tables': '12',
                 'max_staff_users': '2',

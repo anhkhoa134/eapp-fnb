@@ -40,12 +40,16 @@
             <a class="admin-nav-link {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}" title="Sản phẩm" data-quanly-tip="Sản phẩm">
                 <i class="bi bi-cup-hot" aria-hidden="true"></i><span class="admin-nav-label">Sản phẩm</span>
             </a>
+            {% if user.tenant.show_topping_feature %}
             <a class="admin-nav-link {% if '/quanly/toppings/' in request.path or '/quanly/product-toppings/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:toppings' %}" title="Topping" data-quanly-tip="Topping">
                 <i class="bi bi-plus-circle" aria-hidden="true"></i><span class="admin-nav-label">Topping</span>
             </a>
+            {% endif %}
+            {% if user.tenant.show_qr_order_feature %}
             <a class="admin-nav-link {% if '/quanly/qr-tables/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:qr_tables' %}" title="QR bàn" data-quanly-tip="QR bàn">
                 <i class="bi bi-qr-code-scan" aria-hidden="true"></i><span class="admin-nav-label">QR bàn</span>
             </a>
+            {% endif %}
             <a class="admin-nav-link {% if '/quanly/payment-qr/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:payment_qr_settings' %}" title="QR thanh toán" data-quanly-tip="QR thanh toán">
                 <i class="bi bi-credit-card-2-front" aria-hidden="true"></i><span class="admin-nav-label">QR thanh toán</span>
             </a>

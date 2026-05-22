@@ -56,10 +56,17 @@ class ThousandSeparatedDecimalField(forms.DecimalField):
 class TenantFeatureSettingsForm(forms.ModelForm):
     class Meta:
         model = Tenant
-        fields = ['show_customer_feature', 'show_promotion_feature']
+        fields = [
+            'show_customer_feature',
+            'show_promotion_feature',
+            'show_topping_feature',
+            'show_qr_order_feature',
+        ]
         labels = {
             'show_customer_feature': 'Hiển thị Khách hàng',
             'show_promotion_feature': 'Hiển thị Khuyến mãi',
+            'show_topping_feature': 'Hiển thị Topping / tuỳ chọn món',
+            'show_qr_order_feature': 'Hiển thị QR bàn / gọi món QR',
         }
 
     def __init__(self, *args, **kwargs):

@@ -459,9 +459,81 @@
             font-weight: 800;
             line-height: 1.2;
         }
+        .customer-result-head,
+        .selected-customer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+        .customer-result-head .customer-result-name,
+        .selected-customer-head .selected-customer-name {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
         .customer-result-meta {
             color: #64748b;
             font-size: 0.76rem;
+        }
+        .customer-tier-badge {
+            position: relative;
+            isolation: isolate;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.24rem;
+            min-width: 70px;
+            max-width: 92px;
+            min-height: 22px;
+            padding: 0.14rem 0.46rem;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            font-size: 0.66rem;
+            font-weight: 900;
+            line-height: 1;
+            white-space: nowrap;
+            flex: 0 0 auto;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 7px 15px rgba(15, 23, 42, 0.08);
+        }
+        .customer-tier-badge::before {
+            content: "";
+            position: absolute;
+            inset: 2px;
+            z-index: -1;
+            border-radius: inherit;
+            background: rgba(255, 255, 255, 0.42);
+        }
+        .customer-tier-badge i {
+            font-size: 0.7rem;
+            line-height: 1;
+        }
+        .customer-tier-badge.tier-member {
+            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+            border-color: rgba(100, 116, 139, 0.28);
+            color: #334155;
+        }
+        .customer-tier-badge.tier-silver {
+            background: linear-gradient(135deg, #f8fafc, #cbd5e1 52%, #f1f5f9);
+            border-color: rgba(71, 85, 105, 0.24);
+            color: #334155;
+        }
+        .customer-tier-badge.tier-gold {
+            background: linear-gradient(135deg, #fff7ed, #fbbf24 48%, #fef3c7);
+            border-color: rgba(217, 119, 6, 0.35);
+            color: #7c2d12;
+        }
+        .customer-tier-badge.tier-vip {
+            background: linear-gradient(135deg, #fdf2f8, #db2777 52%, #a855f7);
+            border-color: rgba(190, 24, 93, 0.32);
+            color: #fff;
+            text-shadow: 0 1px 1px rgba(88, 28, 135, 0.35);
+        }
+        .customer-tier-badge.tier-vip::before {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04));
+        }
+        .customer-tier-badge.tier-vip i {
+            color: #fde68a;
         }
         .customer-result-empty {
             padding: 0.55rem 0.62rem;
@@ -477,6 +549,9 @@
             border-radius: 10px;
             background: rgba(16, 185, 129, 0.08);
             padding: 0.45rem 0.52rem;
+        }
+        .selected-customer-card .min-w-0 {
+            flex: 1 1 auto;
         }
         .selected-customer-name,
         .promotion-picker-title {
@@ -965,12 +1040,14 @@
                                 <i class="fa-solid fa-table me-2"></i><span class="nav-label">Chọn bàn</span>
                             </button>
                         </li>
+                        {% if user.tenant.show_qr_order_feature %}
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fw-bold px-3 rounded-pill position-relative" id="tab-online" data-bs-toggle="pill" data-bs-target="#view-online" type="button" role="tab">
                                 <i class="fa-solid fa-qrcode me-2"></i><span class="nav-label">Đơn QR</span>
                                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="nav-online-badge">0</span>
                             </button>
                         </li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>
@@ -993,6 +1070,7 @@
             <!-- Chuông + account: một cụm luôn dính mép phải (mobile/desktop) -->
             <div class="top-nav-end-cluster d-flex align-items-center flex-shrink-0">
                 <ul class="navbar-nav mb-2 mb-lg-0 align-items-lg-center top-nav-tools">
+                    {% if user.tenant.show_qr_order_feature %}
                     <li class="nav-item">
                         <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();">
                             <i class="fa-regular fa-bell fs-5" id="nav-bell-icon"></i>
@@ -1001,6 +1079,7 @@
                             </span>
                         </a>
                     </li>
+                    {% endif %}
                 </ul>
                 <div class="dropdown top-account-dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
@@ -1047,6 +1126,7 @@
                                 <option value="pink">Hồng</option>
                             </select>
                         </li>
+                        {% if user.tenant.show_qr_order_feature %}
                         <li class="px-3 pb-2">
                             <div class="section-label"><i class="fa-solid fa-volume-high me-1"></i>Thông báo QR</div>
                             <div class="d-flex flex-column gap-2">
@@ -1070,6 +1150,7 @@
                                 </div>
                             </div>
                         </li>
+                        {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li class="js-pwa-install-action d-none">
                             <button class="dropdown-item account-action mx-2" type="button">
@@ -1169,6 +1250,7 @@
                         </div>
                     </div>
 
+                    {% if user.tenant.show_qr_order_feature %}
                     <!-- VIEW: ONLINE ORDERS (QR) -->
                     <div class="tab-pane fade h-100 p-3 p-md-4 bg-light" id="view-online" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -1187,6 +1269,7 @@
                             <!-- Orders injected via JS -->
                         </div>
                     </div>
+                    {% endif %}
 
                 </div>
             </div>
@@ -1334,7 +1417,10 @@
                                     </div>
                                     <div class="selected-customer-card mt-2 d-none" id="selected-customer-row">
                                         <div class="min-w-0">
-                                            <div class="selected-customer-name text-truncate" id="selected-customer-name"></div>
+                                            <div class="selected-customer-head">
+                                                <div class="selected-customer-name text-truncate" id="selected-customer-name"></div>
+                                                <div id="selected-customer-tier"></div>
+                                            </div>
                                             <div class="selected-customer-meta" id="selected-customer-meta"></div>
                                         </div>
                                         <button class="btn btn-sm btn-light border flex-shrink-0" type="button" onclick="clearSelectedCustomer()">Bỏ</button>
@@ -1691,6 +1777,8 @@
         const API_QR_ORDERS_BASE = '/api/pos/qr/orders/';
         const TENANT_SHOW_CUSTOMER_FEATURE = {{ user.tenant.show_customer_feature|yesno:"true,false" }};
         const TENANT_SHOW_PROMOTION_FEATURE = {{ user.tenant.show_promotion_feature|yesno:"true,false" }};
+        const TENANT_SHOW_TOPPING_FEATURE = {{ user.tenant.show_topping_feature|yesno:"true,false" }};
+        const TENANT_SHOW_QR_ORDER_FEATURE = {{ user.tenant.show_qr_order_feature|yesno:"true,false" }};
         const QR_FALLBACK_POLL_INTERVAL_MS = 15000;
         const QR_ALERT_COOLDOWN_MS = 2500;
         const QR_BELL_VOLUME = 0.5;
@@ -1721,6 +1809,8 @@
         let availablePromotions = [];
         let selectedPromotion = null;
         let hasPromotionFeature = TENANT_SHOW_PROMOTION_FEATURE;
+        let hasToppingFeature = TENANT_SHOW_TOPPING_FEATURE;
+        let hasQrOrderFeature = TENANT_SHOW_QR_ORDER_FEATURE;
         let currentDiscountAmount = 0;
         let currentDiscountSource = 'none';
         let currentTierDiscountAmount = 0;
@@ -2187,10 +2277,12 @@
         };
 
         const updateNotificationBell = () => {
+            if (!hasQrOrderFeature) return;
             const pendingCount = onlineOrders.length;
             const bellIcon = document.getElementById('nav-bell-icon');
             const bellDot = document.getElementById('nav-bell-dot');
             const onlineBadge = document.getElementById('nav-online-badge');
+            if (!bellIcon || !bellDot || !onlineBadge) return;
             if (pendingCount > 0) {
                 bellIcon.classList.add('fa-solid');
                 bellIcon.classList.remove('fa-regular');
@@ -2208,7 +2300,9 @@
         };
 
         const renderOnlineOrders = () => {
+            if (!hasQrOrderFeature) return;
             const container = document.getElementById('online-orders-container');
+            if (!container) return;
             if (!onlineOrders.length) {
                 const storeName = escapeHtml(getCurrentStoreName());
                 const switchStoreHint = hasMultipleStores()
@@ -2401,11 +2495,11 @@
                     img: item.image || 'https://placehold.co/600x600/png?text=Product',
                     sizes: mappedUnits,
                     default_unit_id: baseUnit.unitId,
-                    toppings: (item.toppings || []).map((top) => ({
+                    toppings: hasToppingFeature ? (item.toppings || []).map((top) => ({
                         id: Number(top.id),
                         name: top.name,
                         price: Number(top.price || 0),
-                    })),
+                    })) : [],
                 };
             });
             renderProducts();
@@ -2430,6 +2524,7 @@
         };
 
         const loadOnlineOrdersFromApi = async ({ notifyCreated = false, createdOrderIds = [] } = {}) => {
+            if (!hasQrOrderFeature) return { newOrders: [], orders: [] };
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId, status: 'pending' });
             const payload = await fetchJson(`${API_QR_ORDERS_URL}?${params.toString()}`);
@@ -2468,6 +2563,7 @@
         };
 
         const refreshQrAndTables = async ({ notifyCreated = false, createdOrderIds = [] } = {}) => {
+            if (!hasQrOrderFeature) return false;
             if (document.hidden || !currentStoreId || qrPollInFlight) return false;
             qrPollInFlight = true;
             try {
@@ -2484,6 +2580,7 @@
         };
 
         const startFallbackPolling = () => {
+            if (!hasQrOrderFeature) return;
             if (qrFallbackPollTimer) return;
             qrFallbackPollTimer = setInterval(() => {
                 refreshQrAndTables();
@@ -2514,6 +2611,7 @@
         };
 
         const schedulePosQrSocketReconnect = () => {
+            if (!hasQrOrderFeature) return;
             if (!currentStoreId || posQrSocketReconnectTimer) return;
             startFallbackPolling();
             posQrSocketReconnectTimer = setTimeout(() => {
@@ -2556,6 +2654,7 @@
         };
 
         const connectPosQrSocket = () => {
+            if (!hasQrOrderFeature) return;
             if (!currentStoreId) return;
             if (!('WebSocket' in window)) {
                 startFallbackPolling();
@@ -3068,6 +3167,7 @@
         const addToCart = async ({ productId, unitId, unitName, unitPrice, toppings = [], note = '', element = null }) => {
             const product = products.find((p) => p.id === productId);
             if (!product || !unitId) return;
+            if (!hasToppingFeature) toppings = [];
             const toppingIds = toppings.map((row) => Number(row.id));
             const finalPrice = Number(unitPrice || 0) + toppings.reduce((sum, row) => sum + Number(row.price || 0), 0);
 
@@ -3300,21 +3400,38 @@
             return `${customer.name} - ${customer.phone} - ${tier} - ${points} điểm`;
         };
 
+        const normalizeCustomerTierKey = (customer) => {
+            const rawTier = String(customer?.tier || customer?.tier_label || 'member').toLowerCase();
+            if (rawTier.includes('vip')) return 'vip';
+            if (rawTier.includes('gold')) return 'gold';
+            if (rawTier.includes('silver')) return 'silver';
+            return 'member';
+        };
+
+        const customerTierLabel = (customer) => customer?.tier_label || customer?.tier || 'Member';
+
+        const customerTierBadgeHtml = (customer) => {
+            const tierKey = normalizeCustomerTierKey(customer);
+            return `<span class="customer-tier-badge tier-${tierKey}"><i class="fa-solid fa-gem" aria-hidden="true"></i>${escapeHtml(customerTierLabel(customer))}</span>`;
+        };
+
         const updateSelectedCustomerUi = () => {
             const row = document.getElementById('selected-customer-row');
             const nameEl = document.getElementById('selected-customer-name');
             const metaEl = document.getElementById('selected-customer-meta');
-            if (!row || !nameEl || !metaEl) return;
+            const tierEl = document.getElementById('selected-customer-tier');
+            if (!row || !nameEl || !metaEl || !tierEl) return;
             row.classList.toggle('d-none', !selectedCustomer);
             if (selectedCustomer) {
-                const tier = selectedCustomer.tier_label || selectedCustomer.tier || 'Member';
                 const points = Number(selectedCustomer.points_balance || 0);
                 const discountPercent = Number(selectedCustomer.tier_discount_percent || 0);
                 const discountText = discountPercent > 0 ? ` · Ưu đãi ${discountPercent}%` : '';
                 nameEl.textContent = selectedCustomer.name || '';
-                metaEl.textContent = `${selectedCustomer.phone || ''} · ${tier} · ${points} điểm${discountText}`;
+                tierEl.innerHTML = customerTierBadgeHtml(selectedCustomer);
+                metaEl.textContent = `${selectedCustomer.phone || ''} · ${points} điểm${discountText}`;
             } else {
                 nameEl.textContent = '';
+                tierEl.innerHTML = '';
                 metaEl.textContent = '';
             }
         };
@@ -3382,13 +3499,15 @@
                 item.type = 'button';
                 item.className = 'customer-result-item';
                 item.dataset.customerValue = value;
-                const tier = customer.tier_label || customer.tier || 'Member';
                 const points = Number(customer.points_balance || 0);
                 const discountPercent = Number(customer.tier_discount_percent || 0);
                 const discountText = discountPercent > 0 ? ` · Ưu đãi ${discountPercent}%` : '';
                 item.innerHTML = `
-                    <div class="customer-result-name">${escapeHtml(customer.name || '')}</div>
-                    <div class="customer-result-meta">${escapeHtml(customer.phone || '')} · ${escapeHtml(tier)} · ${points} điểm${discountText}</div>
+                    <div class="customer-result-head">
+                        <div class="customer-result-name text-truncate">${escapeHtml(customer.name || '')}</div>
+                        ${customerTierBadgeHtml(customer)}
+                    </div>
+                    <div class="customer-result-meta">${escapeHtml(customer.phone || '')} · ${points} điểm${discountText}</div>
                 `;
                 item.addEventListener('click', () => setSelectedCustomer(customer));
                 results.appendChild(item);
@@ -3853,10 +3972,14 @@
         const bootstrapPage = async () => {
             try {
                 await loadProductsFromApi();
-                await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi()]);
+                if (hasQrOrderFeature) {
+                    await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi()]);
+                } else {
+                    await loadTablesFromApi();
+                }
                 await selectTakeaway();
                 syncOrderContextUi();
-                connectPosQrSocket();
+                if (hasQrOrderFeature) connectPosQrSocket();
             } catch (error) {
                 showToast(error.message || 'Không tải được dữ liệu ban đầu.', 'danger');
             }
@@ -3991,7 +4114,7 @@
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 refreshQrAndTables();
-                if (window.WebSocket && (!posQrSocket || posQrSocket.readyState === WebSocket.CLOSED)) {
+                if (hasQrOrderFeature && window.WebSocket && (!posQrSocket || posQrSocket.readyState === WebSocket.CLOSED)) {
                     connectPosQrSocket();
                 }
             }

@@ -27,7 +27,7 @@
                 </select>
             </div>
             <div class="col-12 col-md-4 d-flex flex-wrap gap-2">
-                <button class="btn btn-primary" type="submit">Lọc</button>
+                <button class="btn btn-primary" type="submit"><i class="bi bi-funnel me-1"></i>Lọc</button>
                 <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:customers' %}">
                     <i class="bi bi-x-lg me-1"></i>Xóa lọc
                 </a>
@@ -55,7 +55,7 @@
             <div class="col-6 col-lg-3">
                 <div class="border rounded-3 p-3 h-100">
                     <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                        <span class="payment-pill pill-tag"><i class="bi bi-award" aria-hidden="true"></i>{{ setting.get_tier_display }}</span>
+                        <span class="payment-pill customer-tier-pill tier-{{ setting.tier }}"><i class="bi bi-gem" aria-hidden="true"></i>{{ setting.get_tier_display }}</span>
                         <span class="fw-bold text-success">{{ setting.discount_percent|floatformat:2 }}%</span>
                     </div>
                     <div class="small text-muted">Từ tổng chi tiêu</div>
@@ -90,7 +90,7 @@
                             <div class="small text-muted">{{ customer.phone }}{% if customer.email %} · {{ customer.email }}{% endif %}</div>
                             {% if customer.note %}<div class="small text-muted fst-italic">{{ customer.note }}</div>{% endif %}
                         </td>
-                        <td><span class="payment-pill pill-tag"><i class="bi bi-award" aria-hidden="true"></i>{{ customer.get_tier_display }}</span></td>
+                        <td><span class="payment-pill customer-tier-pill tier-{{ customer.tier }}"><i class="bi bi-gem" aria-hidden="true"></i>{{ customer.get_tier_display }}</span></td>
                         <td class="text-end fw-semibold">{{ customer.points_balance|thousand_sep }}</td>
                         <td class="text-end fw-semibold text-success">{{ customer.total_spent|thousand_sep }} đ</td>
                         <td>{% if customer.last_order_at %}{{ customer.last_order_at|date:'d/m/Y H:i' }}{% else %}<span class="text-muted small">Chưa mua</span>{% endif %}</td>
@@ -99,29 +99,23 @@
                             <div class="d-flex flex-wrap gap-1 justify-content-end">
                                 <button
                                     class="btn btn-sm btn-outline-primary js-edit-customer"
-                                    type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#editCustomerModal"
-                                    data-action="{% url 'App_Quanly:customer_edit' customer.id %}"
-                                    data-name="{{ customer.name|escape }}"
-                                    data-phone="{{ customer.phone|escape }}"
-                                    data-email="{{ customer.email|escape }}"
-                                    data-note="{{ customer.note|escape }}"
-                                    data-active="{% if customer.is_active %}1{% else %}0{% endif %}"
-                                >
-                                    <i class="bi bi-pencil me-1"></i>Sửa
-                                </button>
-                                <button
-                                    class="btn btn-sm btn-outline-danger js-delete-customer"
-                                    type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deleteCustomerModal"
-                                    data-action="{% url 'App_Quanly:customer_delete' customer.id %}"
-                                    data-name="{{ customer.name|escape }}"
-                                >
-                                    <i class="bi bi-trash me-1"></i>Xóa
-                                </button>
-                            </div>
+                                        type="button"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#editCustomerModal"
+                                        data-action="{% url 'App_Quanly:customer_edit' customer.id %}"
+                                        data-name="{{ customer.name|escape }}"
+                                        data-phone="{{ customer.phone|escape }}"
+                                        data-email="{{ customer.email|escape }}"
+                                        data-note="{{ customer.note|escape }}"
+                                        data-active="{% if customer.is_active %}1{% else %}0{% endif %}"
+                                        data-delete-action="{% url 'App_Quanly:customer_delete' customer.id %}"
+                                        data-delete-name="{{ customer.name|escape }}"
+                                        title="Sửa"
+                                        aria-label="Sửa"
+                                    >
+                                        <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                    </button>
+                                </div>
                         </td>
                     </tr>
                     {% empty %}
@@ -175,8 +169,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu khách hàng</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu khách hàng</button>
                 </div>
             </form>
         </div>
@@ -206,22 +200,22 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>Member</span></td>
+                                    <td><span class="payment-pill customer-tier-pill tier-member"><i class="bi bi-gem" aria-hidden="true"></i>Member</span></td>
                                     <td>{{ tier_settings_form.member_min_total_spent }}{{ tier_settings_form.member_min_total_spent.errors }}</td>
                                     <td>{{ tier_settings_form.member_discount_percent }}{{ tier_settings_form.member_discount_percent.errors }}</td>
                                 </tr>
                                 <tr>
-                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>Silver</span></td>
+                                    <td><span class="payment-pill customer-tier-pill tier-silver"><i class="bi bi-gem" aria-hidden="true"></i>Silver</span></td>
                                     <td>{{ tier_settings_form.silver_min_total_spent }}{{ tier_settings_form.silver_min_total_spent.errors }}</td>
                                     <td>{{ tier_settings_form.silver_discount_percent }}{{ tier_settings_form.silver_discount_percent.errors }}</td>
                                 </tr>
                                 <tr>
-                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>Gold</span></td>
+                                    <td><span class="payment-pill customer-tier-pill tier-gold"><i class="bi bi-gem" aria-hidden="true"></i>Gold</span></td>
                                     <td>{{ tier_settings_form.gold_min_total_spent }}{{ tier_settings_form.gold_min_total_spent.errors }}</td>
                                     <td>{{ tier_settings_form.gold_discount_percent }}{{ tier_settings_form.gold_discount_percent.errors }}</td>
                                 </tr>
                                 <tr>
-                                    <td><span class="payment-pill pill-tag"><i class="bi bi-award"></i>VIP</span></td>
+                                    <td><span class="payment-pill customer-tier-pill tier-vip"><i class="bi bi-gem" aria-hidden="true"></i>VIP</span></td>
                                     <td>{{ tier_settings_form.vip_min_total_spent }}{{ tier_settings_form.vip_min_total_spent.errors }}</td>
                                     <td>{{ tier_settings_form.vip_discount_percent }}{{ tier_settings_form.vip_discount_percent.errors }}</td>
                                 </tr>
@@ -231,8 +225,8 @@
                     <div class="small text-muted">Sau khi lưu, hệ thống tính lại hạng của toàn bộ khách hàng theo ngưỡng mới.</div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu cấu hình</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu cấu hình</button>
                 </div>
             </form>
         </div>
@@ -273,11 +267,14 @@
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
-                </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteCustomerModal">
+                            <i class="bi bi-trash me-1"></i>Xóa
+                        </button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
+                    </div>
             </form>
         </div>
     </div>
@@ -297,8 +294,8 @@
                     <p class="small text-muted mb-0">Dữ liệu khách hàng sẽ bị xóa khỏi danh sách quản lý. Các đơn hàng cũ vẫn được giữ lại.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -323,28 +320,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!digits) return '0';
         return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     };
-    document.querySelectorAll('[data-money-thousand-input="1"]').forEach((input) => {
-        input.value = formatThousands(input.value);
-        input.addEventListener('input', () => {
+        document.querySelectorAll('[data-money-thousand-input="1"]').forEach((input) => {
             input.value = formatThousands(input.value);
+            input.addEventListener('input', () => {
+                input.value = formatThousands(input.value);
+            });
+        });
+        const deleteCustomerForm = document.getElementById('deleteCustomerForm');
+        const deleteCustomerName = document.getElementById('deleteCustomerName');
+        document.querySelectorAll('.js-edit-customer').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.getElementById('editCustomerForm').action = button.dataset.action || '';
+                document.getElementById('edit-customer-name').value = button.dataset.name || '';
+                document.getElementById('edit-customer-phone').value = button.dataset.phone || '';
+                document.getElementById('edit-customer-email').value = button.dataset.email || '';
+                document.getElementById('edit-customer-note').value = button.dataset.note || '';
+                document.getElementById('edit-customer-active').checked = button.dataset.active === '1';
+                if (deleteCustomerForm) deleteCustomerForm.action = button.dataset.deleteAction || '';
+                if (deleteCustomerName) deleteCustomerName.textContent = button.dataset.deleteName || '';
+            });
         });
     });
-    document.querySelectorAll('.js-edit-customer').forEach((button) => {
-        button.addEventListener('click', () => {
-            document.getElementById('editCustomerForm').action = button.dataset.action || '';
-            document.getElementById('edit-customer-name').value = button.dataset.name || '';
-            document.getElementById('edit-customer-phone').value = button.dataset.phone || '';
-            document.getElementById('edit-customer-email').value = button.dataset.email || '';
-            document.getElementById('edit-customer-note').value = button.dataset.note || '';
-            document.getElementById('edit-customer-active').checked = button.dataset.active === '1';
-        });
-    });
-    document.querySelectorAll('.js-delete-customer').forEach((button) => {
-        button.addEventListener('click', () => {
-            document.getElementById('deleteCustomerForm').action = button.dataset.action || '';
-            document.getElementById('deleteCustomerName').textContent = button.dataset.name || '';
-        });
-    });
-});
 </script>
 {% endblock %}

@@ -86,17 +86,31 @@ class QuanlyPermissionTests(TestCase):
         html = res.content.decode('utf-8')
         self.assertIn(f'href="{reverse("App_Quanly:customers")}"', html)
         self.assertIn(f'href="{reverse("App_Quanly:promotions")}"', html)
+        self.assertIn(f'href="{reverse("App_Quanly:toppings")}"', html)
+        self.assertIn(f'href="{reverse("App_Quanly:qr_tables")}"', html)
 
     def test_sidebar_hides_customer_and_promotion_links_when_disabled(self):
         self.tenant.show_customer_feature = False
         self.tenant.show_promotion_feature = False
-        self.tenant.save(update_fields=['show_customer_feature', 'show_promotion_feature', 'updated_at'])
+        self.tenant.show_topping_feature = False
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(
+            update_fields=[
+                'show_customer_feature',
+                'show_promotion_feature',
+                'show_topping_feature',
+                'show_qr_order_feature',
+                'updated_at',
+            ]
+        )
         self.client.login(username='manager_demo', password='123456')
         res = self.client.get(reverse('App_Quanly:account'))
         self.assertEqual(res.status_code, 200)
         html = res.content.decode('utf-8')
         self.assertNotIn(f'href="{reverse("App_Quanly:customers")}"', html)
         self.assertNotIn(f'href="{reverse("App_Quanly:promotions")}"', html)
+        self.assertNotIn(f'href="{reverse("App_Quanly:toppings")}"', html)
+        self.assertNotIn(f'href="{reverse("App_Quanly:qr_tables")}"', html)
 
     def test_manager_can_update_feature_visibility_settings(self):
         self.client.login(username='manager_demo', password='123456')
@@ -111,6 +125,16 @@ class QuanlyPermissionTests(TestCase):
         self.tenant.refresh_from_db()
         self.assertTrue(self.tenant.show_customer_feature)
         self.assertFalse(self.tenant.show_promotion_feature)
+        self.assertFalse(self.tenant.show_topping_feature)
+        self.assertFalse(self.tenant.show_qr_order_feature)
+
+    def test_disabled_topping_and_qr_pages_return_forbidden(self):
+        self.tenant.show_topping_feature = False
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(update_fields=['show_topping_feature', 'show_qr_order_feature', 'updated_at'])
+        self.client.login(username='manager_demo', password='123456')
+        self.assertEqual(self.client.get(reverse('App_Quanly:toppings')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Quanly:qr_tables')).status_code, 403)
 
     def test_staff_cannot_update_feature_visibility_settings(self):
         self.client.login(username='staff_demo', password='123456')
@@ -125,6 +149,8 @@ class QuanlyPermissionTests(TestCase):
         self.tenant.refresh_from_db()
         self.assertTrue(self.tenant.show_customer_feature)
         self.assertTrue(self.tenant.show_promotion_feature)
+        self.assertTrue(self.tenant.show_topping_feature)
+        self.assertTrue(self.tenant.show_qr_order_feature)
 
     def test_staff_cannot_access_customer_and_promotion_pages(self):
         self.client.login(username='staff_demo', password='123456')
@@ -141,6 +167,9 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="editCategoryModal"', html)
         self.assertIn('id="deleteCategoryModal"', html)
         self.assertIn('class="btn btn-sm btn-outline-primary js-edit-category"', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:category_delete", kwargs={"pk": category.id})}"', html)
+        self.assertIn('data-bs-target="#deleteCategoryModal"', html)
+        self.assertNotIn('js-delete-category', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:category_edit", kwargs={"pk": category.id})}"',
             html,
@@ -150,6 +179,7 @@ class QuanlyPermissionTests(TestCase):
         self.client.login(username='manager_demo', password='123456')
         category = Category.objects.create(tenant=self.tenant, name='Món chính')
         product = Product.objects.create(tenant=self.tenant, category=category, name='Phở')
+        unit = ProductUnit.objects.create(product=product, name='Tô', price=Decimal('50000'))
         res = self.client.get(reverse('App_Quanly:products'))
         self.assertEqual(res.status_code, 200)
         html = res.content.decode('utf-8')
@@ -157,6 +187,12 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="editProductModal"', html)
         self.assertIn('id="deleteProductModal"', html)
         self.assertIn('id="addUnitModal"', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:product_delete", kwargs={"pk": product.id})}"', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:unit_delete", kwargs={"pk": unit.id})}"', html)
+        self.assertIn('data-bs-target="#deleteProductModal"', html)
+        self.assertIn('data-bs-target="#deleteUnitModal"', html)
+        self.assertNotIn('js-delete-product', html)
+        self.assertNotIn('js-delete-unit', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:product_edit", kwargs={"pk": product.id})}"',
             html,
@@ -172,6 +208,10 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="createMappingModal"', html)
         self.assertIn('id="editToppingModal"', html)
         self.assertIn('id="editMappingModal"', html)
+        self.assertIn('id="deleteToppingModal"', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:topping_delete", kwargs={"pk": topping.id})}"', html)
+        self.assertIn('data-bs-target="#deleteToppingModal"', html)
+        self.assertNotIn('js-delete-topping', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:topping_edit", kwargs={"pk": topping.id})}"',
             html,
@@ -192,6 +232,9 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="createTableModal"', html)
         self.assertIn('id="editTableModal"', html)
         self.assertIn('id="deleteTableModal"', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:qr_table_delete", kwargs={"pk": table.id})}"', html)
+        self.assertIn('data-bs-target="#deleteTableModal"', html)
+        self.assertNotIn('js-delete-table', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:qr_table_edit", kwargs={"pk": table.id})}"',
             html,
@@ -206,6 +249,9 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="editStaffModal"', html)
         self.assertIn('id="deleteStaffModal"', html)
         self.assertIn('id="resetStaffPasswordModal"', html)
+        self.assertIn(f'data-delete-url="{reverse("App_Quanly:staff_delete", kwargs={"pk": self.staff.id})}"', html)
+        self.assertIn('data-bs-target="#deleteStaffModal"', html)
+        self.assertNotIn('js-delete-staff', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:staff_password_reset", kwargs={"pk": self.staff.id})}"',
             html,
@@ -228,7 +274,9 @@ class QuanlyPermissionTests(TestCase):
         self.assertNotIn('5000000.00', html)
         self.assertIn('name="silver_min_total_spent" value="5.000.000" placeholder="VD: 5.000.000" inputmode="numeric" autocomplete="off" data-money-thousand-input="1" class="form-control"', html)
         self.assertIn('name="silver_discount_percent" value="3.00" placeholder="VD: 3" inputmode="decimal" autocomplete="off" class="form-control"', html)
-        self.assertIn('js-delete-customer', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:customer_delete", kwargs={"pk": customer.id})}"', html)
+        self.assertIn('data-bs-target="#deleteCustomerModal"', html)
+        self.assertNotIn('js-delete-customer', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:customer_edit", kwargs={"pk": customer.id})}"',
             html,
@@ -293,7 +341,9 @@ class QuanlyPermissionTests(TestCase):
         self.assertIn('id="editPromotionModal"', html)
         self.assertIn('id="edit-promotion-active"', html)
         self.assertIn('id="deletePromotionModal"', html)
-        self.assertIn('js-delete-promotion', html)
+        self.assertIn(f'data-delete-action="{reverse("App_Quanly:promotion_delete", kwargs={"pk": promotion.id})}"', html)
+        self.assertIn('data-bs-target="#deletePromotionModal"', html)
+        self.assertNotIn('js-delete-promotion', html)
         self.assertNotIn(
             f'href="{reverse("App_Quanly:promotion_edit", kwargs={"pk": promotion.id})}"',
             html,

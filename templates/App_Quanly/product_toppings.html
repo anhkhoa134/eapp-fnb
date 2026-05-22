@@ -13,7 +13,7 @@
                 <form method="post">
                     {% csrf_token %}
                     {{ form.as_p }}
-                    <button class="btn btn-primary" type="submit">Lưu gán topping</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu gán topping</button>
                 </form>
             </div>
         </div>
@@ -42,10 +42,12 @@
                             <td>{{ mapping.topping.name }}</td>
                             <td>{{ mapping.price|thousand_sep }} đ</td>
                             <td class="text-end">
-                                <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:product_topping_edit' mapping.id %}">Sửa</a>
+                                    <a class="btn btn-sm btn-outline-primary" href="{% url 'App_Quanly:product_topping_edit' mapping.id %}" title="Sửa" aria-label="Sửa">
+                                        <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                    </a>
                                 <form method="post" action="{% url 'App_Quanly:product_topping_delete' mapping.id %}" class="d-inline">
                                     {% csrf_token %}
-                                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa gán topping này?')">Xóa</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa gán topping này?')"><i class="bi bi-trash me-1"></i>Xóa</button>
                                 </form>
                             </td>
                         </tr>

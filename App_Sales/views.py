@@ -80,6 +80,15 @@ def _parse_decimal(raw_value, *, default='0', field='value'):
         raise ValueError(f'{field} không hợp lệ.')
 
 
+def _has_requested_toppings(raw_topping_ids) -> bool:
+    if raw_topping_ids in (None, '', []):
+        return False
+    try:
+        return bool(parse_topping_ids(raw_topping_ids))
+    except ValueError:
+        return True
+
+
 def _serialize_topping_rows(topping_rows):
     return [
         {
@@ -494,14 +503,15 @@ def api_products(request):
             continue
 
         toppings_payload = []
-        for topping_link in product.topping_links.all():
-            toppings_payload.append(
-                {
-                    'id': topping_link.topping_id,
-                    'name': topping_link.topping.name,
-                    'price': float((getattr(topping_link.topping, 'price', None) or topping_link.price)),
-                }
-            )
+        if user.tenant.show_topping_feature:
+            for topping_link in product.topping_links.all():
+                toppings_payload.append(
+                    {
+                        'id': topping_link.topping_id,
+                        'name': topping_link.topping.name,
+                        'price': float((getattr(topping_link.topping, 'price', None) or topping_link.price)),
+                    }
+                )
 
         products.append(
             {
@@ -677,10 +687,13 @@ def api_checkout(request):
             if not unit:
                 return _json_error(f'Sản phẩm hoặc đơn vị không hợp lệ: {product_id}/{unit_id}', 400)
 
+            raw_topping_ids = item.get('topping_ids')
+            if not user.tenant.show_topping_feature and _has_requested_toppings(raw_topping_ids):
+                return _json_error('Tính năng topping đang tắt.', 400)
             try:
                 topping_links = _resolve_topping_links_for_unit(
                     unit=unit,
-                    raw_topping_ids=item.get('topping_ids'),
+                    raw_topping_ids=raw_topping_ids,
                 )
             except ValueError as exc:
                 return _json_error(str(exc), 400)
@@ -832,12 +845,14 @@ def api_tables(request):
         )
     }
 
-    pending_aggs = {
-        row['table_id']: int(row['pending_count'])
-        for row in QROrder.objects.filter(table__in=tables_qs, status=QROrder.Status.PENDING)
-        .values('table_id')
-        .annotate(pending_count=Count('id'))
-    }
+    pending_aggs = {}
+    if user.tenant.show_qr_order_feature:
+        pending_aggs = {
+            row['table_id']: int(row['pending_count'])
+            for row in QROrder.objects.filter(table__in=tables_qs, status=QROrder.Status.PENDING)
+            .values('table_id')
+            .annotate(pending_count=Count('id'))
+        }
 
     tables = []
     for table in tables_qs:
@@ -927,10 +942,13 @@ def api_table_cart_add(request, table_id):
     if not unit:
         return _json_error('Sản phẩm hoặc đơn vị không hợp lệ.', 400)
 
+    raw_topping_ids = payload.get('topping_ids')
+    if not user.tenant.show_topping_feature and _has_requested_toppings(raw_topping_ids):
+        return _json_error('Tính năng topping đang tắt.', 400)
     try:
         topping_links = _resolve_topping_links_for_unit(
             unit=unit,
-            raw_topping_ids=payload.get('topping_ids'),
+            raw_topping_ids=raw_topping_ids,
         )
     except ValueError as exc:
         return _json_error(str(exc), 400)
@@ -996,10 +1014,13 @@ def api_table_import_takeaway(request, table_id):
         )
         if not unit:
             return _json_error('Sản phẩm hoặc đơn vị không hợp lệ.', 400)
+        raw_topping_ids = row.get('topping_ids')
+        if not user.tenant.show_topping_feature and _has_requested_toppings(raw_topping_ids):
+            return _json_error('Tính năng topping đang tắt.', 400)
         try:
             topping_links = _resolve_topping_links_for_unit(
                 unit=unit,
-                raw_topping_ids=row.get('topping_ids'),
+                raw_topping_ids=raw_topping_ids,
             )
         except ValueError as exc:
             return _json_error(str(exc), 400)
@@ -1162,6 +1183,8 @@ def api_table_cart_item(request, table_id, item_id):
 
     update_fields = ['note', 'quantity', 'updated_at']
     if topping_ids is not None:
+        if not user.tenant.show_topping_feature:
+            return _json_error('Tính năng topping đang tắt.', 400)
         if not item.unit_id:
             return _json_error('Không thể cập nhật topping cho item không có unit.', 400)
         try:
@@ -1328,6 +1351,9 @@ def api_table_checkout(request, table_id):
 @require_GET
 def api_qr_orders(request):
     user = request.user
+    if not user.tenant.show_qr_order_feature:
+        return _json_error('Tính năng gọi món QR đang tắt.', 403)
+
     store = get_accessible_store_or_default(user, request.GET.get('store_id'))
     if not store:
         return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
@@ -1394,6 +1420,8 @@ def api_qr_orders(request):
 @require_POST
 def api_qr_order_approve(request, order_id):
     user = request.user
+    if not user.tenant.show_qr_order_feature:
+        return _json_error('Tính năng gọi món QR đang tắt.', 403)
 
     with transaction.atomic():
         order = get_object_or_404(
@@ -1452,6 +1480,9 @@ def api_qr_order_approve(request, order_id):
 @require_POST
 def api_qr_order_reject(request, order_id):
     user = request.user
+    if not user.tenant.show_qr_order_feature:
+        return _json_error('Tính năng gọi món QR đang tắt.', 403)
+
     payload = _parse_json_request(request)
     if payload is None:
         payload = {}

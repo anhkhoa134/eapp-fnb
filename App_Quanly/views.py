@@ -55,6 +55,10 @@ def _tenant_or_404(user):
     return user.tenant
 
 
+def _feature_disabled_response(message):
+    return HttpResponse(message, status=403)
+
+
 QUANLY_LIST_PER_PAGE = 20
 
 
@@ -1010,6 +1014,8 @@ def unit_delete(request, pk):
 @manager_required
 def topping_list_create(request):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_topping_feature:
+        return _feature_disabled_response('Tính năng topping đang tắt.')
     toppings = (
         Topping.objects.filter(tenant=tenant)
         .prefetch_related(Prefetch('product_links', queryset=ProductTopping.objects.only('id', 'product_id', 'topping_id')))
@@ -1063,6 +1069,8 @@ def topping_list_create(request):
 @manager_required
 def topping_edit(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_topping_feature:
+        return _feature_disabled_response('Tính năng topping đang tắt.')
     topping = get_object_or_404(Topping, pk=pk, tenant=tenant)
     if request.method != 'POST':
         return redirect('App_Quanly:toppings')
@@ -1081,6 +1089,8 @@ def topping_edit(request, pk):
 @require_POST
 def topping_delete(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_topping_feature:
+        return _feature_disabled_response('Tính năng topping đang tắt.')
     topping = get_object_or_404(Topping, pk=pk, tenant=tenant)
     topping.delete()
     messages.success(request, 'Đã xóa topping.')
@@ -1089,12 +1099,17 @@ def topping_delete(request, pk):
 
 @manager_required
 def product_topping_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    if not tenant.show_topping_feature:
+        return _feature_disabled_response('Tính năng topping đang tắt.')
     return redirect('App_Quanly:toppings')
 
 
 @manager_required
 def product_topping_edit(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_topping_feature:
+        return _feature_disabled_response('Tính năng topping đang tắt.')
     mapping = get_object_or_404(ProductTopping.objects.select_related('product', 'topping'), pk=pk, product__tenant=tenant)
     if request.method != 'POST':
         return redirect('App_Quanly:toppings')
@@ -1111,6 +1126,8 @@ def product_topping_edit(request, pk):
 @require_POST
 def product_topping_delete(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_topping_feature:
+        return _feature_disabled_response('Tính năng topping đang tắt.')
     mapping = get_object_or_404(ProductTopping, pk=pk, product__tenant=tenant)
     mapping.delete()
     messages.success(request, 'Đã xóa gán topping khỏi sản phẩm.')
@@ -1182,6 +1199,8 @@ def _build_qr_png_buffer(*, qr_url, box_size=8, border=2):
 @manager_required
 def qr_table_list_create(request):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_qr_order_feature:
+        return _feature_disabled_response('Tính năng gọi món QR đang tắt.')
     stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
     selected_store = (request.GET.get('store') or '').strip()
 
@@ -1236,6 +1255,8 @@ def qr_table_list_create(request):
 @manager_required
 def qr_table_edit(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_qr_order_feature:
+        return _feature_disabled_response('Tính năng gọi món QR đang tắt.')
     table = get_object_or_404(DiningTable, pk=pk, tenant=tenant)
     if request.method != 'POST':
         return redirect('App_Quanly:qr_tables')
@@ -1252,6 +1273,8 @@ def qr_table_edit(request, pk):
 @require_POST
 def qr_table_delete(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_qr_order_feature:
+        return _feature_disabled_response('Tính năng gọi món QR đang tắt.')
     table = get_object_or_404(DiningTable, pk=pk, tenant=tenant)
     table.delete()
     messages.success(request, 'Đã xóa bàn QR.')
@@ -1262,6 +1285,8 @@ def qr_table_delete(request, pk):
 @require_POST
 def qr_table_reset_token(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_qr_order_feature:
+        return _feature_disabled_response('Tính năng gọi món QR đang tắt.')
     table = get_object_or_404(DiningTable, pk=pk, tenant=tenant)
 
     new_token = generate_qr_token()
@@ -1277,6 +1302,8 @@ def qr_table_reset_token(request, pk):
 @manager_required
 def qr_table_png(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_qr_order_feature:
+        return _feature_disabled_response('Tính năng gọi món QR đang tắt.')
     table = get_object_or_404(DiningTable.objects.select_related('store'), pk=pk, tenant=tenant)
     qr_url = _build_table_qr_url(request, tenant_slug=tenant.public_slug, table=table)
     png_buffer = _build_qr_png_buffer(qr_url=qr_url)
@@ -1287,6 +1314,8 @@ def qr_table_png(request, pk):
 @manager_required
 def qr_tables_store_pdf(request):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_qr_order_feature:
+        return _feature_disabled_response('Tính năng gọi món QR đang tắt.')
     store_id = (request.GET.get('store') or '').strip()
     if not store_id.isdigit():
         return HttpResponse('Thiếu store hợp lệ để in PDF.', status=400)

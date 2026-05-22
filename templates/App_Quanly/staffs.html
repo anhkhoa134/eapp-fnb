@@ -46,7 +46,7 @@
                         <td class="text-end">
                             <div class="d-flex flex-wrap gap-1 justify-content-end">
                                 <button
-                                    class="btn btn-sm btn-outline-secondary js-edit-staff"
+                                        class="btn btn-sm btn-outline-primary js-edit-staff"
                                     type="button"
                                     data-bs-toggle="modal"
                                     data-bs-target="#editStaffModal"
@@ -54,12 +54,15 @@
                                     data-username="{{ staff.username|escape }}"
                                     data-store-ids="{% for a in staff.store_accesses.all %}{{ a.store_id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                                     data-default-store-id="{% for a in staff.store_accesses.all %}{% if a.is_default %}{{ a.store_id }}{% endif %}{% endfor %}"
-                                    data-is-active="{% if staff.is_active %}1{% else %}0{% endif %}"
-                                >
-                                    <i class="bi bi-pencil me-1"></i>Sửa
-                                </button>
+                                        data-is-active="{% if staff.is_active %}1{% else %}0{% endif %}"
+                                        data-delete-url="{% url 'App_Quanly:staff_delete' staff.id %}"
+                                        title="Sửa"
+                                        aria-label="Sửa"
+                                    >
+                                        <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                    </button>
                                 <button
-                                    class="btn btn-sm btn-outline-primary js-reset-staff-password"
+                                        class="btn btn-sm btn-outline-primary js-reset-staff-password"
                                     type="button"
                                     data-bs-toggle="modal"
                                     data-bs-target="#resetStaffPasswordModal"
@@ -67,16 +70,6 @@
                                     data-staff-username="{{ staff.username|escape }}"
                                 >
                                     <i class="bi bi-key me-1"></i>Mật khẩu
-                                </button>
-                                <button
-                                    class="btn btn-sm btn-outline-danger js-delete-staff"
-                                    type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deleteStaffModal"
-                                    data-delete-url="{% url 'App_Quanly:staff_delete' staff.id %}"
-                                    data-username="{{ staff.username|escape }}"
-                                >
-                                    <i class="bi bi-trash me-1"></i>Xóa
                                 </button>
                             </div>
                         </td>
@@ -142,8 +135,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu nhân viên</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu nhân viên</button>
                 </div>
             </form>
         </div>
@@ -187,11 +180,14 @@
                             {{ edit_form.store_ids.errors }}
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
-                </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteStaffModal">
+                            <i class="bi bi-trash me-1"></i>Xóa
+                        </button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu thay đổi</button>
+                    </div>
             </form>
         </div>
     </div>
@@ -210,8 +206,8 @@
                     <p class="mb-0">Bạn chắc chắn muốn xóa tài khoản <strong id="deleteStaffUsername"></strong>? Hành động này không thể hoàn tác.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -241,8 +237,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật mật khẩu</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-key me-1"></i>Cập nhật mật khẩu</button>
                 </div>
             </form>
         </div>
@@ -268,6 +264,8 @@
 
         const editForm = document.getElementById('editStaffForm');
         const editUsernameLabel = document.getElementById('editStaffUsernameLabel');
+        const deleteForm = document.getElementById('deleteStaffForm');
+        const deleteStaffUsername = document.getElementById('deleteStaffUsername');
         document.querySelectorAll('.js-edit-staff').forEach((button) => {
             button.addEventListener('click', () => {
                 if (!editForm) return;
@@ -281,13 +279,6 @@
                 if (sel) sel.value = button.dataset.defaultStoreId || '';
                 const ia = editForm.querySelector('input[name="is_active"]');
                 if (ia) ia.checked = button.dataset.isActive === '1';
-            });
-        });
-
-        const deleteForm = document.getElementById('deleteStaffForm');
-        const deleteStaffUsername = document.getElementById('deleteStaffUsername');
-        document.querySelectorAll('.js-delete-staff').forEach((button) => {
-            button.addEventListener('click', () => {
                 if (deleteForm) deleteForm.action = button.dataset.deleteUrl || '';
                 if (deleteStaffUsername) deleteStaffUsername.textContent = button.dataset.username || '';
             });

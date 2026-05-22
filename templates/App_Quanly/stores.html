@@ -74,7 +74,7 @@
                         <td class="text-end">
                             <div class="d-flex flex-wrap gap-1 justify-content-end">
                                 <button
-                                    class="btn btn-sm btn-outline-secondary js-edit-store"
+                                        class="btn btn-sm btn-outline-primary js-edit-store"
                                     type="button"
                                     data-bs-toggle="modal"
                                     data-bs-target="#editStoreModal"
@@ -84,19 +84,13 @@
                                     data-phone="{{ s.phone|default:''|escape }}"
                                     data-is-active="{% if s.is_active %}1{% else %}0{% endif %}"
                                     data-is-default="{% if s.is_default %}1{% else %}0{% endif %}"
-                                >
-                                    <i class="bi bi-pencil me-1"></i>Sửa
-                                </button>
-                                <button
-                                    class="btn btn-sm btn-outline-danger js-delete-store"
-                                    type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deleteStoreModal"
-                                    data-action="{% url 'App_Quanly:store_delete' s.id %}"
-                                    data-name="{{ s.name|escape }}"
-                                >
-                                    <i class="bi bi-trash me-1"></i>Xóa
-                                </button>
+                                        data-delete-action="{% url 'App_Quanly:store_delete' s.id %}"
+                                        data-delete-name="{{ s.name|escape }}"
+                                        title="Sửa"
+                                        aria-label="Sửa"
+                                    >
+                                        <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                    </button>
                             </div>
                         </td>
                     </tr>
@@ -164,8 +158,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Tạo cửa hàng</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Tạo cửa hàng</button>
                 </div>
             </form>
         </div>
@@ -210,11 +204,14 @@
                         </div>
                         <div class="form-text small mt-1">Chỉ nên bật cho một cửa hàng; dùng làm mặc định khi hệ thống cần chọn sẵn cửa.</div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
-                </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteStoreModal">
+                            <i class="bi bi-trash me-1"></i>Xóa
+                        </button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
+                    </div>
             </form>
         </div>
     </div>
@@ -236,8 +233,8 @@
                     <p class="small text-muted mb-0 mt-2">Không thể xóa nếu còn đơn hàng hoặc dữ liệu ràng buộc.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-danger">Xóa</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -254,6 +251,8 @@
         const editPhone = document.getElementById('edit-store-phone');
         const editActive = document.getElementById('edit-store-active');
         const editDefault = document.getElementById('edit-store-default');
+        const deleteForm = document.getElementById('deleteStoreForm');
+        const deleteName = document.getElementById('deleteStoreName');
 
         document.querySelectorAll('.js-edit-store').forEach((button) => {
             button.addEventListener('click', () => {
@@ -263,15 +262,8 @@
                 if (editPhone) editPhone.value = button.dataset.phone || '';
                 if (editActive) editActive.checked = button.dataset.isActive === '1';
                 if (editDefault) editDefault.checked = button.dataset.isDefault === '1';
-            });
-        });
-
-        const deleteForm = document.getElementById('deleteStoreForm');
-        const deleteName = document.getElementById('deleteStoreName');
-        document.querySelectorAll('.js-delete-store').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteForm) deleteForm.action = button.dataset.action || '';
-                if (deleteName) deleteName.textContent = button.dataset.name || '';
+                if (deleteForm) deleteForm.action = button.dataset.deleteAction || '';
+                if (deleteName) deleteName.textContent = button.dataset.deleteName || '';
             });
         });
 

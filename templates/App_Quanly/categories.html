@@ -119,26 +119,20 @@
                                 class="btn btn-sm btn-outline-primary js-edit-category"
                                 type="button"
                                 data-bs-toggle="modal"
-                                data-bs-target="#editCategoryModal"
-                                data-action="{% url 'App_Quanly:category_edit' item.id %}"
-                                data-category-name="{{ item.name|escape }}"
-                                data-category-description="{{ item.description|default:''|escape }}"
-                                data-category-active="{% if item.is_active %}1{% else %}0{% endif %}"
-                                data-category-store-ids="{{ row.visible_store_ids_csv }}"
-                            >
-                                Sửa
-                            </button>
-                            <button
-                                class="btn btn-sm btn-outline-danger js-delete-category"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#deleteCategoryModal"
-                                data-action="{% url 'App_Quanly:category_delete' item.id %}"
-                                data-category-name="{{ item.name|escape }}"
-                            >
-                                Xóa
-                            </button>
-                        </td>
+                                    data-bs-target="#editCategoryModal"
+                                    data-action="{% url 'App_Quanly:category_edit' item.id %}"
+                                    data-category-name="{{ item.name|escape }}"
+                                    data-category-description="{{ item.description|default:''|escape }}"
+                                    data-category-active="{% if item.is_active %}1{% else %}0{% endif %}"
+                                    data-category-store-ids="{{ row.visible_store_ids_csv }}"
+                                    data-delete-action="{% url 'App_Quanly:category_delete' item.id %}"
+                                    data-delete-name="{{ item.name|escape }}"
+                                    title="Sửa"
+                                    aria-label="Sửa"
+                                >
+                                    <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                </button>
+                            </td>
                     </tr>
                     {% endwith %}
                     {% empty %}
@@ -193,15 +187,15 @@
                         <div class="form-check m-0">
                             {{ form.is_active }}
                             <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">
-                                Đang hoạt động (tick để bật)
+                                Đang hoạt động
                             </label>
                         </div>
                         {{ form.is_active.errors }}
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu danh mục</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu danh mục</button>
                 </div>
             </form>
         </div>
@@ -244,14 +238,17 @@
                     <div class="active-toggle">
                         <div class="form-check m-0">
                             <input class="form-check-input" type="checkbox" id="edit-category-active" name="is_active">
-                            <label class="form-check-label fw-semibold" for="edit-category-active">Đang hoạt động (tick để bật)</label>
+                            <label class="form-check-label fw-semibold" for="edit-category-active">Đang hoạt động</label>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
-                </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteCategoryModal">
+                            <i class="bi bi-trash me-1"></i>Xóa
+                        </button>
+                            <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
+                    </div>
             </form>
         </div>
     </div>
@@ -272,8 +269,8 @@
                     <p class="mb-0">Bạn chắc chắn muốn xóa danh mục <strong id="deleteCategoryName"></strong>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-danger">Xóa</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -286,34 +283,29 @@
     document.addEventListener('DOMContentLoaded', () => {
         const editForm = document.getElementById('editCategoryForm');
         const editName = document.getElementById('edit-category-name');
-        const editDescription = document.getElementById('edit-category-description');
-        const editActive = document.getElementById('edit-category-active');
-        const editStoreCheckboxes = Array.from(document.querySelectorAll('.js-edit-store-checkbox'));
+            const editDescription = document.getElementById('edit-category-description');
+            const editActive = document.getElementById('edit-category-active');
+            const editStoreCheckboxes = Array.from(document.querySelectorAll('.js-edit-store-checkbox'));
+            const deleteForm = document.getElementById('deleteCategoryForm');
+            const deleteName = document.getElementById('deleteCategoryName');
 
-        document.querySelectorAll('.js-edit-category').forEach((button) => {
-            button.addEventListener('click', () => {
-                const storeIds = (button.dataset.categoryStoreIds || '')
-                    .split(',')
-                    .map((value) => value.trim())
+            document.querySelectorAll('.js-edit-category').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const storeIds = (button.dataset.categoryStoreIds || '')
+                        .split(',')
+                        .map((value) => value.trim())
                     .filter(Boolean);
-                if (editForm) editForm.action = button.dataset.action || '';
-                if (editName) editName.value = button.dataset.categoryName || '';
-                if (editDescription) editDescription.value = button.dataset.categoryDescription || '';
-                if (editActive) editActive.checked = button.dataset.categoryActive === '1';
-                editStoreCheckboxes.forEach((checkbox) => {
-                    checkbox.checked = storeIds.includes(checkbox.value);
+                    if (editForm) editForm.action = button.dataset.action || '';
+                    if (editName) editName.value = button.dataset.categoryName || '';
+                    if (editDescription) editDescription.value = button.dataset.categoryDescription || '';
+                    if (editActive) editActive.checked = button.dataset.categoryActive === '1';
+                    editStoreCheckboxes.forEach((checkbox) => {
+                        checkbox.checked = storeIds.includes(checkbox.value);
+                    });
+                    if (deleteForm) deleteForm.action = button.dataset.deleteAction || '';
+                    if (deleteName) deleteName.textContent = button.dataset.deleteName || '';
                 });
             });
-        });
-
-        const deleteForm = document.getElementById('deleteCategoryForm');
-        const deleteName = document.getElementById('deleteCategoryName');
-        document.querySelectorAll('.js-delete-category').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteForm) deleteForm.action = button.dataset.action || '';
-                if (deleteName) deleteName.textContent = button.dataset.categoryName || '';
-            });
-        });
 
         {% if open_create_modal %}
         const createModalEl = document.getElementById('createCategoryModal');

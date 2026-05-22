@@ -137,6 +137,28 @@ class SalesApiTests(TestCase):
         self.assertEqual(product_payload['toppings'][0]['name'], self.topping.name)
         self.assertEqual(Decimal(str(product_payload['toppings'][0]['price'])), Decimal('6000'))
 
+    def test_disabled_topping_feature_hides_product_toppings_and_rejects_new_topping_selection(self):
+        self.tenant.show_topping_feature = False
+        self.tenant.save(update_fields=['show_topping_feature', 'updated_at'])
+
+        products_res = self.client.get(reverse('App_Sales_API:products'), {'store_id': self.store_1.id})
+        self.assertEqual(products_res.status_code, 200)
+        self.assertEqual(products_res.json()['products'][0]['toppings'], [])
+
+        add_res = self.client.post(
+            reverse('App_Sales_API:table_cart_add', kwargs={'table_id': self.table_1.id}),
+            data=json.dumps(
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                    'topping_ids': [self.topping.id],
+                }
+            ),
+            content_type='application/json',
+        )
+        self.assertEqual(add_res.status_code, 400)
+
     def test_pos_checkout_modal_customer_and_promotion_ui_contract(self):
         res = self.client.get(reverse('App_Sales:pos'))
         self.assertEqual(res.status_code, 200)
@@ -148,6 +170,9 @@ class SalesApiTests(TestCase):
         self.assertIn('id="promotion-dropdown-menu"', html)
         self.assertIn('const TENANT_SHOW_CUSTOMER_FEATURE = true;', html)
         self.assertIn('const TENANT_SHOW_PROMOTION_FEATURE = true;', html)
+        self.assertIn('const TENANT_SHOW_TOPPING_FEATURE = true;', html)
+        self.assertIn('const TENANT_SHOW_QR_ORDER_FEATURE = true;', html)
+        self.assertIn('id="tab-online"', html)
         self.assertNotIn('onclick="searchCustomers()"', html)
         self.assertNotIn('id="customer-search-options"', html)
         self.assertNotIn('id="promotion-select"', html)
@@ -165,6 +190,17 @@ class SalesApiTests(TestCase):
         self.assertIn('id="payment-promotion-panel"', html)
         self.assertIn('const TENANT_SHOW_CUSTOMER_FEATURE = false;', html)
         self.assertIn('const TENANT_SHOW_PROMOTION_FEATURE = false;', html)
+
+    def test_pos_hides_qr_order_ui_when_feature_disabled(self):
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(update_fields=['show_qr_order_feature', 'updated_at'])
+        res = self.client.get(reverse('App_Sales:pos'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        self.assertIn('const TENANT_SHOW_QR_ORDER_FEATURE = false;', html)
+        self.assertNotIn('id="tab-online"', html)
+        self.assertNotIn('id="nav-bell-icon"', html)
+        self.assertNotIn('id="qrSoundToggle"', html)
 
     def test_api_products_forbidden_unassigned_store(self):
         url = reverse('App_Sales_API:products')
@@ -452,6 +488,25 @@ class SalesApiTests(TestCase):
         self.assertEqual(table_payload[self.table_1.id]['status'], 'pending')
         self.assertEqual(table_payload[self.table_2.id]['status'], 'occupied')
 
+    def test_disabled_qr_order_feature_hides_pending_qr_table_state_and_rejects_qr_api(self):
+        QROrder.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            status=QROrder.Status.PENDING,
+            customer_note='Khách gọi món',
+        )
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(update_fields=['show_qr_order_feature', 'updated_at'])
+
+        tables_res = self.client.get(reverse('App_Sales_API:tables'), {'store_id': self.store_1.id})
+        self.assertEqual(tables_res.status_code, 200)
+        table_payload = {row['id']: row for row in tables_res.json()['tables']}
+        self.assertEqual(table_payload[self.table_1.id]['status'], 'empty')
+
+        qr_res = self.client.get(reverse('App_Sales_API:qr_orders'), {'store_id': self.store_1.id})
+        self.assertEqual(qr_res.status_code, 403)
+
     def test_api_customers_search_and_create_quick_customer(self):
         create_url = reverse('App_Sales_API:customers')
         empty_res = self.client.get(create_url)
@@ -617,6 +672,43 @@ class SalesApiTests(TestCase):
             content_type='application/json',
         )
         self.assertEqual(patch_res.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.unit_price_snapshot, Decimal('31000'))
+        self.assertEqual(item.toppings.count(), 1)
+
+    def test_table_cart_patch_empty_toppings_rejected_when_topping_feature_disabled(self):
+        item = TableCartItem.objects.create(
+            tenant=self.tenant,
+            store=self.store_1,
+            table=self.table_1,
+            product=self.product,
+            unit=self.unit,
+            snapshot_product_name=self.product.name,
+            snapshot_unit_name=self.unit.name,
+            unit_price_snapshot=Decimal('31000'),
+            quantity=1,
+            source=TableCartItem.Source.STAFF,
+        )
+        TableCartItemTopping.objects.create(
+            table_cart_item=item,
+            topping=self.topping,
+            snapshot_topping_name=self.topping.name,
+            snapshot_price=Decimal('6000'),
+        )
+        self.tenant.show_topping_feature = False
+        self.tenant.save(update_fields=['show_topping_feature', 'updated_at'])
+
+        patch_url = reverse(
+            'App_Sales_API:table_cart_item',
+            kwargs={'table_id': self.table_1.id, 'item_id': item.id},
+        )
+        patch_res = self.client.patch(
+            patch_url,
+            data=json.dumps({'topping_ids': []}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(patch_res.status_code, 400)
         item.refresh_from_db()
         self.assertEqual(item.unit_price_snapshot, Decimal('31000'))
         self.assertEqual(item.toppings.count(), 1)

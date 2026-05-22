@@ -50,6 +50,25 @@ class RoutingAndPublicTests(TestCase):
         self.assertIn('Gọi món QR', html)
         self.assertIn('qr-bootstrap-data', html)
 
+    def test_public_qr_route_shows_unavailable_when_feature_disabled(self):
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(update_fields=['show_qr_order_feature', 'updated_at'])
+        table = DiningTable.objects.create(
+            tenant=self.tenant,
+            store=self.store,
+            code='QR-OFF',
+            name='Bàn QR tắt',
+            qr_token='off-token',
+            is_active=True,
+            display_order=1,
+        )
+        res = self.client.get(
+            reverse('App_Public:tenant_qr_ordering', kwargs={'public_slug': 'demo'}),
+            {'table_code': table.code, 'token': table.qr_token},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('Tính năng gọi món QR đang tắt', res.content.decode('utf-8'))
+
     def test_root_after_login_renders_pos(self):
         self.client.login(username='staff_demo', password='123456')
         res = self.client.get(reverse('App_Sales:pos'))
@@ -122,6 +141,45 @@ class PublicQrApiTests(TestCase):
         self.assertEqual(order.items.first().quantity, 2)
         self.assertEqual(order.items.first().line_total, Decimal('94000'))
         self.assertEqual(QROrderItemTopping.objects.filter(qr_order_item=order.items.first()).count(), 1)
+
+    def test_public_qr_rejects_create_when_qr_feature_disabled(self):
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(update_fields=['show_qr_order_feature', 'updated_at'])
+        url = reverse('App_Public_API:qr_orders_create')
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(QROrder.objects.count(), 0)
+
+    def test_public_qr_rejects_topping_when_topping_feature_disabled(self):
+        self.tenant.show_topping_feature = False
+        self.tenant.save(update_fields=['show_topping_feature', 'updated_at'])
+        url = reverse('App_Public_API:qr_orders_create')
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                    'topping_ids': [self.topping.id],
+                }
+            ],
+        }
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(QROrder.objects.count(), 0)
 
     def test_public_qr_wrong_token_returns_403(self):
         url = reverse('App_Public_API:qr_orders_create')
@@ -200,6 +258,46 @@ class PublicQrApiTests(TestCase):
         self.assertEqual(body['customer_note'], 'Đổi ghi chú đơn')
         self.assertEqual(body['items'][0]['qty'], 1)
         self.assertEqual(body['items'][0]['topping_ids'], [])
+
+    def test_public_qr_rejects_patch_when_qr_feature_disabled(self):
+        order_id = self._create_pending_order()
+        self.tenant.show_qr_order_feature = False
+        self.tenant.save(update_fields=['show_qr_order_feature', 'updated_at'])
+        url = reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': order_id})
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                }
+            ],
+        }
+        res = self.client.patch(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 403)
+
+    def test_public_qr_rejects_patch_empty_toppings_when_topping_feature_disabled(self):
+        order_id = self._create_pending_order()
+        self.tenant.show_topping_feature = False
+        self.tenant.save(update_fields=['show_topping_feature', 'updated_at'])
+        url = reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': order_id})
+        payload = {
+            'table_code': self.table.code,
+            'token': self.table.qr_token,
+            'items': [
+                {
+                    'product_id': self.product.id,
+                    'unit_id': self.unit.id,
+                    'quantity': 1,
+                    'topping_ids': [],
+                }
+            ],
+        }
+        res = self.client.patch(url, data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(QROrderItemTopping.objects.count(), 1)
 
     def test_public_qr_patch_terminal_order_returns_400(self):
         order_id = self._create_pending_order()

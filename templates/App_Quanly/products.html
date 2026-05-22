@@ -31,10 +31,10 @@
                         data-bs-toggle="modal"
                         data-bs-target="#addUnitModal"
                         data-action="{% url 'App_Quanly:unit_add' product.id %}"
-                        data-product-name="{{ product.name|escape }}"
-                    >
-                        Thêm đơn vị
-                    </button>
+                            data-product-name="{{ product.name|escape }}"
+                        >
+                            <i class="bi bi-plus-lg me-1"></i>Thêm đơn vị
+                        </button>
                     <button
                         class="btn btn-sm btn-outline-primary js-edit-product"
                         type="button"
@@ -49,19 +49,13 @@
                         data-product-has-upload="{% if product.image_file or product.image_thumbnail %}1{% else %}0{% endif %}"
                         data-product-active="{% if product.is_active %}1{% else %}0{% endif %}"
                         data-product-store-ids="{{ row.available_store_ids_csv }}"
-                    >
-                        Sửa
-                    </button>
-                    <button
-                        class="btn btn-sm btn-outline-danger js-delete-product"
-                        type="button"
-                        data-bs-toggle="modal"
-                        data-bs-target="#deleteProductModal"
-                        data-action="{% url 'App_Quanly:product_delete' product.id %}"
-                        data-product-name="{{ product.name|escape }}"
-                    >
-                        Xóa
-                    </button>
+                            data-delete-action="{% url 'App_Quanly:product_delete' product.id %}"
+                            data-delete-name="{{ product.name|escape }}"
+                            title="Sửa"
+                            aria-label="Sửa"
+                        >
+                            <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                        </button>
                 </div>
             </div>
 
@@ -100,20 +94,13 @@
                                     data-unit-display-order="{{ unit.display_order }}"
                                     data-unit-active="{% if unit.is_active %}1{% else %}0{% endif %}"
                                     data-product-name="{{ product.name|escape }}"
-                                >
-                                    Sửa
-                                </button>
-                                <button
-                                    class="btn btn-sm btn-outline-danger js-delete-unit"
-                                    type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deleteUnitModal"
-                                    data-action="{% url 'App_Quanly:unit_delete' unit.id %}"
-                                    data-unit-name="{{ unit.name|escape }}"
-                                    data-product-name="{{ product.name|escape }}"
-                                >
-                                    Xóa
-                                </button>
+                                        data-delete-action="{% url 'App_Quanly:unit_delete' unit.id %}"
+                                        data-delete-name="{{ unit.name|escape }}"
+                                        title="Sửa"
+                                        aria-label="Sửa"
+                                    >
+                                        <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                    </button>
                             </td>
                         </tr>
                         {% empty %}
@@ -185,15 +172,15 @@
                         <div class="full switch-card">
                             <div class="form-check m-0">
                                 {{ form.is_active }}
-                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động</label>
                             </div>
                             {{ form.is_active.errors }}
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu sản phẩm</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu sản phẩm</button>
                 </div>
             </form>
         </div>
@@ -262,14 +249,17 @@
                         <div class="full switch-card">
                             <div class="form-check m-0">
                                 <input class="form-check-input" id="edit-product-active" name="is_active" type="checkbox">
-                                <label class="form-check-label fw-semibold" for="edit-product-active">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="edit-product-active">Đang hoạt động</label>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                    <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteProductModal">
+                        <i class="bi bi-trash me-1"></i>Xóa
+                    </button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
                 </div>
             </form>
         </div>
@@ -289,8 +279,8 @@
                     <p class="mb-0">Bạn chắc chắn muốn xóa sản phẩm <strong id="deleteProductName"></strong>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -329,14 +319,14 @@
                         <div class="full switch-card">
                             <div class="form-check m-0">
                                 <input class="form-check-input" id="add-unit-active" name="is_active" type="checkbox" checked>
-                                <label class="form-check-label fw-semibold" for="add-unit-active">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="add-unit-active">Đang hoạt động</label>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu đơn vị</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu đơn vị</button>
                 </div>
             </form>
         </div>
@@ -375,14 +365,17 @@
                         <div class="full switch-card">
                             <div class="form-check m-0">
                                 <input class="form-check-input" id="edit-unit-active" name="is_active" type="checkbox">
-                                <label class="form-check-label fw-semibold" for="edit-unit-active">Đang hoạt động (tick để bật)</label>
+                                <label class="form-check-label fw-semibold" for="edit-unit-active">Đang hoạt động</label>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
+                    <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteUnitModal">
+                        <i class="bi bi-trash me-1"></i>Xóa
+                    </button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
                 </div>
             </form>
         </div>
@@ -402,8 +395,8 @@
                     <p class="mb-0">Xóa đơn vị <strong id="deleteUnitName"></strong> của sản phẩm <strong id="deleteUnitProductName"></strong>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -426,6 +419,8 @@
         const editProductUploadPreviewImg = document.getElementById('edit-product-upload-preview-img');
         const editProductActive = document.getElementById('edit-product-active');
         const editProductStores = Array.from(document.querySelectorAll('.js-edit-product-store'));
+        const deleteProductForm = document.getElementById('deleteProductForm');
+        const deleteProductName = document.getElementById('deleteProductName');
 
         document.querySelectorAll('.js-edit-product').forEach((button) => {
             button.addEventListener('click', () => {
@@ -458,15 +453,8 @@
                 editProductStores.forEach((checkbox) => {
                     checkbox.checked = storeIds.includes(checkbox.value);
                 });
-            });
-        });
-
-        const deleteProductForm = document.getElementById('deleteProductForm');
-        const deleteProductName = document.getElementById('deleteProductName');
-        document.querySelectorAll('.js-delete-product').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteProductForm) deleteProductForm.action = button.dataset.action || '';
-                if (deleteProductName) deleteProductName.textContent = button.dataset.productName || '';
+                if (deleteProductForm) deleteProductForm.action = button.dataset.deleteAction || '';
+                if (deleteProductName) deleteProductName.textContent = button.dataset.deleteName || '';
             });
         });
 
@@ -486,6 +474,9 @@
         const editUnitSku = document.getElementById('edit-unit-sku');
         const editUnitDisplayOrder = document.getElementById('edit-unit-display-order');
         const editUnitActive = document.getElementById('edit-unit-active');
+        const deleteUnitForm = document.getElementById('deleteUnitForm');
+        const deleteUnitName = document.getElementById('deleteUnitName');
+        const deleteUnitProductName = document.getElementById('deleteUnitProductName');
         document.querySelectorAll('.js-edit-unit').forEach((button) => {
             button.addEventListener('click', () => {
                 if (editUnitForm) editUnitForm.action = button.dataset.action || '';
@@ -498,16 +489,8 @@
                 if (editUnitSku) editUnitSku.value = button.dataset.unitSku || '';
                 if (editUnitDisplayOrder) editUnitDisplayOrder.value = button.dataset.unitDisplayOrder || '0';
                 if (editUnitActive) editUnitActive.checked = button.dataset.unitActive === '1';
-            });
-        });
-
-        const deleteUnitForm = document.getElementById('deleteUnitForm');
-        const deleteUnitName = document.getElementById('deleteUnitName');
-        const deleteUnitProductName = document.getElementById('deleteUnitProductName');
-        document.querySelectorAll('.js-delete-unit').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (deleteUnitForm) deleteUnitForm.action = button.dataset.action || '';
-                if (deleteUnitName) deleteUnitName.textContent = button.dataset.unitName || '';
+                if (deleteUnitForm) deleteUnitForm.action = button.dataset.deleteAction || '';
+                if (deleteUnitName) deleteUnitName.textContent = button.dataset.deleteName || '';
                 if (deleteUnitProductName) deleteUnitProductName.textContent = button.dataset.productName || '';
             });
         });

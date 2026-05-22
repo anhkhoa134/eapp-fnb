@@ -36,7 +36,7 @@
                 </select>
             </div>
             <div class="col-12 col-md-3 d-flex flex-wrap gap-2">
-                <button class="btn btn-primary" type="submit">Lọc</button>
+                <button class="btn btn-primary" type="submit"><i class="bi bi-funnel me-1"></i>Lọc</button>
                 <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:promotions' %}">
                     <i class="bi bi-x-lg me-1"></i>Xóa lọc
                 </a>
@@ -111,20 +111,14 @@
                                     data-valid-from="{% if promotion.valid_from %}{{ promotion.valid_from|date:'c' }}{% endif %}"
                                     data-valid-to="{% if promotion.valid_to %}{{ promotion.valid_to|date:'c' }}{% endif %}"
                                     data-active="{% if promotion.is_active %}1{% else %}0{% endif %}"
-                                    data-store-ids="{% for store in promotion.stores.all %}{{ store.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
-                                >
-                                    <i class="bi bi-pencil me-1"></i>Sửa
-                                </button>
-                                <button
-                                    class="btn btn-sm btn-outline-danger js-delete-promotion"
-                                    type="button"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deletePromotionModal"
-                                    data-action="{% url 'App_Quanly:promotion_delete' promotion.id %}"
-                                    data-name="{{ promotion.name|escape }}"
-                                >
-                                    <i class="bi bi-trash me-1"></i>Xóa
-                                </button>
+                                        data-store-ids="{% for store in promotion.stores.all %}{{ store.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                                        data-delete-action="{% url 'App_Quanly:promotion_delete' promotion.id %}"
+                                        data-delete-name="{{ promotion.name|escape }}"
+                                        title="Sửa"
+                                        aria-label="Sửa"
+                                    >
+                                        <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                                    </button>
                             </div>
                         </td>
                     </tr>
@@ -204,8 +198,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Lưu khuyến mãi</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu khuyến mãi</button>
                 </div>
             </form>
         </div>
@@ -275,11 +269,14 @@
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-primary" type="submit">Cập nhật</button>
-                </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deletePromotionModal">
+                            <i class="bi bi-trash me-1"></i>Xóa
+                        </button>
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
+                    </div>
             </form>
         </div>
     </div>
@@ -299,8 +296,8 @@
                     <p class="small text-muted mb-0">Dữ liệu khuyến mãi sẽ bị xóa khỏi danh sách quản lý. Các đơn hàng cũ vẫn giữ số tiền giảm và tên khuyến mãi đã chụp lại.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger" type="submit">Xóa</button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
                 </div>
             </form>
         </div>
@@ -316,35 +313,33 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const toDateTimeLocal = (value) => {
-        if (!value) return '';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return '';
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    };
-    document.querySelectorAll('.js-edit-promotion').forEach((button) => {
-        button.addEventListener('click', () => {
-            document.getElementById('editPromotionForm').action = button.dataset.action || '';
-            document.getElementById('edit-promotion-name').value = button.dataset.name || '';
-            document.getElementById('edit-promotion-discount-type').value = button.dataset.discountType || 'percent';
-            document.getElementById('edit-promotion-discount-value').value = button.dataset.discountValue || '';
-            document.getElementById('edit-promotion-min-order').value = button.dataset.minOrder || '0';
-            document.getElementById('edit-promotion-max-discount').value = button.dataset.maxDiscount || '';
-            document.getElementById('edit-promotion-valid-from').value = toDateTimeLocal(button.dataset.validFrom || '');
-            document.getElementById('edit-promotion-valid-to').value = toDateTimeLocal(button.dataset.validTo || '');
-            document.getElementById('edit-promotion-active').checked = button.dataset.active === '1';
-            const selected = new Set((button.dataset.storeIds || '').split(',').filter(Boolean));
-            document.querySelectorAll('.js-edit-promotion-store').forEach((input) => {
-                input.checked = selected.has(input.value);
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        };
+        const deletePromotionForm = document.getElementById('deletePromotionForm');
+        const deletePromotionName = document.getElementById('deletePromotionName');
+        document.querySelectorAll('.js-edit-promotion').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.getElementById('editPromotionForm').action = button.dataset.action || '';
+                document.getElementById('edit-promotion-name').value = button.dataset.name || '';
+                document.getElementById('edit-promotion-discount-type').value = button.dataset.discountType || 'percent';
+                document.getElementById('edit-promotion-discount-value').value = button.dataset.discountValue || '';
+                document.getElementById('edit-promotion-min-order').value = button.dataset.minOrder || '0';
+                document.getElementById('edit-promotion-max-discount').value = button.dataset.maxDiscount || '';
+                document.getElementById('edit-promotion-valid-from').value = toDateTimeLocal(button.dataset.validFrom || '');
+                document.getElementById('edit-promotion-valid-to').value = toDateTimeLocal(button.dataset.validTo || '');
+                document.getElementById('edit-promotion-active').checked = button.dataset.active === '1';
+                const selected = new Set((button.dataset.storeIds || '').split(',').filter(Boolean));
+                document.querySelectorAll('.js-edit-promotion-store').forEach((input) => {
+                    input.checked = selected.has(input.value);
+                });
+                if (deletePromotionForm) deletePromotionForm.action = button.dataset.deleteAction || '';
+                if (deletePromotionName) deletePromotionName.textContent = button.dataset.deleteName || '';
             });
         });
     });
-    document.querySelectorAll('.js-delete-promotion').forEach((button) => {
-        button.addEventListener('click', () => {
-            document.getElementById('deletePromotionForm').action = button.dataset.action || '';
-            document.getElementById('deletePromotionName').textContent = button.dataset.name || '';
-        });
-    });
-});
 </script>
 {% endblock %}

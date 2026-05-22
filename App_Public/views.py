@@ -29,6 +29,14 @@ def _parse_json_request(request):
         return None
 
 
+def _has_requested_toppings(raw_topping_ids) -> bool:
+    if raw_topping_ids in (None, '', []):
+        return False
+    if isinstance(raw_topping_ids, (list, tuple, set)):
+        return any(str(item).strip() for item in raw_topping_ids)
+    return bool(str(raw_topping_ids).strip())
+
+
 def _qr_product_image_url(request, product):
     raw = product.get_catalog_image_url()
     if not raw:
@@ -137,9 +145,12 @@ def _prepare_qr_items_for_table(*, table, raw_items):
                 raise ValueError(f'Sản phẩm không hiển thị cho bàn này: {unit.product.name}')
 
         note = (raw.get('note') or '').strip()[:255]
+        raw_topping_ids = raw.get('topping_ids')
+        if not table.tenant.show_topping_feature and _has_requested_toppings(raw_topping_ids):
+            raise ValueError('Tính năng topping đang tắt.')
         topping_links = resolve_product_topping_links(
             product=unit.product,
-            topping_ids=raw.get('topping_ids'),
+            topping_ids=raw_topping_ids,
         )
 
         base_unit_price = get_effective_unit_price(unit=unit, store_id=table.store_id)
@@ -245,14 +256,15 @@ def _build_qr_products_payload(*, table, request):
             continue
 
         toppings_payload = []
-        for link in product.topping_links.all():
-            toppings_payload.append(
-                {
-                    'id': link.topping_id,
-                    'name': link.topping.name,
-                    'price': float((getattr(link.topping, 'price', None) or link.price)),
-                }
-            )
+        if table.tenant.show_topping_feature:
+            for link in product.topping_links.all():
+                toppings_payload.append(
+                    {
+                        'id': link.topping_id,
+                        'name': link.topping.name,
+                        'price': float((getattr(link.topping, 'price', None) or link.price)),
+                    }
+                )
 
         products.append(
             {
@@ -351,6 +363,8 @@ def tenant_qr_ordering(request, public_slug):
         table = _get_table_by_credentials(tenant=tenant, table_code=table_code, token=token)
         if not table:
             qr_error = 'QR không hợp lệ hoặc đã hết hiệu lực.'
+        elif not tenant.show_qr_order_feature:
+            qr_error = 'Tính năng gọi món QR đang tắt. Vui lòng gọi nhân viên để đặt món.'
         else:
             categories, products = _build_qr_products_payload(table=table, request=request)
 
@@ -394,6 +408,8 @@ def api_public_qr_orders(request):
     table = _get_table_by_credentials(table_code=table_code, token=token)
     if not table:
         return _json_error('QR không hợp lệ hoặc đã hết hiệu lực.', 403)
+    if not table.tenant.show_qr_order_feature:
+        return _json_error('Tính năng gọi món QR đang tắt.', 403)
 
     raw_items = payload.get('items') or []
     try:
@@ -456,6 +472,8 @@ def api_public_qr_order_detail(request, order_id):
     table = _get_table_by_credentials(table_code=table_code, token=token)
     if not table:
         return _json_error('QR không hợp lệ hoặc đã hết hiệu lực.', 403)
+    if request.method == 'PATCH' and not table.tenant.show_qr_order_feature:
+        return _json_error('Tính năng gọi món QR đang tắt.', 403)
 
     if request.method == 'GET':
         qr_order = get_object_or_404(
@@ -468,6 +486,10 @@ def api_public_qr_order_detail(request, order_id):
 
     customer_note = (payload.get('note') or '').strip()[:255]
     raw_items = payload.get('items') or []
+    if not table.tenant.show_topping_feature:
+        for raw in raw_items:
+            if 'topping_ids' in raw:
+                return _json_error('Tính năng topping đang tắt.', 400)
 
     try:
         prepared_items = _prepare_qr_items_for_table(table=table, raw_items=raw_items)
