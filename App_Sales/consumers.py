@@ -3,6 +3,7 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from App_Accounts.models import User
 from App_Sales.realtime import pos_store_group_name
+from App_Tenant.access import tenant_block_reason
 from App_Tenant.services import get_user_accessible_stores
 
 
@@ -48,6 +49,9 @@ class PosStoreConsumer(AsyncJsonWebsocketConsumer):
             return False
 
         if user.role not in {User.Role.MANAGER, User.Role.STAFF}:
+            return False
+
+        if tenant_block_reason(user.tenant) is not None:
             return False
 
         return get_user_accessible_stores(user).filter(id=store_id).exists()

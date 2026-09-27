@@ -32,6 +32,7 @@ Phiên bản ghi theo virtualenv đang dùng (`env_10_web`) tại thời điểm
 | Bootstrap Icons | 1.11.1 | Icon |
 | Font Awesome | 6.4.2 | Icon trang POS (`App_Sales/index.html`) |
 | Apache ECharts | 5.x | Biểu đồ dashboard quản lý |
+| SortableJS | 1.15.2 | Kéo thả sắp xếp đơn vị, topping, bàn QR (`App_Quanly/_sortable_script.html`) |
 | Vanilla JS | — | POS, gọi món QR, màn hình bếp (template Django + `fetch` + WebSocket) |
 | Service Worker / Web App Manifest | — | PWA (`/sw.js`, `/manifest.webmanifest`) |
 

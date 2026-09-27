@@ -153,9 +153,10 @@ def run_seed_initial_data(
             'name': tenant_name,
             'is_active': True,
             'show_store_feature': True,
-            'max_stores': 0,
-            'max_dining_tables': 0,
-            'max_staff_users': 0,
+            'max_stores': None,
+            'max_dining_tables': None,
+            'max_staff_users': None,
+            'max_products': None,
             'subscription_starts_on': _today,
             'subscription_ends_on': _today + timedelta(days=365),
         },
@@ -306,7 +307,11 @@ def run_seed_initial_data(
         {
             'name': 'Cơm Tấm Sườn Bì',
             'category': 'Đồ ăn',
-            'image_url': 'https://images.unsplash.com/photo-1623653387945-2fd25214f8fc?auto=format&fit=crop&w=300&q=80',
+            # Wikimedia Commons, CC0: File:Cơm tấm SG (cơm sườn) ng27th9n2020 (2).jpg
+            'image_url': (
+                'https://commons.wikimedia.org/wiki/Special:FilePath/'
+                'C%C6%A1m_t%E1%BA%A5m_SG_(c%C6%A1m_s%C6%B0%E1%BB%9Dn)_ng27th9n2020_(2).jpg?width=500'
+            ),
             'units': [('Thường', Decimal('55000')), ('Đặc biệt', Decimal('75000'))],
         },
         {

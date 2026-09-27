@@ -53,6 +53,9 @@ REAL_ADMIN_PATH = f'{REAL_ADMIN_PATH}/'
 # Mật khẩu đặt lại khi phục hồi tenant demo từ Jazzmin (App_Core.admin_views).
 DEMO_SEED_DEFAULT_PASSWORD = env('DEMO_SEED_DEFAULT_PASSWORD', default='123456')
 
+# Số Zalo hiển thị ở trang Tài khoản để doanh nghiệp liên hệ nâng cấp gói.
+SUBSCRIPTION_CONTACT_ZALO = env('SUBSCRIPTION_CONTACT_ZALO', default='0989408926')
+
 
 def env_required(key):
     value = env(key, default='').strip()
@@ -104,6 +107,7 @@ JAZZMIN_SETTINGS = {
         'auth': 'fas fa-users-cog',
         'App_Accounts.User': 'fas fa-user-shield',
         'App_Tenant.Tenant': 'fas fa-building',
+        'App_Tenant.SubscriptionPlan': 'fas fa-layer-group',
         'App_Tenant.Store': 'fas fa-store',
         'App_Tenant.UserStoreAccess': 'fas fa-key',
         'App_Catalog.Category': 'fas fa-layer-group',
@@ -125,6 +129,8 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    # Chặn POS / quản lý khi doanh nghiệp bị tắt hoặc hết hạn gói.
+    'App_Core.middleware.TenantAccessMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -216,6 +222,12 @@ AUTH_USER_MODEL = 'App_Accounts.User'
 LOGIN_URL = 'App_Accounts:login'
 LOGIN_REDIRECT_URL = 'App_Sales:pos'
 LOGOUT_REDIRECT_URL = 'App_Accounts:login'
+
+# Chống brute-force: sai LOGIN_FAILURE_LIMIT lần (cùng username + IP) thì khoá LOGIN_LOCKOUT_MINUTES phút.
+LOGIN_FAILURE_LIMIT = env('LOGIN_FAILURE_LIMIT', default=5, cast=int)
+LOGIN_LOCKOUT_MINUTES = env('LOGIN_LOCKOUT_MINUTES', default=15, cast=int)
+# Chỉ bật khi chạy sau Nginx có `proxy_set_header X-Real-IP $remote_addr;` (xem docs/setup/6_production_env.md).
+LOGIN_TRUST_X_REAL_IP = env('LOGIN_TRUST_X_REAL_IP', default=(ENVIRONMENT == 'prod'), cast=bool)
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_HTTPONLY = True

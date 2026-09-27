@@ -5,6 +5,8 @@
 ## Mục tiêu
 Đủ nghiệp vụ vận hành cửa hàng hằng ngày.
 
+Danh sách đầy đủ, ưu tiên và checklist nghiệm thu: `docs/backlog/1_backlog.md` (các BL-xxx gắn Phase 4).
+
 ## Hạng mục ứng viên
 | Hạng mục | Mô tả sơ bộ | Ghi chú |
 |---|---|---|

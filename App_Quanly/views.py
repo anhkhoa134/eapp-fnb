@@ -5,6 +5,7 @@ from decimal import Decimal
 from urllib.parse import urlencode
 
 import qrcode
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
@@ -52,7 +53,7 @@ from App_Quanly.forms import (
 )
 from App_Sales.models import Customer, DiningTable, Order, OrderItem, Promotion, QROrder, QROrderItem, generate_qr_token
 from App_Sales.services import ensure_customer_tier_settings, recompute_all_customer_stats, recompute_customer_stats
-from App_Tenant.models import Store, Tenant, UserStoreAccess
+from App_Tenant.models import Store, SubscriptionPlan, Tenant, UserStoreAccess
 
 
 def _tenant_or_404(user):
@@ -63,6 +64,12 @@ def _tenant_or_404(user):
 
 def _feature_disabled_response(message):
     return HttpResponse(message, status=403)
+
+
+def _plan_limit_message(label, limit):
+    if limit == 0:
+        return f'Gói hiện tại không bao gồm {label}. Xem các gói nâng cấp ở trang Tài khoản.'
+    return f'Đã đạt giới hạn {limit} {label} của gói hiện tại. Xem các gói nâng cấp ở trang Tài khoản.'
 
 
 QUANLY_LIST_PER_PAGE = 20
@@ -918,14 +925,19 @@ def product_list_create(request):
     else:
         form = ProductForm(tenant=tenant)
 
+    open_create_modal = request.method == 'POST' and bool(form.errors)
     if request.method == 'POST' and form.is_valid():
-        product = form.save(commit=False)
-        product.tenant = tenant
-        product.save()
-        selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
-        _sync_product_store_links(product, selected_store_ids)
-        messages.success(request, 'Đã tạo sản phẩm. Hãy thêm đơn vị bán ở bên dưới.')
-        return redirect('App_Quanly:products')
+        if not tenant.can_create_product():
+            messages.error(request, _plan_limit_message('món', tenant.max_products))
+            open_create_modal = True
+        else:
+            product = form.save(commit=False)
+            product.tenant = tenant
+            product.save()
+            selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
+            _sync_product_store_links(product, selected_store_ids)
+            messages.success(request, 'Đã tạo sản phẩm. Hãy thêm đơn vị bán ở bên dưới.')
+            return redirect('App_Quanly:products')
 
     product_rows = []
     for product in products:
@@ -954,7 +966,7 @@ def product_list_create(request):
             'categories': form.fields['category'].queryset,
             'form': form,
             'unit_form': ProductUnitForm(),
-            'open_create_modal': request.method == 'POST' and form.errors,
+            'open_create_modal': open_create_modal,
         },
     )
 
@@ -999,7 +1011,7 @@ def product_delete(request, pk):
 def unit_add(request, product_pk):
     tenant = _tenant_or_404(request.user)
     product = get_object_or_404(Product, pk=product_pk, tenant=tenant)
-    form = ProductUnitForm(request.POST)
+    form = ProductUnitForm(request.POST, product=product)
     if form.is_valid():
         unit = form.save(commit=False)
         unit.product = product
@@ -1300,10 +1312,7 @@ def qr_table_list_create(request):
         if form.is_valid():
             tenant_limits = Tenant.objects.get(pk=tenant.pk)
             if not tenant_limits.can_create_dining_table():
-                messages.error(
-                    request,
-                    f'Đã đạt giới hạn số bàn ({tenant_limits.max_dining_tables}). Liên hệ quản trị viên nếu cần nâng gói.',
-                )
+                messages.error(request, _plan_limit_message('bàn', tenant_limits.max_dining_tables))
                 open_create_modal = True
             else:
                 table = form.save(commit=False)
@@ -1487,10 +1496,7 @@ def staff_list_create(request):
     if request.method == 'POST' and form.is_valid():
         tenant_limits = Tenant.objects.get(pk=tenant.pk)
         if not tenant_limits.can_create_staff_user():
-            messages.error(
-                request,
-                f'Đã đạt giới hạn số nhân viên ({tenant_limits.max_staff_users}). Liên hệ quản trị viên nếu cần nâng gói.',
-            )
+            messages.error(request, _plan_limit_message('tài khoản nhân viên', tenant_limits.max_staff_users))
             return render(
                 request,
                 'App_Quanly/staffs.html',
@@ -1651,10 +1657,7 @@ def store_list_create(request):
     if request.method == 'POST' and form.is_valid():
         tenant_limits = Tenant.objects.get(pk=tenant.pk)
         if not tenant_limits.can_create_store():
-            messages.error(
-                request,
-                f'Đã đạt giới hạn số cửa hàng ({tenant_limits.max_stores}). Liên hệ quản trị viên nếu cần nâng gói.',
-            )
+            messages.error(request, _plan_limit_message('cửa hàng', tenant_limits.max_stores))
             return render(
                 request,
                 'App_Quanly/stores.html',
@@ -1743,7 +1746,7 @@ def account_settings(request):
         raise Http404('Tài khoản chưa được gán doanh nghiệp')
 
     role_label = 'Quản lý' if user.role == User.Role.MANAGER else 'Nhân viên'
-    tenant_obj = Tenant.objects.get(pk=user.tenant_id)
+    tenant_obj = Tenant.objects.select_related('subscription_plan').get(pk=user.tenant_id)
 
     if request.method == 'POST':
         form = POSPasswordChangeForm(user, request.POST)
@@ -1763,6 +1766,8 @@ def account_settings(request):
         'tables_max': tenant_obj.max_dining_tables,
         'staff_used': tenant_obj.staff_user_count(),
         'staff_max': tenant_obj.max_staff_users,
+        'products_used': tenant_obj.product_count(),
+        'products_max': tenant_obj.max_products,
         'subscription_starts_on': tenant_obj.subscription_starts_on,
         'subscription_ends_on': tenant_obj.subscription_ends_on,
     }
@@ -1775,5 +1780,8 @@ def account_settings(request):
             'role_label': role_label,
             'usage': usage,
             'today': timezone.now().date(),
+            'current_plan': tenant_obj.subscription_plan,
+            'plans': SubscriptionPlan.objects.all() if user.role == User.Role.MANAGER else [],
+            'contact_zalo': settings.SUBSCRIPTION_CONTACT_ZALO,
         },
     )

@@ -23,7 +23,14 @@
                 <label class="list-group-item d-flex gap-3 align-items-start py-3" for="{{ row.field.id_for_label }}">
                     <i class="bi {{ row.icon }} fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
                     <span class="flex-grow-1">
-                        <span class="d-block fw-semibold">{{ row.field.label }}</span>
+                        <span class="d-block fw-semibold">
+                            {{ row.field.label }}
+                            {% if row.locked %}
+                            <a class="badge text-bg-warning text-decoration-none ms-1" href="{% url 'App_Quanly:account' %}#goi-cuoc">
+                                <i class="bi bi-lock-fill"></i> Cần nâng cấp gói
+                            </a>
+                            {% endif %}
+                        </span>
                         <span class="d-block small text-muted">{{ row.description }}</span>
                         {% if row.field.errors %}
                         <span class="invalid-feedback d-block">{{ row.field.errors|join:' ' }}</span>

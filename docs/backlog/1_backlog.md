@@ -11,8 +11,8 @@
 ## Tổng quan
 | ID | Hạng mục | Nhóm | Ưu tiên | Size | Phase | Trạng thái |
 |---|---|---|---|---|---|---|
-| BL-001 | Chặn tenant ngừng hoạt động / hết hạn gói | Bảo mật / SaaS | P0 | S | 4 | [ ] |
-| BL-002 | Chống brute-force đăng nhập | Bảo mật | P0 | S | 4 | [ ] |
+| BL-001 | Chặn tenant ngừng hoạt động / hết hạn gói | Bảo mật / SaaS | P0 | S | 4 | [x] |
+| BL-002 | Chống brute-force đăng nhập | Bảo mật | P0 | S | 4 | [x] |
 | BL-003 | Rate limit API public QR | Bảo mật | P1 | S | 4 | [ ] |
 | BL-004 | Bắt buộc đổi mật khẩu lần đầu | Bảo mật | P1 | S | 4 | [ ] |
 | BL-005 | Nâng cấp Django 5.0 → 5.2 LTS | Nợ kỹ thuật | P1 | M | 4 | [ ] |
@@ -44,6 +44,7 @@
 | BL-031 | Trợ lý AI báo cáo + dự báo nhập hàng | AI | P3 | L | 6 | [ ] |
 | BL-032 | Kiosk tự gọi món | Kênh | P3 | M | 6 | [ ] |
 | BL-033 | Kịch bản QA cho bếp, khách hàng, khuyến mãi | QA | P2 | S | — | [~] |
+| BL-034 | Bug: tạo khách trùng SĐT ở `/quanly/customers/` gây lỗi 500 | Bug | P1 | S | — | [x] |
 
 ---
 
@@ -51,16 +52,20 @@
 
 ### BL-001 · Chặn tenant ngừng hoạt động / hết hạn gói — P0
 **Hiện trạng:** `Tenant.is_active` chỉ được kiểm tra ở trang public / WebSocket public. POS, `/quanly/`, POS API **không** kiểm tra `is_active` hay `subscription_ends_on`.
-- [ ] Middleware hoặc decorator chặn user thuộc tenant `is_active=False` (logout + thông báo).
-- [ ] Hết hạn gói: chặn POS/API ghi dữ liệu, cho phép xem `/quanly/account/` để gia hạn.
-- [ ] WebSocket POS từ chối kết nối khi tenant bị chặn.
-- [ ] Cảnh báo trước 7 ngày trên `/quanly/` khi gói sắp hết hạn.
-- [ ] Test cho cả 3 trường hợp: tenant tắt, hết hạn, sắp hết hạn.
+- [x] Middleware hoặc decorator chặn user thuộc tenant `is_active=False` (logout + thông báo).
+- [x] Hết hạn gói: chặn POS/API ghi dữ liệu, cho phép xem `/quanly/account/` để gia hạn.
+- [x] WebSocket POS từ chối kết nối khi tenant bị chặn.
+- [x] Cảnh báo trước 7 ngày trên `/quanly/` khi gói sắp hết hạn.
+- [x] Test cho cả 3 trường hợp: tenant tắt, hết hạn, sắp hết hạn.
+
+**Đã làm:** `App_Core.middleware.TenantAccessMiddleware` (logic ở `App_Tenant/access.py`). Tenant tắt → đăng xuất, API POS trả `403 {code: tenant_inactive}`, không đăng nhập được. Hết hạn (`subscription_ends_on < hôm nay`) → API POS `403 {code: subscription_expired}`; quản lý bị chuyển về `/quanly/account/`, vẫn xem được `/quanly/` (GET) nhưng không ghi được; nhân viên bị đăng xuất và không đăng nhập được. Banner cảnh báo trong `App_Quanly/_layout.html`.
 
 ### BL-002 · Chống brute-force đăng nhập — P0
-- [ ] Khoá tạm theo username + IP sau N lần sai (ví dụ `django-axes`) hoặc `limit_req` Nginx cho `/accounts/login/`.
-- [ ] Thông báo lỗi không tiết lộ username có tồn tại hay không.
-- [ ] Superadmin mở khoá được trong admin.
+- [x] Khoá tạm theo username + IP sau N lần sai (ví dụ `django-axes`) hoặc `limit_req` Nginx cho `/accounts/login/`.
+- [x] Thông báo lỗi không tiết lộ username có tồn tại hay không.
+- [x] Superadmin mở khoá được trong admin.
+
+**Đã làm:** tự viết, không thêm thư viện: model `App_Accounts.LoginAttempt` + `App_Accounts/login_throttle.py`, áp dụng cho form đăng nhập POS và trang admin. Cấu hình `LOGIN_FAILURE_LIMIT` (5), `LOGIN_LOCKOUT_MINUTES` (15), `LOGIN_TRUST_X_REAL_IP` (bật ở prod). Mở khoá: admin → "Đăng nhập sai" → action "Mở khoá".
 
 ### BL-003 · Rate limit API public QR — P1
 - [ ] Giới hạn tần suất `POST/PATCH /api/public/qr/orders/` theo IP + bàn.
@@ -92,6 +97,12 @@ Django 5.0 đã hết hỗ trợ bảo mật.
 ### BL-033 · Kịch bản QA còn thiếu — P2
 - [x] Bộ test case E2E tổng hợp: `docs/testing/1_e2e_test_cases.md`.
 - [ ] Kịch bản QA chi tiết từng click cho `/kitchen/`, khách hàng, khuyến mãi, cấu hình tính năng (theo format `docs/setup/phase1/testing/`).
+
+### BL-034 · Bug: trùng SĐT khách hàng gây lỗi 500 — P1
+**Hiện trạng:** `CustomerForm` không có field `tenant` nên Django bỏ qua `UniqueConstraint(tenant, phone)` khi validate → `is_valid()` = True với SĐT đã tồn tại → `save()` ném `IntegrityError`. Đã tái hiện 27/09/2026. (POS API không bị: trả về khách cũ.)
+- [x] `CustomerForm.clean_phone` kiểm tra trùng trong tenant (loại trừ chính instance khi sửa).
+- [x] Rà soát các ModelForm khác có constraint chứa `tenant` (danh mục, sản phẩm, bàn…). Phát hiện thêm `ProductUnitForm` cùng lỗi với `UniqueConstraint(product, name)` → đã sửa. Danh mục / sản phẩm / topping / cửa hàng tự sinh slug nên không trùng; `DiningTableForm`, `ProductToppingForm` có đủ field nên Django tự kiểm tra.
+- [x] Test: tạo và sửa khách trùng SĐT → lỗi form, không 500.
 
 ---
 

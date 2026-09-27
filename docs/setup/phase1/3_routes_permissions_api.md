@@ -72,6 +72,7 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
 - `GET|POST /quanly/settings/features/` — cấu hình tính năng nâng cao (cửa hàng nhiều chi nhánh, khách hàng, khuyến mãi, topping, QR bàn, màn hình bếp)
 - `GET /quanly/orders/`, `POST /quanly/orders/<id>/delete/` — lịch sử đơn
 - `GET|POST /quanly/categories/`, `.../products/`, `.../toppings/`, ... — catalog CRUD (xem `App_Quanly/urls.py`)
+- `POST /quanly/reorder/<units|toppings|tables>/` — lưu thứ tự sau kéo thả, body JSON `{ "ids": [...] }` theo thứ tự mới (400 nếu id trùng / không thuộc cùng danh sách; 403 khi tính năng tương ứng tắt)
 - `GET|POST /quanly/payment-qr/` — cấu hình QR thanh toán POS theo cửa hàng
 - `GET|POST /quanly/staffs/` — quản lý nhân viên
 - `GET|POST /quanly/qr-tables/`

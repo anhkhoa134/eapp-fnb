@@ -10,7 +10,7 @@ from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
 from App_Sales.models import DiningTable
 from App_Tenant.admin import StoreAdmin, StoreAdminForm, TenantAdmin, TenantAdminForm
-from App_Tenant.models import Store, Tenant, UserStoreAccess
+from App_Tenant.models import Store, SubscriptionPlan, Tenant, UserStoreAccess
 
 
 class TenantModelTests(TestCase):
@@ -159,3 +159,47 @@ class TenantAdminBootstrapDataTests(TestCase):
         self.assertEqual(Product.objects.filter(tenant=tenant, is_active=True).count(), 4)
         self.assertEqual(ProductUnit.objects.filter(product__tenant=tenant, is_active=True).count(), 4)
         self.assertEqual(StoreProduct.objects.filter(store=store, is_available=True).count(), 4)
+
+
+class SubscriptionPlanTests(TestCase):
+    def test_blank_limit_means_unlimited_and_zero_means_none(self):
+        tenant = Tenant.objects.create(
+            name='Limits',
+            public_slug='limits',
+            max_staff_users=0,
+            max_products=None,
+        )
+        self.assertFalse(tenant.can_create_staff_user())
+        self.assertTrue(tenant.can_create_product())
+
+    def test_apply_free_plan_copies_limits_and_disables_features(self):
+        plan = SubscriptionPlan.objects.get(slug='mien-phi')
+        tenant = Tenant(name='Free', public_slug='free', show_kitchen_feature=True)
+        tenant.apply_subscription_plan(plan)
+        tenant.save()
+
+        self.assertEqual(tenant.max_stores, plan.max_stores)
+        self.assertEqual(tenant.max_staff_users, 0)
+        self.assertEqual(tenant.max_products, plan.max_products)
+        self.assertFalse(tenant.show_qr_order_feature)
+        self.assertFalse(tenant.show_kitchen_feature)
+        self.assertTrue(tenant.show_topping_feature)
+        self.assertIsNone(tenant.subscription_ends_on)
+        self.assertFalse(tenant.plan_allows_feature('show_qr_order_feature'))
+        self.assertTrue(tenant.plan_allows_feature('show_topping_feature'))
+
+    def test_upgrading_from_free_sets_one_year_term(self):
+        tenant = Tenant(name='Up', public_slug='up')
+        tenant.apply_subscription_plan(SubscriptionPlan.objects.get(slug='mien-phi'))
+        tenant.save()
+        tenant.apply_subscription_plan(SubscriptionPlan.objects.get(slug='chuyen-nghiep'))
+        tenant.save()
+
+        today = timezone.now().date()
+        self.assertEqual(tenant.subscription_starts_on, today)
+        self.assertEqual(tenant.subscription_ends_on, today + timedelta(days=365))
+        self.assertEqual(tenant.max_stores, 3)
+
+    def test_tenant_without_plan_has_no_feature_lock(self):
+        tenant = Tenant.objects.create(name='Legacy', public_slug='legacy')
+        self.assertTrue(tenant.plan_allows_feature('show_kitchen_feature'))

@@ -109,9 +109,13 @@ class TenantFeatureSettingsForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields.values():
+        for name, field in self.fields.items():
             field.widget.attrs['class'] = 'form-check-input'
             field.widget.attrs['role'] = 'switch'
+            if self.instance.pk and not self.instance.plan_allows_feature(name):
+                # Tính năng ngoài gói: khoá ở trạng thái tắt, bỏ qua dữ liệu POST.
+                field.disabled = True
+                self.initial[name] = False
 
     def clean_show_store_feature(self):
         enabled = self.cleaned_data.get('show_store_feature')
@@ -129,9 +133,14 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             icon, description = self.FEATURE_META[name]
             if name == 'show_store_feature' and self.instance.pk:
                 max_stores = self.instance.max_stores
-                limit_text = 'không giới hạn' if max_stores == 0 else f'tối đa {max_stores}'
+                limit_text = 'không giới hạn' if max_stores is None else f'tối đa {max_stores}'
                 description = f'{description} Gói hiện tại: {limit_text} cửa hàng.'
-            yield {'field': self[name], 'icon': icon, 'description': description}
+            yield {
+                'field': self[name],
+                'icon': icon,
+                'description': description,
+                'locked': self.fields[name].disabled,
+            }
 
 
 class CategoryForm(forms.ModelForm):
@@ -277,11 +286,21 @@ class ProductUnitForm(forms.ModelForm):
             'sku': forms.TextInput(attrs={'placeholder': 'VD: CF-SUA-M'}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, product=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.product = product or (self.instance.product if self.instance.product_id else None)
         _apply_bootstrap_classes(self)
         cls = (self.fields['price'].widget.attrs.get('class', '') + ' js-price-vnd').strip()
         self.fields['price'].widget.attrs['class'] = cls
+
+    def clean_name(self):
+        # Form không có field product nên Django bỏ qua UniqueConstraint(product, name) -> tự kiểm tra.
+        name = self.cleaned_data.get('name')
+        if name and self.product is not None:
+            duplicates = ProductUnit.objects.filter(product=self.product, name=name).exclude(pk=self.instance.pk)
+            if duplicates.exists():
+                raise ValidationError(f'Món đã có đơn vị "{name}".')
+        return name
 
     def clean_price(self):
         price = self.cleaned_data.get('price')
@@ -405,6 +424,12 @@ class CustomerForm(forms.ModelForm):
         digits = ''.join(ch for ch in raw if ch.isdigit())
         if len(digits) < 8:
             raise ValidationError('Số điện thoại quá ngắn hoặc không hợp lệ.')
+        # Form không có field tenant nên Django bỏ qua UniqueConstraint(tenant, phone) -> tự kiểm tra.
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None:
+            existing = Customer.objects.filter(tenant=tenant, phone=raw).exclude(pk=self.instance.pk).first()
+            if existing:
+                raise ValidationError(f'Số điện thoại đã thuộc khách hàng "{existing.name}".')
         return raw
 
 

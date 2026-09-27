@@ -18,6 +18,7 @@ RESERVED_PUBLIC_SLUGS = {
     'kitchen',
     'static',
     'media',
+    'offline',
     'favicon.ico',
 }
 
@@ -37,6 +38,70 @@ def validate_public_slug(value):
         raise ValidationError('Public slug trùng với route hệ thống, vui lòng chọn slug khác.')
 
 
+class SubscriptionPlan(TimeStampedModel):
+    """Mẫu gói cước. Gán gói cho doanh nghiệp sẽ chép giới hạn + tắt tính năng không có trong gói."""
+
+    name = models.CharField('Tên gói', max_length=100)
+    slug = models.SlugField(max_length=120, unique=True)
+    price_yearly = models.DecimalField('Giá / năm', max_digits=12, decimal_places=0, default=0)
+    is_contact_price = models.BooleanField(
+        'Giá liên hệ',
+        default=False,
+        help_text='Bật để hiển thị "Liên hệ" thay vì giá cụ thể.',
+    )
+    tagline = models.CharField('Mô tả ngắn', max_length=150, blank=True)
+    highlight = models.CharField('Nhãn nổi bật', max_length=60, blank=True, help_text='Ví dụ: "Phổ biến nhất".')
+    max_stores = models.PositiveIntegerField('Giới hạn cửa hàng', null=True, blank=True, help_text='Để trống = không giới hạn.')
+    max_staff_users = models.PositiveIntegerField(
+        'Giới hạn nhân viên',
+        null=True,
+        blank=True,
+        help_text='Để trống = không giới hạn. 0 = không có tài khoản nhân viên (chỉ 1 quản lý).',
+    )
+    max_dining_tables = models.PositiveIntegerField('Giới hạn bàn', null=True, blank=True, help_text='Để trống = không giới hạn.')
+    max_products = models.PositiveIntegerField('Giới hạn món', null=True, blank=True, help_text='Để trống = không giới hạn.')
+    feature_customer = models.BooleanField('Khách hàng thân thiết', default=True)
+    feature_promotion = models.BooleanField('Khuyến mãi', default=True)
+    feature_qr_order = models.BooleanField('QR bàn / gọi món QR', default=True)
+    feature_kitchen = models.BooleanField('Màn hình bếp', default=True)
+    is_default = models.BooleanField(
+        'Gói đăng ký mặc định',
+        default=False,
+        help_text='Gói gán cho doanh nghiệp tự đăng ký tại trang Đăng ký.',
+    )
+    sort_order = models.PositiveIntegerField('Thứ tự', default=0)
+
+    # Cờ tính năng của gói -> cờ bật/tắt tương ứng trên Tenant.
+    TENANT_FEATURE_FIELDS = {
+        'feature_customer': 'show_customer_feature',
+        'feature_promotion': 'show_promotion_feature',
+        'feature_qr_order': 'show_qr_order_feature',
+        'feature_kitchen': 'show_kitchen_feature',
+    }
+    LIMIT_FIELDS = ('max_stores', 'max_staff_users', 'max_dining_tables', 'max_products')
+
+    class Meta:
+        ordering = ['sort_order', 'price_yearly']
+        verbose_name = 'Gói cước'
+        verbose_name_plural = 'Gói cước'
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_free(self) -> bool:
+        return not self.is_contact_price and not self.price_yearly
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _build_unique_slug(
+                SubscriptionPlan.objects.exclude(pk=self.pk),
+                source_name=self.name,
+                fallback='plan',
+            )
+        super().save(*args, **kwargs)
+
+
 class Tenant(TimeStampedModel):
     name = models.CharField(max_length=150)
     public_slug = models.SlugField(max_length=120, unique=True, validators=[validate_public_slug])
@@ -51,23 +116,40 @@ class Tenant(TimeStampedModel):
     show_topping_feature = models.BooleanField('Hiển thị Topping / tuỳ chọn món', default=True)
     show_qr_order_feature = models.BooleanField('Hiển thị QR bàn / gọi món QR', default=True)
     show_kitchen_feature = models.BooleanField('Màn hình bếp (báo bếp)', default=False)
+    subscription_plan = models.ForeignKey(
+        SubscriptionPlan,
+        on_delete=models.SET_NULL,
+        related_name='tenants',
+        null=True,
+        blank=True,
+        verbose_name='Gói cước',
+    )
     max_stores = models.PositiveIntegerField(
         'Giới hạn cửa hàng',
         default=1,
+        null=True,
         blank=True,
-        help_text='Số cửa hàng tối đa. 0 = không giới hạn. Mặc định gói mới: 1.',
+        help_text='Số cửa hàng tối đa. Để trống = không giới hạn.',
     )
     max_dining_tables = models.PositiveIntegerField(
         'Giới hạn bàn',
         default=12,
+        null=True,
         blank=True,
-        help_text='Tổng số bàn (QR/POS) tối đa. 0 = không giới hạn. Mặc định gói mới: 12.',
+        help_text='Tổng số bàn (QR/POS) tối đa. Để trống = không giới hạn.',
     )
     max_staff_users = models.PositiveIntegerField(
         'Giới hạn nhân viên',
         default=2,
+        null=True,
         blank=True,
-        help_text='Số tài khoản nhân viên (không tính quản lý). 0 = không giới hạn. Mặc định gói mới: 2.',
+        help_text='Số tài khoản nhân viên (không tính quản lý). Để trống = không giới hạn, 0 = không có nhân viên.',
+    )
+    max_products = models.PositiveIntegerField(
+        'Giới hạn món',
+        null=True,
+        blank=True,
+        help_text='Số món (sản phẩm) tối đa. Để trống = không giới hạn.',
     )
     subscription_starts_on = models.DateField(
         'Ngày bắt đầu gói',
@@ -101,12 +183,52 @@ class Tenant(TimeStampedModel):
             today = timezone.now().date()
             if self.subscription_starts_on is None:
                 self.subscription_starts_on = today
-            if self.subscription_ends_on is None:
+            # Gói miễn phí không có ngày hết hạn.
+            is_free_plan = self.subscription_plan is not None and self.subscription_plan.is_free
+            if self.subscription_ends_on is None and not is_free_plan:
                 self.subscription_ends_on = self.subscription_starts_on + timedelta(days=365)
         super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
+
+    def apply_subscription_plan(self, plan):
+        """Gán gói: chép giới hạn của gói và tắt các tính năng gói không bao gồm. Không tự lưu."""
+        self.subscription_plan = plan
+        if plan is None:
+            return
+        for field in SubscriptionPlan.LIMIT_FIELDS:
+            setattr(self, field, getattr(plan, field))
+        for plan_field, tenant_field in SubscriptionPlan.TENANT_FEATURE_FIELDS.items():
+            if not getattr(plan, plan_field):
+                setattr(self, tenant_field, False)
+        if plan.is_free:
+            self.subscription_ends_on = None
+        elif self.subscription_ends_on is None:
+            today = timezone.now().date()
+            self.subscription_starts_on = today
+            self.subscription_ends_on = today + timedelta(days=365)
+
+    def plan_allows_feature(self, tenant_field) -> bool:
+        """Tính năng có nằm trong gói hiện tại không (không có gói = không khoá)."""
+        plan = self.subscription_plan
+        if plan is None:
+            return True
+        for plan_field, mapped_field in SubscriptionPlan.TENANT_FEATURE_FIELDS.items():
+            if mapped_field == tenant_field:
+                return bool(getattr(plan, plan_field))
+        return True
+
+    def subscription_days_left(self, today=None):
+        """Số ngày còn lại của gói (0 = hết hạn cuối hôm nay, âm = đã hết hạn). None = không có ngày hết hạn."""
+        if self.subscription_ends_on is None:
+            return None
+        today = today or timezone.localdate()
+        return (self.subscription_ends_on - today).days
+
+    def is_subscription_expired(self, today=None) -> bool:
+        days_left = self.subscription_days_left(today)
+        return days_left is not None and days_left < 0
 
     def dining_table_count(self) -> int:
         from App_Sales.models import DiningTable
@@ -118,22 +240,28 @@ class Tenant(TimeStampedModel):
 
         return User.objects.filter(tenant_id=self.pk, role=User.Role.STAFF).count()
 
+    def product_count(self) -> int:
+        from App_Catalog.models import Product
+
+        return Product.objects.filter(tenant_id=self.pk).count()
+
+    @staticmethod
+    def _within_limit(used: int, limit) -> bool:
+        return limit is None or used < limit
+
     def can_create_store(self) -> bool:
         if not self.show_store_feature:
             return not self.stores.exists()
-        if self.max_stores == 0:
-            return True
-        return self.stores.count() < self.max_stores
+        return self._within_limit(self.stores.count(), self.max_stores)
 
     def can_create_dining_table(self) -> bool:
-        if self.max_dining_tables == 0:
-            return True
-        return self.dining_table_count() < self.max_dining_tables
+        return self._within_limit(self.dining_table_count(), self.max_dining_tables)
 
     def can_create_staff_user(self) -> bool:
-        if self.max_staff_users == 0:
-            return True
-        return self.staff_user_count() < self.max_staff_users
+        return self._within_limit(self.staff_user_count(), self.max_staff_users)
+
+    def can_create_product(self) -> bool:
+        return self._within_limit(self.product_count(), self.max_products)
 
 
 class Store(TimeStampedModel):

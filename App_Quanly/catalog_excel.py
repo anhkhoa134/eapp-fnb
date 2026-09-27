@@ -277,6 +277,10 @@ def next_display_order(queryset) -> int:
     return (current or 0) + 1
 
 
+class _ProductLimitExceeded(Exception):
+    pass
+
+
 def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
     """
     Validate toàn bộ workbook, sau đó upsert trong một transaction.
@@ -531,6 +535,8 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                     pr.save()
                     prod_by_key[key] = pr
                     stats['products_created'] += 1
+                    if tenant.max_products is not None and tenant.product_count() > tenant.max_products:
+                        raise _ProductLimitExceeded
                 sync_product_store_links(pr, store_ids)
 
             for _, d in rows_dv:
@@ -629,6 +635,16 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         is_active=active,
                     )
                     stats['mappings_created'] += 1
+    except _ProductLimitExceeded:
+        return {
+            'ok': False,
+            'errors': [
+                f'File vượt giới hạn {tenant.max_products} món của gói hiện tại, chưa có dữ liệu nào được ghi. '
+                'Xem các gói nâng cấp ở trang Tài khoản.'
+            ],
+            'stats': stats,
+            'message': '',
+        }
     except Exception as exc:
         return {
             'ok': False,

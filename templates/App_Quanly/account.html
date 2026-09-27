@@ -1,4 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
 
 {% block quanly_content %}
 <div class="row g-3">
@@ -20,48 +21,26 @@
                     <dd class="col-sm-8">{{ user.tenant.name|default:'—' }}</dd>
                 </dl>
                 <hr class="my-3 opacity-50">
-                <h3 class="h6 fw-bold mb-2 text-secondary">Thời hạn gói</h3>
+                <h3 class="h6 fw-bold mb-2 text-secondary">Gói cước</h3>
                 <dl class="row mb-3 small">
+                    <dt class="col-sm-4 text-muted">Gói hiện tại</dt>
+                    <dd class="col-sm-8 fw-semibold">
+                        {% if current_plan %}{{ current_plan.name }}{% else %}Gói tuỳ chỉnh{% endif %}
+                    </dd>
                     <dt class="col-sm-4 text-muted">Ngày hiện tại</dt>
                     <dd class="col-sm-8">{{ today|date:'d/m/Y' }}</dd>
                     <dt class="col-sm-4 text-muted">Bắt đầu gói</dt>
                     <dd class="col-sm-8">{% if usage.subscription_starts_on %}{{ usage.subscription_starts_on|date:'d/m/Y' }}{% else %}—{% endif %}</dd>
                     <dt class="col-sm-4 text-muted">Kết thúc gói</dt>
-                    <dd class="col-sm-8">{% if usage.subscription_ends_on %}{{ usage.subscription_ends_on|date:'d/m/Y' }}{% else %}—{% endif %}</dd>
+                    <dd class="col-sm-8">{% if usage.subscription_ends_on %}{{ usage.subscription_ends_on|date:'d/m/Y' }}{% else %}Không thời hạn{% endif %}</dd>
                 </dl>
                 <h3 class="h6 fw-bold mb-2 text-secondary">Giới hạn tài nguyên (theo gói)</h3>
-                <p class="small text-muted mb-2">Số lượng đang dùng so với hạn mức doanh nghiệp được phép tạo. Giá trị <strong>0</strong> nghĩa là không giới hạn.</p>
+                <p class="small text-muted mb-2">Số lượng đang dùng so với hạn mức doanh nghiệp được phép tạo.</p>
                 <dl class="row mb-0 small">
-                    <dt class="col-sm-4 text-muted">Cửa hàng</dt>
-                    <dd class="col-sm-8">
-                        <span class="fw-semibold">{{ usage.stores_used }}</span>
-                        /
-                        {% if usage.stores_max == 0 %}
-                        <span class="text-muted">Không giới hạn</span>
-                        {% else %}
-                        {{ usage.stores_max }}
-                        {% endif %}
-                    </dd>
-                    <dt class="col-sm-4 text-muted">Bàn</dt>
-                    <dd class="col-sm-8">
-                        <span class="fw-semibold">{{ usage.tables_used }}</span>
-                        /
-                        {% if usage.tables_max == 0 %}
-                        <span class="text-muted">Không giới hạn</span>
-                        {% else %}
-                        {{ usage.tables_max }}
-                        {% endif %}
-                    </dd>
-                    <dt class="col-sm-4 text-muted">Nhân viên</dt>
-                    <dd class="col-sm-8">
-                        <span class="fw-semibold">{{ usage.staff_used }}</span>
-                        /
-                        {% if usage.staff_max == 0 %}
-                        <span class="text-muted">Không giới hạn</span>
-                        {% else %}
-                        {{ usage.staff_max }}
-                        {% endif %}
-                    </dd>
+                    {% include 'App_Quanly/_usage_row.html' with label='Cửa hàng' used=usage.stores_used limit=usage.stores_max %}
+                    {% include 'App_Quanly/_usage_row.html' with label='Nhân viên' used=usage.staff_used limit=usage.staff_max %}
+                    {% include 'App_Quanly/_usage_row.html' with label='Món' used=usage.products_used limit=usage.products_max %}
+                    {% include 'App_Quanly/_usage_row.html' with label='Bàn' used=usage.tables_used limit=usage.tables_max %}
                 </dl>
             </div>
         </div>
@@ -93,4 +72,170 @@
         </div>
     </div>
 </div>
+
+{% if plans %}
+<style>
+    .acct-plans-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+    }
+    .acct-plan-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1.25rem 1.1rem 1.1rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.85);
+    }
+    .acct-plan-card.is-current {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+    .acct-plan-badge {
+        position: absolute;
+        top: -0.7rem;
+        left: 1.1rem;
+        padding: 0.15rem 0.65rem;
+        border-radius: 999px;
+        background: var(--primary-color);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .acct-plan-name {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .acct-plan-price {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--primary-hover);
+        line-height: 1.2;
+    }
+    .acct-plan-price small {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #64748b;
+    }
+    .acct-plan-tagline {
+        min-height: 2.6em;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+    .acct-plan-features {
+        display: grid;
+        gap: 0.45rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 0.88rem;
+    }
+    .acct-plan-features li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.45rem;
+    }
+    .acct-plan-features i {
+        margin-top: 0.1rem;
+        color: var(--primary-color);
+    }
+    .acct-plan-features li.is-off {
+        color: #94a3b8;
+    }
+    .acct-plan-features li.is-off i {
+        color: #94a3b8;
+    }
+    .acct-plan-cta {
+        margin-top: auto;
+    }
+    @media (max-width: 1199.98px) {
+        .acct-plans-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 575.98px) {
+        .acct-plans-grid {
+            grid-template-columns: 1fr;
+        }
+        /* Layout ẩn chữ trên nút có icon ở mobile; nút gói cần giữ nhãn. */
+        .quanly-page .acct-plan-cta .btn:has(.bi) {
+            font-size: 0.875rem;
+        }
+        .quanly-page .acct-plan-cta .btn:has(.bi) .bi {
+            margin-right: 0.25rem !important;
+        }
+    }
+</style>
+<div class="card border-0 shadow-sm mt-3" id="goi-cuoc">
+    <div class="card-body">
+        <h2 class="admin-card-title h5 mb-2">
+            <i class="bi bi-stars"></i>
+            Các gói cước &amp; nâng cấp
+        </h2>
+        <p class="text-muted small mb-4">
+            Chọn gói phù hợp với quy mô quán của bạn. Tài khoản đăng ký mới bắt đầu với gói Miễn phí.
+            Để nâng cấp, vui lòng liên hệ Zalo
+            <a href="https://zalo.me/{{ contact_zalo }}" target="_blank" rel="noopener noreferrer">{{ contact_zalo }}</a>.
+        </p>
+        <div class="acct-plans-grid">
+            {% for plan in plans %}
+            <div class="acct-plan-card{% if current_plan and current_plan.pk == plan.pk %} is-current{% endif %}">
+                {% if plan.highlight %}
+                <span class="acct-plan-badge">{{ plan.highlight }}</span>
+                {% endif %}
+                <p class="acct-plan-name">{{ plan.name }}</p>
+                <div class="acct-plan-price">
+                    {% if plan.is_contact_price %}
+                    Liên hệ
+                    {% elif plan.is_free %}
+                    Miễn phí
+                    {% else %}
+                    {{ plan.price_yearly|thousand_sep }}đ <small>/ năm</small>
+                    {% endif %}
+                </div>
+                <div class="acct-plan-tagline">{{ plan.tagline }}</div>
+                <ul class="acct-plan-features">
+                    <li>
+                        <i class="bi bi-shop"></i>
+                        {% if plan.max_stores is None %}Không giới hạn cửa hàng{% else %}Tối đa {{ plan.max_stores }} cửa hàng{% endif %}
+                    </li>
+                    <li class="{% if plan.max_staff_users == 0 %}is-off{% endif %}">
+                        <i class="bi {% if plan.max_staff_users == 0 %}bi-dash-circle{% else %}bi-people{% endif %}"></i>
+                        {% if plan.max_staff_users is None %}Không giới hạn nhân viên{% elif plan.max_staff_users == 0 %}Không có tài khoản nhân viên (chỉ 1 quản lý){% else %}Tối đa {{ plan.max_staff_users }} nhân viên{% endif %}
+                    </li>
+                    <li>
+                        <i class="bi bi-cup-hot"></i>
+                        {% if plan.max_products is None %}Không giới hạn món{% else %}Tối đa {{ plan.max_products }} món{% endif %}
+                    </li>
+                    <li>
+                        <i class="bi bi-grid-3x3-gap"></i>
+                        {% if plan.max_dining_tables is None %}Không giới hạn bàn{% else %}Tối đa {{ plan.max_dining_tables }} bàn{% endif %}
+                    </li>
+                    {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_qr_order label='Gọi món QR tại bàn' %}
+                    {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_kitchen label='Màn hình bếp' %}
+                    {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_customer label='Khách hàng thân thiết' %}
+                    {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_promotion label='Khuyến mãi' %}
+                </ul>
+                <div class="acct-plan-cta">
+                    {% if current_plan and current_plan.pk == plan.pk %}
+                    <button type="button" class="btn btn-sm btn-light border w-100" disabled>
+                        <i class="bi bi-check2 me-1"></i>Gói hiện tại
+                    </button>
+                    {% else %}
+                    <a class="btn btn-sm btn-primary w-100" href="https://zalo.me/{{ contact_zalo }}" target="_blank" rel="noopener noreferrer">
+                        <i class="bi bi-chat-dots me-1"></i>{% if current_plan and plan.sort_order < current_plan.sort_order %}Đổi gói qua Zalo{% else %}Nâng cấp qua Zalo{% endif %}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

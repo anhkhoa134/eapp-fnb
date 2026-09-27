@@ -6,9 +6,59 @@ from django.utils.text import slugify
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, StoreProduct
 from App_Sales.models import DiningTable
-from App_Tenant.models import Store, UserStoreAccess
+from App_Tenant.models import RESERVED_PUBLIC_SLUGS, Store, SubscriptionPlan, Tenant, UserStoreAccess
 
 DEFAULT_TENANT_USER_PASSWORD = '123456'
+SIGNUP_DEFAULT_TABLE_COUNT = 5
+
+
+def get_default_subscription_plan():
+    return SubscriptionPlan.objects.filter(is_default=True).order_by('sort_order', 'pk').first()
+
+
+def _capped(count, limit):
+    return count if limit is None else min(count, limit)
+
+
+def _generate_unique_public_slug(name):
+    base_slug = slugify(name) or 'cua-hang'
+    candidate = base_slug
+    suffix = 2
+    while candidate in RESERVED_PUBLIC_SLUGS or Tenant.objects.filter(public_slug=candidate).exists():
+        candidate = f'{base_slug}-{suffix}'
+        suffix += 1
+    return candidate
+
+
+def register_free_tenant(*, store_name, username, password):
+    """Đăng ký tự phục vụ: tạo doanh nghiệp (gói mặc định), 1 cửa hàng, 1 tài khoản quản lý và vài bàn."""
+    store_name = store_name.strip()
+    with transaction.atomic():
+        tenant = Tenant(name=store_name, public_slug=_generate_unique_public_slug(store_name))
+        tenant.apply_subscription_plan(get_default_subscription_plan())
+        tenant.save()
+
+        store = Store.objects.create(tenant=tenant, name=store_name, is_active=True, is_default=True)
+        manager_user = User.objects.create_user(
+            username=username,
+            password=password,
+            tenant=tenant,
+            role=User.Role.MANAGER,
+            is_staff=False,
+        )
+        UserStoreAccess.objects.create(user=manager_user, store=store, is_default=True)
+
+        for idx in range(1, _capped(SIGNUP_DEFAULT_TABLE_COUNT, tenant.max_dining_tables) + 1):
+            DiningTable.objects.create(
+                tenant=tenant,
+                store=store,
+                code=f'BAN-{idx:02d}',
+                name=f'Bàn {idx:02d}',
+                display_order=idx,
+                is_active=True,
+            )
+
+    return manager_user
 
 
 def get_user_accessible_stores(user):
@@ -83,8 +133,8 @@ def provision_tenant_default_setup(tenant, *, default_password=DEFAULT_TENANT_US
     tenant_key = (tenant.public_slug or slugify(tenant.name) or f'tenant-{tenant.pk}').replace('-', '_')
     manager_username = _generate_unique_username(f'{tenant_key}_quanly')
     staff_usernames = [
-        _generate_unique_username(f'{tenant_key}_nhanvien_1'),
-        _generate_unique_username(f'{tenant_key}_nhanvien_2'),
+        _generate_unique_username(f'{tenant_key}_nhanvien_{idx}')
+        for idx in range(1, _capped(2, tenant.max_staff_users) + 1)
     ]
 
     with transaction.atomic():
@@ -121,7 +171,7 @@ def provision_tenant_default_setup(tenant, *, default_password=DEFAULT_TENANT_US
         for user in [manager_user, *staff_users]:
             UserStoreAccess.objects.create(user=user, store=store, is_default=True)
 
-        for idx in range(1, 13):
+        for idx in range(1, _capped(12, tenant.max_dining_tables) + 1):
             DiningTable.objects.create(
                 tenant=tenant,
                 store=store,
@@ -155,7 +205,7 @@ def provision_tenant_default_setup(tenant, *, default_password=DEFAULT_TENANT_US
             ('Bánh Mì Thịt Nướng', 'Đồ ăn', 'Phần', Decimal('25000')),
             ('Cơm Tấm Sườn Bì', 'Đồ ăn', 'Phần', Decimal('55000')),
         ]
-        for product_name, category_name, unit_name, unit_price in product_seed:
+        for product_name, category_name, unit_name, unit_price in product_seed[: _capped(len(product_seed), tenant.max_products)]:
             product = Product.objects.create(
                 tenant=tenant,
                 category=categories[category_name],

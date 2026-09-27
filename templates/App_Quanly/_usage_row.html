@@ -1,0 +1,12 @@
+<dt class="col-sm-4 text-muted">{{ label }}</dt>
+<dd class="col-sm-8">
+    <span class="fw-semibold">{{ used }}</span>
+    /
+    {% if limit is None %}
+    <span class="text-muted">Không giới hạn</span>
+    {% elif limit == 0 %}
+    <span class="text-muted">Không có trong gói</span>
+    {% else %}
+    {{ limit }}{% if used >= limit %} <span class="badge text-bg-warning">Đã đạt giới hạn</span>{% endif %}
+    {% endif %}
+</dd>

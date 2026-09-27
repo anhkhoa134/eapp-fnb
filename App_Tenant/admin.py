@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from App_Accounts.models import User
-from App_Tenant.models import RESERVED_PUBLIC_SLUGS, Store, Tenant, UserStoreAccess
+from App_Tenant.models import RESERVED_PUBLIC_SLUGS, Store, SubscriptionPlan, Tenant, UserStoreAccess
 from App_Tenant.services import provision_tenant_default_setup
 
 
@@ -56,9 +56,6 @@ class TenantAdminForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        for key in ('max_stores', 'max_dining_tables', 'max_staff_users'):
-            if cleaned.get(key) is None:
-                cleaned[key] = 0
         start = cleaned.get('subscription_starts_on')
         end = cleaned.get('subscription_ends_on')
         if start and end and end < start:
@@ -108,12 +105,14 @@ class TenantAdmin(admin.ModelAdmin):
         'show_topping_feature',
         'show_qr_order_feature',
         'show_kitchen_feature',
+        'subscription_plan',
         'subscription_ends_on',
         'store_usage_display',
         'table_usage_display',
         'staff_usage_display',
+        'product_usage_display',
     )
-    list_filter = ('is_active',)
+    list_filter = ('is_active', 'subscription_plan')
     search_fields = ('name', 'public_slug')
     prepopulated_fields = {'public_slug': ('name',)}
     ordering = ('name',)
@@ -136,36 +135,97 @@ class TenantAdmin(admin.ModelAdmin):
         (
             'Gói dịch vụ (thời hạn)',
             {
-                'fields': ('subscription_starts_on', 'subscription_ends_on'),
-                'description': 'Khi tạo mới: để trống cả hai thì hệ thống gán bắt đầu = hôm nay, kết thúc = 1 năm sau.',
+                'fields': ('subscription_plan', 'subscription_starts_on', 'subscription_ends_on'),
+                'description': (
+                    'Đổi gói sẽ chép giới hạn của gói vào mục "Giới hạn tài nguyên" và tắt các tính năng gói không có '
+                    '(có thể chỉnh tay lại sau khi lưu). Gói miễn phí không có ngày kết thúc. '
+                    'Khi tạo mới: để trống ngày thì bắt đầu = hôm nay, kết thúc = 1 năm sau.'
+                ),
             },
         ),
         (
             'Giới hạn tài nguyên',
             {
-                'fields': ('max_stores', 'max_dining_tables', 'max_staff_users'),
-                'description': 'Đặt 0 để không giới hạn. Mặc định gói mới: 1 cửa hàng, 12 bàn, 2 nhân viên.',
+                'fields': ('max_stores', 'max_dining_tables', 'max_staff_users', 'max_products'),
+                'description': (
+                    'Để trống = không giới hạn; 0 = không cho tạo (vd. 0 nhân viên = chỉ có tài khoản quản lý). '
+                    'Mặc định khi không chọn gói: 1 cửa hàng, 12 bàn, 2 nhân viên.'
+                ),
             },
         ),
     )
 
+    @staticmethod
+    def _usage(used, limit):
+        return f'{used} / {"∞" if limit is None else limit}'
+
     @admin.display(description='Cửa hàng (dùng/giới hạn)')
     def store_usage_display(self, obj):
-        u = obj.stores.count()
-        m = obj.max_stores
-        return f'{u} / {"∞" if m == 0 else m}'
+        return self._usage(obj.stores.count(), obj.max_stores)
 
     @admin.display(description='Bàn (dùng/giới hạn)')
     def table_usage_display(self, obj):
-        u = obj.dining_table_count()
-        m = obj.max_dining_tables
-        return f'{u} / {"∞" if m == 0 else m}'
+        return self._usage(obj.dining_table_count(), obj.max_dining_tables)
 
     @admin.display(description='Nhân viên (dùng/giới hạn)')
     def staff_usage_display(self, obj):
-        u = obj.staff_user_count()
-        m = obj.max_staff_users
-        return f'{u} / {"∞" if m == 0 else m}'
+        return self._usage(obj.staff_user_count(), obj.max_staff_users)
+
+    @admin.display(description='Món (dùng/giới hạn)')
+    def product_usage_display(self, obj):
+        return self._usage(obj.product_count(), obj.max_products)
+
+    def has_module_permission(self, request):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_add_permission(self, request):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_change_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_delete_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def save_model(self, request, obj, form, change):
+        if form is not None and 'subscription_plan' in form.changed_data and obj.subscription_plan_id:
+            obj.apply_subscription_plan(obj.subscription_plan)
+        with transaction.atomic():
+            super().save_model(request, obj, form, change)
+            if not change:
+                provision_tenant_default_setup(obj)
+
+
+@admin.register(SubscriptionPlan)
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'price_yearly',
+        'is_contact_price',
+        'max_stores',
+        'max_staff_users',
+        'max_dining_tables',
+        'max_products',
+        'is_default',
+        'sort_order',
+    )
+    list_editable = ('sort_order',)
+    search_fields = ('name', 'slug')
+    readonly_fields = ('slug',)
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'price_yearly', 'is_contact_price', 'tagline', 'highlight', 'sort_order', 'is_default')}),
+        (
+            'Giới hạn',
+            {
+                'fields': ('max_stores', 'max_staff_users', 'max_dining_tables', 'max_products'),
+                'description': 'Để trống = không giới hạn; 0 = không cho tạo.',
+            },
+        ),
+        ('Tính năng', {'fields': ('feature_customer', 'feature_promotion', 'feature_qr_order', 'feature_kitchen')}),
+    )
 
     def has_module_permission(self, request):
         return bool(request.user and request.user.is_superuser)
@@ -184,9 +244,9 @@ class TenantAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         with transaction.atomic():
+            if obj.is_default:
+                SubscriptionPlan.objects.exclude(pk=obj.pk).update(is_default=False)
             super().save_model(request, obj, form, change)
-            if not change:
-                provision_tenant_default_setup(obj)
 
 
 @admin.register(Store)

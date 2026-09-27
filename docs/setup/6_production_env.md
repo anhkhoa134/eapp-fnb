@@ -56,6 +56,13 @@ SECURE_SSL_REDIRECT=False
 SECURE_HSTS_SECONDS=31536000
 LOG_LEVEL=INFO
 REDIS_URL=redis://127.0.0.1:6379
+
+# Chống brute-force đăng nhập (mặc định: sai 5 lần -> khoá 15 phút theo username + IP).
+LOGIN_FAILURE_LIMIT=5
+LOGIN_LOCKOUT_MINUTES=15
+# Lấy IP thật từ header X-Real-IP do Nginx gửi (mục Nginx bên dưới). Mặc định bật khi ENVIRONMENT=prod.
+# Tắt nếu Django KHÔNG chạy sau Nginx, vì client có thể tự giả header này.
+LOGIN_TRUST_X_REAL_IP=True
 ```
 
 Tạo `SECRET_KEY`:

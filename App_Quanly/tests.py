@@ -12,7 +12,7 @@ from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
 from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Order, OrderItem, OrderItemTopping, Promotion
 from App_Quanly.forms import StaffCreateForm
-from App_Tenant.models import Store, Tenant, UserStoreAccess
+from App_Tenant.models import Store, SubscriptionPlan, Tenant, UserStoreAccess
 
 
 class QuanlyPermissionTests(TestCase):
@@ -1046,6 +1046,24 @@ class CatalogExcelImportTests(TestCase):
         )
         self.assertEqual(res.status_code, 403)
 
+    def test_import_over_product_limit_rolls_back(self):
+        self.tenant.max_products = 0
+        self.tenant.save(update_fields=['max_products', 'updated_at'])
+        self.client.login(username='mgr_imp', password='123456')
+        buf = self._build_min_workbook()
+        self.client.post(
+            reverse('App_Quanly:catalog_import_upload'),
+            {
+                'excel_file': SimpleUploadedFile(
+                    't.xlsx',
+                    buf.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ),
+            },
+        )
+        self.assertFalse(Product.objects.filter(tenant=self.tenant).exists())
+        self.assertFalse(Category.objects.filter(tenant=self.tenant).exists())
+
     def test_manager_import_creates_catalog(self):
         self.client.login(username='mgr_imp', password='123456')
         buf = self._build_min_workbook()
@@ -1168,3 +1186,81 @@ class QuanlyProductImageUploadTests(TestCase):
         self.assertNotEqual(product.image_file.name, old_name)
         self._assert_webp(product.image_file, 1400)
         self.assertFalse(product.image_file.storage.exists(old_name))
+
+
+class QuanlyFreePlanLimitTests(TestCase):
+    def setUp(self):
+        self.plan = SubscriptionPlan.objects.get(slug='mien-phi')
+        self.tenant = Tenant(name='Free Quan', public_slug='free-quan')
+        self.tenant.apply_subscription_plan(self.plan)
+        self.tenant.save()
+        self.store = Store.objects.create(tenant=self.tenant, name='Store 1', is_default=True)
+        self.manager = User.objects.create_user(
+            username='free_manager',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.MANAGER,
+        )
+        UserStoreAccess.objects.create(user=self.manager, store=self.store, is_default=True)
+        self.client.login(username='free_manager', password='123456')
+
+    def test_free_plan_cannot_create_staff(self):
+        res = self.client.post(
+            reverse('App_Quanly:staffs'),
+            {
+                'username': 'free-quan_staff',
+                'password1': 'Staff@1234',
+                'password2': 'Staff@1234',
+                'store_ids': [self.store.id],
+                'default_store': self.store.id,
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(User.objects.filter(username='free-quan_staff').exists())
+        self.assertIn('không bao gồm tài khoản nhân viên', ' '.join(str(m) for m in res.context['messages']))
+
+    def test_product_limit_blocks_new_product(self):
+        self.tenant.max_products = 1
+        self.tenant.save(update_fields=['max_products', 'updated_at'])
+        Product.objects.create(tenant=self.tenant, name='Món 1')
+        res = self.client.post(reverse('App_Quanly:products'), {'name': 'Món 2', 'is_active': 'on'})
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.context['open_create_modal'])
+        self.assertEqual(Product.objects.filter(tenant=self.tenant).count(), 1)
+
+    def test_feature_outside_plan_stays_locked(self):
+        res = self.client.post(
+            reverse('App_Quanly:feature_settings'),
+            {'show_topping_feature': 'on', 'show_qr_order_feature': 'on', 'show_kitchen_feature': 'on'},
+        )
+        self.assertRedirects(res, reverse('App_Quanly:feature_settings'))
+        self.tenant.refresh_from_db()
+        self.assertTrue(self.tenant.show_topping_feature)
+        self.assertFalse(self.tenant.show_qr_order_feature)
+        self.assertFalse(self.tenant.show_kitchen_feature)
+        html = self.client.get(reverse('App_Quanly:feature_settings')).content.decode('utf-8')
+        self.assertIn('Cần nâng cấp gói', html)
+
+    def test_account_page_lists_plans_and_marks_current(self):
+        res = self.client.get(reverse('App_Quanly:account'))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context['current_plan'], self.plan)
+        html = res.content.decode('utf-8')
+        self.assertIn('Các gói cước', html)
+        self.assertIn('Gói hiện tại', html)
+        self.assertIn('990.000đ', html)
+        self.assertIn('Không có tài khoản nhân viên (chỉ 1 quản lý)', html)
+        self.assertIn('https://zalo.me/', html)
+
+    def test_staff_does_not_see_plans(self):
+        self.tenant.max_staff_users = None
+        self.tenant.save(update_fields=['max_staff_users', 'updated_at'])
+        staff = User.objects.create_user(
+            username='free_staff_view', password='123456', tenant=self.tenant, role=User.Role.STAFF
+        )
+        UserStoreAccess.objects.create(user=staff, store=self.store, is_default=True)
+        self.client.logout()
+        self.client.login(username='free_staff_view', password='123456')
+        res = self.client.get(reverse('App_Quanly:account'))
+        self.assertEqual(res.status_code, 200)
+        self.assertNotIn('Các gói cước', res.content.decode('utf-8'))

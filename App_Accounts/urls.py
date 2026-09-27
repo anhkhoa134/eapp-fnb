@@ -6,6 +6,7 @@ app_name = 'App_Accounts'
 
 urlpatterns = [
     path('login/', views.POSLoginView.as_view(), name='login'),
+    path('signup/', views.signup, name='signup'),
     path('logout/', views.pos_logout, name='logout'),
     path('password/change/', views.password_change, name='password_change'),
 ]

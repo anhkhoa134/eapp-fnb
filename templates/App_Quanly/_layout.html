@@ -679,6 +679,21 @@
                 <i class="bi bi-shield-check" aria-hidden="true"></i> Manager Portal
             </span>
         </div> {% endcomment %}
+        {% if subscription_notice %}
+        <div class="alert {% if subscription_notice.expired %}alert-danger{% else %}alert-warning{% endif %} d-flex align-items-start gap-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
+            <div>
+                {% if subscription_notice.expired %}
+                Gói dịch vụ đã hết hạn ngày {{ subscription_notice.ends_on|date:"d/m/Y" }}. POS và việc cập nhật dữ liệu đang bị khoá, bạn vẫn xem được báo cáo.
+                {% elif subscription_notice.days_left == 0 %}
+                Gói dịch vụ hết hạn hôm nay ({{ subscription_notice.ends_on|date:"d/m/Y" }}).
+                {% else %}
+                Gói dịch vụ còn {{ subscription_notice.days_left }} ngày (hết hạn {{ subscription_notice.ends_on|date:"d/m/Y" }}).
+                {% endif %}
+                {% if request.resolver_match.url_name != 'account' %}<a href="{% url 'App_Quanly:account' %}" class="alert-link">Xem gói / gia hạn</a>{% endif %}
+            </div>
+        </div>
+        {% endif %}
         {% block quanly_content %}{% endblock %}
     </div>
 </div>

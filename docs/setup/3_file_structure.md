@@ -88,45 +88,55 @@ eapp-fnb/
 │   ├── pipeline.txt
 │   └── run.txt
 │
-└── docs/
-    └── setup/                          # Xem cây chi tiết bên dưới
+└── docs/                               # Xem cây chi tiết bên dưới
+    ├── setup/                          # Tổng quan + tài liệu theo phase
+    ├── planning/                       # Nghiên cứu thị trường, định hướng
+    ├── backlog/                        # Backlog + checklist tính năng
+    └── testing/                        # Test case E2E
 ```
 
-## Cây thư mục tài liệu (`docs/setup/`)
+## Cây thư mục tài liệu (`docs/`)
 ```
-docs/setup/
-├── 1_features.md                       # Danh sách tính năng + trạng thái + cờ tenant
-├── 2_tech_stack.md                     # Công nghệ & phiên bản
-├── 3_file_structure.md                 # Cây cấu trúc dự án (file này)
-├── 4_project_roadmap.md                # Phân chia Phase 1, 2, 3, 4
-├── 5_security_policy.md                # Tiêu chuẩn bảo mật
-├── 6_production_env.md                 # Môi trường Production, deploy, CI/CD
-│
-├── phase1/                             # Nền tảng POS multi-tenant + Quản lý
-│   ├── 0_overview.md
-│   ├── 1_setup_and_run.md
-│   ├── 2_architecture_and_data_model.md
-│   ├── 3_routes_permissions_api.md
-│   ├── 4_seed_demo_data.md
-│   ├── 5_testing_and_smoke.md
-│   ├── 6_smoke_ui_checklist.md
-│   └── testing/
-│       ├── trang_ban_hang.md           # Kịch bản QA trang POS
-│       └── trang_quan_ly.md            # Kịch bản QA trang Quản lý
-│
-├── phase2/                             # Gọi món QR + Realtime + PWA
-│   ├── 0_overview.md
-│   ├── 1_qr_public_and_qr_admin.md
-│   ├── 2_websocket_realtime.md
-│   └── 3_pwa.md
-│
-├── phase3/                             # Vận hành nâng cao
-│   ├── 0_overview.md                   # Khách hàng, khuyến mãi, tổng quan phase
-│   ├── 1_kitchen_display.md
-│   └── 2_feature_settings_and_plan_limits.md
-│
-└── phase4/                             # Kế hoạch (chưa làm)
-    └── 0_overview.md
+docs/
+├── planning/
+│   └── 1_market_research_features.md   # So sánh đối thủ, xu hướng 2026, đề xuất ưu tiên
+├── backlog/
+│   └── 1_backlog.md                    # Backlog BL-xxx: ưu tiên, size, checklist nghiệm thu
+├── testing/
+│   └── 1_e2e_test_cases.md             # Test case E2E theo module + journey
+└── setup/
+    ├── 1_features.md                       # Danh sách tính năng + trạng thái + cờ tenant
+    ├── 2_tech_stack.md                     # Công nghệ & phiên bản
+    ├── 3_file_structure.md                 # Cây cấu trúc dự án (file này)
+    ├── 4_project_roadmap.md                # Phân chia Phase 1, 2, 3, 4
+    ├── 5_security_policy.md                # Tiêu chuẩn bảo mật
+    ├── 6_production_env.md                 # Môi trường Production, deploy, CI/CD
+    │
+    ├── phase1/                             # Nền tảng POS multi-tenant + Quản lý
+    │   ├── 0_overview.md
+    │   ├── 1_setup_and_run.md
+    │   ├── 2_architecture_and_data_model.md
+    │   ├── 3_routes_permissions_api.md
+    │   ├── 4_seed_demo_data.md
+    │   ├── 5_testing_and_smoke.md
+    │   ├── 6_smoke_ui_checklist.md
+    │   └── testing/
+    │       ├── trang_ban_hang.md           # Kịch bản QA trang POS
+    │       └── trang_quan_ly.md            # Kịch bản QA trang Quản lý
+    │
+    ├── phase2/                             # Gọi món QR + Realtime + PWA
+    │   ├── 0_overview.md
+    │   ├── 1_qr_public_and_qr_admin.md
+    │   ├── 2_websocket_realtime.md
+    │   └── 3_pwa.md
+    │
+    ├── phase3/                             # Vận hành nâng cao
+    │   ├── 0_overview.md                   # Khách hàng, khuyến mãi, tổng quan phase
+    │   ├── 1_kitchen_display.md
+    │   └── 2_feature_settings_and_plan_limits.md
+    │
+    └── phase4/                             # Kế hoạch (chưa làm)
+        └── 0_overview.md
 ```
 
 Quy ước:

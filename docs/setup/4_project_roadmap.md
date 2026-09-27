@@ -65,7 +65,7 @@ Tài liệu: `phase3/0_overview.md`.
 - [ ] Hoàn tiền / huỷ đơn đã thanh toán.
 - [ ] CI/CD tự động (xem `6_production_env.md` mục 13).
 
-Tài liệu: `phase4/0_overview.md`.
+Tài liệu: `phase4/0_overview.md`. Backlog chi tiết (Phase 4, 5, 6+): `docs/backlog/1_backlog.md` · nghiên cứu thị trường: `docs/planning/1_market_research_features.md`.
 
 ## Quy trình thêm phase mới
 1. Tạo `docs/setup/phaseN/0_overview.md` (mục tiêu, phạm vi, tiêu chí hoàn thành).
