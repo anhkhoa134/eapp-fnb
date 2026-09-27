@@ -88,7 +88,7 @@ redis-server
 - Login: `http://127.0.0.1:8000/accounts/login/`
 - Quản lý: `http://127.0.0.1:8000/quanly/`
 - Đơn hôm nay: `http://127.0.0.1:8000/orders/today/`
-- Public catalog: `http://127.0.0.1:8000/demo/`
+- Menu online (xem menu + đặt mang đi): `http://127.0.0.1:8000/demo/`
 - Public QR ordering: `http://127.0.0.1:8000/demo/qr/?table_code=<CODE>&token=<TOKEN>`
 
 ## Tài khoản demo

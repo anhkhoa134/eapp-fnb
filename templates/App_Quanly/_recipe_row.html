@@ -1,0 +1,39 @@
+{% load number_format %}
+<tr>
+    <td class="ps-4">{{ label }}</td>
+    <td>
+        {% if row.recipe_items %}
+        <ul class="recipe-lines small">
+            {% for item in row.recipe_items %}
+            <li>{{ item.quantity|decimal_sep }} {{ item.ingredient.unit }} {{ item.ingredient.name }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <span class="badge text-bg-warning">Chưa có định mức</span>
+        {% endif %}
+    </td>
+    <td class="text-end">{% if row.recipe_items %}{{ row.cost|decimal_sep:0 }} đ{% else %}—{% endif %}</td>
+    <td class="text-end">{{ price|thousand_sep }} đ</td>
+    <td class="text-end">
+        {% if row.recipe_items %}
+        <span class="{% if row.margin < 0 %}recipe-margin-neg{% endif %}">{{ row.margin|decimal_sep:0 }} đ</span>
+        {% if row.margin_percent is not None %}<div class="small text-muted">{{ row.margin_percent|floatformat:0 }}%</div>{% endif %}
+        {% else %}—{% endif %}
+    </td>
+    <td class="text-end">
+        <button
+            class="btn btn-sm btn-outline-primary js-edit-recipe"
+            type="button"
+            data-bs-toggle="modal"
+            data-bs-target="#recipeModal"
+            data-action="{% url 'App_Quanly:recipe_edit' action_kind target_id %}"
+            data-title="{{ title }}"
+            data-price="{{ price|stringformat:'s' }}"
+            data-recipe="{{ row.recipe_json }}"
+            title="Sửa định mức"
+            aria-label="Sửa định mức"
+        >
+            <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Định mức</span>
+        </button>
+    </td>
+</tr>

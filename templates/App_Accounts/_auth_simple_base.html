@@ -1,0 +1,25 @@
+{% extends 'App_Core/base.html' %}
+{% load static %}
+
+{% block body_class %}auth-page{% endblock %}
+{% block container_class %}container-fluid py-4 py-md-5 auth-wrap{% endblock %}
+
+{% block extra_css %}
+{% include 'App_Accounts/_auth_styles.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="auth-card auth-card-narrow">
+    <div class="auth-form-pane p-4 p-md-5">
+        <a class="auth-simple-brand" href="{% url 'App_Accounts:login' %}">
+            <img src="{% static 'images/logo/eapp.png' %}" alt="">
+            <span>eApp FnB</span>
+        </a>
+        {% block auth_body %}{% endblock %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% include 'App_Accounts/_password_toggle.html' %}
+{% endblock %}

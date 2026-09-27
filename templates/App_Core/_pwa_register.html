@@ -66,8 +66,12 @@
 
         if (window.bootstrap && window.bootstrap.Modal) {
             window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        } else {
-            window.alert('Trên Safari iPhone/iPad, bấm Chia sẻ rồi chọn Thêm vào Màn hình chính.');
+        } else if (window.eappDialog) {
+            window.eappDialog.alert({
+                title: 'Cài eApp FnB',
+                message: 'Trên Safari iPhone/iPad, bấm Chia sẻ rồi chọn Thêm vào Màn hình chính.',
+                variant: 'info',
+            });
         }
     };
 

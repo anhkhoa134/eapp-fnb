@@ -1,0 +1,1032 @@
+{% comment %}
+Giao diện gọi món cho khách, dùng chung:
+- mode "dine_in": quét QR tại bàn (App_Public/qr_ordering.html)
+- mode "takeaway": đặt mang đi từ trang menu (App_Public/catalog.html)
+Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bật với QR).
+{% endcomment %}
+{{ order_bootstrap_data|json_script:"order-bootstrap-data" }}
+
+<div class="row g-4">
+    <main class="{% if order_bootstrap_data.ordering_enabled %}col-lg-8{% else %}col-12{% endif %}">
+        {% if order_bootstrap_data.mode == 'dine_in' %}
+        <section class="od-hero mb-3">
+            <div class="od-hero-title">Chào mừng bạn đến {{ tenant.name }}!</div>
+            <div class="od-hero-meta">Bạn đang ngồi <strong>{{ table.name }}</strong> · {{ table.store.name }}. Chọn món và gửi đơn, quán sẽ xác nhận và mang món ra tận bàn.</div>
+            <div class="od-steps-mini">
+                <span><i class="bi bi-1-circle-fill"></i>Chọn món</span>
+                <span><i class="bi bi-2-circle-fill"></i>Gửi đơn</span>
+                <span><i class="bi bi-3-circle-fill"></i>Quán xác nhận &amp; lên món</span>
+            </div>
+        </section>
+        {% elif order_bootstrap_data.store %}
+        <section class="od-hero mb-3">
+            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div>
+                    <div class="od-hero-title">{% if order_bootstrap_data.ordering_enabled %}Đặt trước, ghé quán lấy ngay{% else %}Thực đơn {{ order_bootstrap_data.store.name }}{% endif %}</div>
+                    <div class="od-hero-meta">
+                        <i class="bi bi-shop me-1"></i>{{ order_bootstrap_data.store.name }}
+                        {% if order_bootstrap_data.store.address %}<span class="d-block d-sm-inline"><span class="d-none d-sm-inline"> · </span><i class="bi bi-geo-alt me-1"></i>{{ order_bootstrap_data.store.address }}</span>{% endif %}
+                        {% if order_bootstrap_data.store.phone %}<span class="d-block d-sm-inline"><span class="d-none d-sm-inline"> · </span><i class="bi bi-telephone me-1"></i><a href="tel:{{ order_bootstrap_data.store.phone }}">{{ order_bootstrap_data.store.phone }}</a></span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if order_bootstrap_data.ordering_enabled %}
+            <div class="od-steps-mini">
+                <span><i class="bi bi-1-circle-fill"></i>Chọn món</span>
+                <span><i class="bi bi-2-circle-fill"></i>Để lại tên &amp; SĐT</span>
+                <span><i class="bi bi-3-circle-fill"></i>Quán xác nhận, bạn ghé lấy &amp; thanh toán</span>
+            </div>
+            {% endif %}
+        </section>
+        {% if not order_bootstrap_data.ordering_enabled %}
+        <div class="od-notice mb-3">
+            <i class="bi bi-info-circle me-1"></i>Quán hiện chưa nhận đặt món online. Bạn có thể xem thực đơn và gọi món trực tiếp tại quầy.
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <div id="od-track-slot" class="mb-3"></div>
+
+        <div class="od-toolbar">
+            <div class="od-search">
+                <i class="bi bi-search"></i>
+                <input id="od-search" type="search" class="form-control" placeholder="Bạn muốn dùng món gì?" autocomplete="off">
+                <button type="button" class="od-search-clear d-none" id="od-search-clear" aria-label="Xoá tìm kiếm"><i class="bi bi-x-circle-fill"></i></button>
+            </div>
+            <div class="od-chips" id="od-chips" role="tablist"></div>
+        </div>
+
+        <div id="od-products" class="row row-cols-2 row-cols-md-3 {% if not order_bootstrap_data.ordering_enabled %}row-cols-lg-4{% endif %} g-3 mt-0"></div>
+    </main>
+
+    {% if order_bootstrap_data.ordering_enabled %}
+    <aside class="col-lg-4 od-cart-col">
+        <div class="od-cart offcanvas-lg offcanvas-bottom" tabindex="-1" id="od-cart" aria-labelledby="od-cart-title">
+            <div class="od-grabber d-lg-none"></div>
+            <div class="od-cart-head">
+                <div>
+                    <h2 class="od-cart-title" id="od-cart-title">Giỏ hàng của bạn</h2>
+                    <div class="small text-muted" id="od-cart-subtitle">Chưa có món nào</div>
+                </div>
+                <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#od-cart" aria-label="Đóng"></button>
+            </div>
+            <div class="od-cart-body">
+                <div id="od-editing-banner"></div>
+                <div id="od-cart-items"></div>
+                <div id="od-cart-extra" class="mt-2">
+                    {% if order_bootstrap_data.mode == 'takeaway' %}
+                    <div class="row g-2 mb-2">
+                        <div class="col-12 col-sm-6 col-lg-12 col-xl-6">
+                            <label class="od-field-label" for="od-customer-name">Tên người nhận</label>
+                            <input id="od-customer-name" class="form-control" maxlength="120" autocomplete="name" placeholder="VD: Chị Lan">
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-12 col-xl-6">
+                            <label class="od-field-label" for="od-customer-phone">Số điện thoại</label>
+                            <input id="od-customer-phone" class="form-control" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" placeholder="VD: 0901 234 567">
+                        </div>
+                    </div>
+                    {% endif %}
+                    <label class="od-field-label" for="od-order-note">Ghi chú cho quán</label>
+                    <textarea id="od-order-note" class="form-control" rows="2" maxlength="255" placeholder="{% if order_bootstrap_data.mode == 'takeaway' %}VD: khoảng 15 phút nữa mình tới lấy{% else %}VD: lên nước trước giúp mình{% endif %}"></textarea>
+                </div>
+            </div>
+            <div class="od-cart-foot">
+                <div class="od-total-row">
+                    <span class="text-muted fw-semibold">Tạm tính</span>
+                    <strong id="od-cart-total">0 đ</strong>
+                </div>
+                <button type="button" class="btn btn-primary w-100 od-submit" id="od-submit" disabled>
+                    <i class="bi bi-send me-1"></i><span>Gửi đơn</span>
+                </button>
+                <div class="text-center small text-muted mt-2" id="od-submit-hint">
+                    {% if order_bootstrap_data.mode == 'takeaway' %}Thanh toán khi bạn tới quán lấy món.{% else %}Thanh toán tại quầy sau khi dùng món.{% endif %}
+                </div>
+            </div>
+        </div>
+    </aside>
+    {% endif %}
+</div>
+
+{% if order_bootstrap_data.ordering_enabled %}
+<button type="button" class="od-cartbar" id="od-cartbar" data-bs-toggle="offcanvas" data-bs-target="#od-cart" aria-controls="od-cart">
+    <span class="od-cartbar-icon" id="od-cartbar-icon"><i class="bi bi-bag-heart"></i><span class="od-add-count" id="od-cartbar-count">0</span></span>
+    <span class="text-start">
+        <span class="d-block small opacity-75" id="od-cartbar-label">Giỏ hàng</span>
+        <span class="fw-bold" id="od-cartbar-total">0 đ</span>
+    </span>
+    <span class="od-cartbar-cta">Xem giỏ<i class="bi bi-chevron-right"></i></span>
+</button>
+{% endif %}
+
+<div class="modal fade od-sheet" id="od-sheet" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="od-sheet-hero">
+                <img id="od-sheet-img" src="" alt="">
+                <button type="button" class="od-sheet-close" data-bs-dismiss="modal" aria-label="Đóng"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body pt-3">
+                <h3 class="h5 fw-bold mb-1" id="od-sheet-name"></h3>
+                <div class="text-muted small mb-1" id="od-sheet-desc"></div>
+                <div class="od-price" id="od-sheet-base"></div>
+                <div id="od-sheet-units-wrap">
+                    <div class="od-section-label">Chọn size <span>Bắt buộc</span></div>
+                    <div id="od-sheet-units"></div>
+                </div>
+                <div id="od-sheet-toppings-wrap">
+                    <div class="od-section-label">Thêm topping <span>Tuỳ chọn</span></div>
+                    <div id="od-sheet-toppings"></div>
+                </div>
+                {% if order_bootstrap_data.ordering_enabled %}
+                <div class="od-section-label">Ghi chú món</div>
+                <input id="od-sheet-note" class="form-control" maxlength="255" placeholder="VD: ít đá, ít ngọt">
+                {% endif %}
+            </div>
+            {% if order_bootstrap_data.ordering_enabled %}
+            <div class="od-sheet-foot">
+                <div class="od-qty od-qty-lg">
+                    <button type="button" id="od-sheet-minus" aria-label="Giảm"><i class="bi bi-dash"></i></button>
+                    <span id="od-sheet-qty">1</span>
+                    <button type="button" id="od-sheet-plus" aria-label="Tăng"><i class="bi bi-plus"></i></button>
+                </div>
+                <button type="button" class="btn btn-primary flex-grow-1 od-submit py-2" id="od-sheet-add">
+                    Thêm vào giỏ · <span id="od-sheet-total">0 đ</span>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="od-cancel-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow" style="border-radius: 20px;">
+            <div class="modal-body p-4 text-center">
+                <div class="od-state-icon" style="width:56px;height:56px;font-size:1.5rem;background:#fef3c7;color:#b45309;"><i class="bi bi-exclamation-triangle"></i></div>
+                <h6 class="fw-bold mb-2">Hủy đơn này?</h6>
+                <p class="text-muted small mb-4">Quán chưa xác nhận nên bạn vẫn có thể hủy. Các món trong đơn sẽ không được làm.</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-light w-50" data-bs-dismiss="modal">Giữ đơn</button>
+                    <button type="button" class="btn btn-danger w-50" id="od-cancel-confirm">Hủy đơn</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const cfg = JSON.parse(document.getElementById('order-bootstrap-data').textContent || '{}');
+    const isTakeaway = cfg.mode === 'takeaway';
+    const orderingEnabled = !!cfg.ordering_enabled;
+    const products = cfg.products || [];
+    const categories = cfg.categories || [{ id: 'all', name: 'Tất cả' }];
+    const storeInfo = cfg.store || {};
+    const API_CREATE_URL = isTakeaway
+        ? "{% url 'App_Public_API:takeaway_orders_create' %}"
+        : "{% url 'App_Public_API:qr_orders_create' %}";
+    const API_ORDER_BASE = '/api/public/qr/orders/';
+    const PLACEHOLDER_IMG = 'https://placehold.co/600x600/png?text=Product';
+    const FALLBACK_POLL_MS = 15000;
+    const RECONNECT_BASE_MS = 1000;
+    const RECONNECT_MAX_MS = 20000;
+
+    const contextKey = isTakeaway ? `${cfg.tenant_slug}::store-${storeInfo.id || ''}` : `${cfg.tenant_slug}::${cfg.table_code}`;
+    const ACTIVE_ORDER_KEY = isTakeaway ? `eapp_takeaway_order::${contextKey}` : `eapp_qr_active_order::${contextKey}`;
+    const CART_KEY = `eapp_order_cart::${cfg.mode}::${contextKey}`;
+    const CUSTOMER_KEY = `eapp_takeaway_customer::${cfg.tenant_slug}`;
+
+    let currentFilter = 'all';
+    let searchTerm = '';
+    let cart = [];
+    let activeOrder = null;
+    let activeRef = null; // { id, key }
+    let editing = false;
+    let sheetProduct = null;
+    let sheetQty = 1;
+    let sheetModal = null;
+    let cancelModal = null;
+    let socket = null;
+    let socketOrderId = null;
+    let reconnectTimer = null;
+    let reconnectDelay = RECONNECT_BASE_MS;
+    let pollTimer = null;
+    let detailInFlight = false;
+    let submitting = false;
+
+    // ---------- helpers ----------
+    const fmt = (value) => `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value || 0)))} đ`;
+    const esc = (value) => {
+        const div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    };
+    const fold = (value) => (value || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+    const $ = (id) => document.getElementById(id);
+
+    const store = {
+        get(key) { try { return window.localStorage.getItem(key); } catch (_) { return null; } },
+        set(key, value) { try { window.localStorage.setItem(key, value); } catch (_) { /* bỏ qua */ } },
+        remove(key) { try { window.localStorage.removeItem(key); } catch (_) { /* bỏ qua */ } },
+    };
+
+    const TOAST_ICONS = { success: 'bi-check-circle-fill', warning: 'bi-exclamation-circle-fill', danger: 'bi-x-circle-fill', info: 'bi-bell-fill' };
+    const toast = (message, tone = 'info') => {
+        const wrap = $('od-toasts');
+        if (!wrap) return;
+        const el = document.createElement('div');
+        el.className = `od-toast ${tone}`;
+        el.innerHTML = `<i class="bi ${TOAST_ICONS[tone] || TOAST_ICONS.info}"></i><span>${esc(message)}</span>`;
+        wrap.appendChild(el);
+        setTimeout(() => {
+            el.classList.add('hide');
+            setTimeout(() => el.remove(), 260);
+        }, 2600);
+    };
+
+    const requestJson = async (url, { method = 'GET', payload } = {}) => {
+        let response;
+        try {
+            response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: payload ? JSON.stringify(payload) : undefined,
+            });
+        } catch (_) {
+            const error = new Error('Mất kết nối mạng. Vui lòng thử lại.');
+            error.status = 0;
+            throw error;
+        }
+        let data = {};
+        try { data = await response.json(); } catch (_) { data = {}; }
+        if (!response.ok) {
+            const error = new Error(data.detail || 'Có lỗi xảy ra, vui lòng thử lại.');
+            error.status = response.status;
+            throw error;
+        }
+        return data;
+    };
+
+    const getProduct = (id) => products.find((row) => row.id === Number(id));
+    const hasOptions = (product) => (product.units || []).length > 1 || (product.toppings || []).length > 0;
+    const itemKey = (item) => {
+        const tops = [...(item.topping_ids || [])].sort((a, b) => a - b).join('-');
+        return `${item.product_id}:${item.unit_id}:${tops}:${(item.note || '').trim()}`;
+    };
+    const cartTotals = () => cart.reduce((acc, item) => {
+        acc.qty += item.quantity;
+        acc.total += item.unit_price * item.quantity;
+        return acc;
+    }, { qty: 0, total: 0 });
+    const productQtyInCart = (productId) => cart.filter((row) => row.product_id === productId).reduce((sum, row) => sum + row.quantity, 0);
+
+    const isPending = () => activeOrder?.status === 'PENDING';
+    const canCompose = () => orderingEnabled && (!isPending() || editing);
+
+    // ---------- persistence ----------
+    const saveCart = () => {
+        if (editing) return;
+        if (cart.length) store.set(CART_KEY, JSON.stringify(cart));
+        else store.remove(CART_KEY);
+    };
+    const loadCart = () => {
+        try {
+            const rows = JSON.parse(store.get(CART_KEY) || '[]');
+            cart = (Array.isArray(rows) ? rows : []).filter((row) => {
+                const product = getProduct(row.product_id);
+                return product && (product.units || []).some((unit) => unit.id === row.unit_id);
+            });
+        } catch (_) {
+            cart = [];
+        }
+    };
+    const saveActiveRef = () => {
+        if (!activeRef?.id) { store.remove(ACTIVE_ORDER_KEY); return; }
+        store.set(ACTIVE_ORDER_KEY, isTakeaway ? JSON.stringify(activeRef) : String(activeRef.id));
+    };
+    const loadActiveRef = () => {
+        const raw = store.get(ACTIVE_ORDER_KEY);
+        if (!raw) return null;
+        if (isTakeaway) {
+            try {
+                const parsed = JSON.parse(raw);
+                return parsed && parsed.id && parsed.key ? { id: Number(parsed.id), key: String(parsed.key) } : null;
+            } catch (_) { return null; }
+        }
+        const id = parseInt(raw, 10);
+        return Number.isInteger(id) ? { id } : null;
+    };
+    const accessParams = () => (isTakeaway
+        ? { access_key: activeRef?.key || '' }
+        : { table_code: cfg.table_code, token: cfg.token });
+
+    // ---------- render: categories & products ----------
+    const renderChips = () => {
+        const wrap = $('od-chips');
+        const visibleCats = categories.filter((cat) => cat.id === 'all' || products.some((p) => p.category_id === cat.id));
+        wrap.innerHTML = visibleCats.map((cat) => `
+            <button type="button" class="od-chip ${currentFilter === cat.id ? 'active' : ''}" data-cat="${esc(cat.id)}" role="tab">${esc(cat.name)}</button>
+        `).join('');
+        wrap.querySelectorAll('.od-chip').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                currentFilter = btn.dataset.cat;
+                renderChips();
+                renderProducts();
+                btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            });
+        });
+    };
+
+    const filteredProducts = () => {
+        const term = fold(searchTerm.trim());
+        return products.filter((product) => {
+            const byCategory = currentFilter === 'all' || product.category_id === currentFilter;
+            const bySearch = !term || fold(product.name).includes(term) || fold(product.category_name).includes(term);
+            return byCategory && bySearch;
+        });
+    };
+
+    const renderProducts = () => {
+        const container = $('od-products');
+        const rows = filteredProducts();
+        if (!products.length) {
+            container.innerHTML = `<div class="col-12 w-100"><div class="od-empty"><i class="bi bi-cup-hot"></i>Thực đơn đang được cập nhật.</div></div>`;
+            return;
+        }
+        if (!rows.length) {
+            container.innerHTML = `<div class="col-12 w-100"><div class="od-empty"><i class="bi bi-search"></i>Không tìm thấy món phù hợp.</div></div>`;
+            return;
+        }
+        container.innerHTML = rows.map((product) => {
+            const inCart = orderingEnabled ? productQtyInCart(product.id) : 0;
+            const multiPrice = (product.units || []).length > 1;
+            return `
+                <div class="col">
+                    <article class="od-card" data-product="${product.id}">
+                        <div class="od-card-img"><img src="${esc(product.image || PLACEHOLDER_IMG)}" alt="${esc(product.name)}" loading="lazy" onerror="this.src='${PLACEHOLDER_IMG}'"></div>
+                        <div class="od-card-body">
+                            <h3 class="od-card-name">${esc(product.name)}</h3>
+                            ${product.description ? `<p class="od-card-desc">${esc(product.description)}</p>` : ''}
+                            <div class="od-card-foot">
+                                <span class="od-price">${multiPrice ? '<small>từ </small>' : ''}${fmt(product.base_price)}</span>
+                                ${orderingEnabled ? `
+                                <button type="button" class="od-add" data-quick="${product.id}" aria-label="Thêm ${esc(product.name)}">
+                                    <i class="bi bi-plus-lg"></i>
+                                    ${inCart ? `<span class="od-add-count">${inCart}</span>` : ''}
+                                </button>` : ''}
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            `;
+        }).join('');
+    };
+
+    // ---------- render: cart ----------
+    const toppingLine = (toppings) => (toppings || []).map((top) => top.name).join(', ');
+
+    const renderCart = () => {
+        if (!orderingEnabled) return;
+        const list = $('od-cart-items');
+        const totals = cartTotals();
+
+        if (!cart.length) {
+            list.innerHTML = `
+                <div class="od-empty py-4">
+                    <i class="bi bi-bag"></i>
+                    <div class="fw-semibold text-body mb-1">Giỏ hàng đang trống</div>
+                    <div class="small">Chạm dấu <strong>+</strong> ở món bạn thích để thêm vào giỏ.</div>
+                </div>`;
+        } else {
+            list.innerHTML = cart.map((item, index) => `
+                <div class="od-cart-item">
+                    <img src="${esc(item.image || PLACEHOLDER_IMG)}" alt="" onerror="this.src='${PLACEHOLDER_IMG}'">
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div class="od-cart-item-name">${esc(item.name)}</div>
+                            <button type="button" class="btn btn-sm p-0 text-muted" data-remove="${index}" aria-label="Xoá món"><i class="bi bi-trash3"></i></button>
+                        </div>
+                        <div class="od-cart-item-meta">${esc(item.unit_name)}${item.toppings?.length ? ` · ${esc(toppingLine(item.toppings))}` : ''}</div>
+                        ${item.note ? `<div class="od-cart-item-meta fst-italic"><i class="bi bi-chat-left-text me-1"></i>${esc(item.note)}</div>` : ''}
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div class="od-qty">
+                                <button type="button" data-qty="${index}" data-delta="-1" aria-label="Giảm"><i class="bi bi-dash"></i></button>
+                                <span>${item.quantity}</span>
+                                <button type="button" data-qty="${index}" data-delta="1" aria-label="Tăng"><i class="bi bi-plus"></i></button>
+                            </div>
+                            <span class="fw-bold">${fmt(item.unit_price * item.quantity)}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        $('od-cart-subtitle').textContent = totals.qty ? `${totals.qty} món` : 'Chưa có món nào';
+        $('od-cart-total').textContent = fmt(totals.total);
+
+        const banner = $('od-editing-banner');
+        banner.innerHTML = editing && activeOrder ? `
+            <div class="od-editing-banner">
+                <span><i class="bi bi-pencil-square me-1"></i>Đang sửa đơn #${activeOrder.id}</span>
+                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="od-stop-edit">Bỏ sửa</button>
+            </div>` : '';
+        $('od-stop-edit')?.addEventListener('click', stopEditing);
+
+        const submit = $('od-submit');
+        submit.disabled = !cart.length || submitting;
+        submit.querySelector('span').textContent = editing
+            ? 'Cập nhật đơn'
+            : (isTakeaway ? `Đặt món mang đi · ${fmt(totals.total)}` : `Gửi đơn cho quán · ${fmt(totals.total)}`);
+        submit.querySelector('i').className = editing ? 'bi bi-arrow-repeat me-1' : 'bi bi-send me-1';
+
+        const bar = $('od-cartbar');
+        $('od-cartbar-count').textContent = totals.qty;
+        $('od-cartbar-total').textContent = fmt(totals.total);
+        $('od-cartbar-label').textContent = editing ? `Đang sửa đơn #${activeOrder?.id || ''}` : 'Giỏ hàng';
+        bar.classList.toggle('show', totals.qty > 0);
+    };
+
+    const bumpCart = () => {
+        ['od-cartbar-icon', 'od-cart-total'].forEach((id) => {
+            const el = $(id);
+            if (!el) return;
+            el.classList.remove('od-bump');
+            void el.offsetWidth;
+            el.classList.add('od-bump');
+        });
+    };
+
+    const flyToCart = (sourceImg) => {
+        if (!sourceImg) return;
+        const rect = sourceImg.getBoundingClientRect();
+        const isDesktop = window.matchMedia('(min-width: 992px)').matches;
+        const target = isDesktop ? $('od-cart-total') : $('od-cartbar-icon');
+        if (!target) return;
+        const bar = $('od-cartbar');
+        // Thanh giỏ đang ẩn (chưa có món) thì lấy vị trí khi nó hiện.
+        const targetRect = target.getBoundingClientRect();
+        const targetX = targetRect.left + targetRect.width / 2;
+        const targetY = !isDesktop && !bar.classList.contains('show')
+            ? window.innerHeight - 50
+            : targetRect.top + targetRect.height / 2;
+        const img = document.createElement('img');
+        img.src = sourceImg.src;
+        img.className = 'od-flying-img';
+        Object.assign(img.style, { top: `${rect.top}px`, left: `${rect.left}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+        document.body.appendChild(img);
+        void img.offsetWidth;
+        Object.assign(img.style, {
+            top: `${targetY - 12}px`,
+            left: `${targetX - 12}px`,
+            width: '24px',
+            height: '24px',
+            opacity: '0.3',
+            transform: 'scale(0.5) rotate(360deg)',
+        });
+        setTimeout(() => img.remove(), 620);
+    };
+
+    // ---------- order tracking ----------
+    const STATUS_VIEW = {
+        PENDING: {
+            cls: 'pending', icon: 'bi-hourglass-split',
+            title: 'Đang chờ quán xác nhận',
+            text: () => 'Quán sẽ xác nhận trong ít phút. Bạn vẫn có thể sửa hoặc hủy đơn lúc này.',
+        },
+        APPROVED: {
+            cls: 'approved', icon: isTakeaway ? 'bi-bag-check' : 'bi-fire',
+            title: isTakeaway ? 'Quán đã nhận đơn và đang chuẩn bị' : 'Quán đã nhận đơn, món đang được chuẩn bị',
+            text: () => (isTakeaway
+                ? `Ghé ${storeInfo.name || 'quán'}${storeInfo.address ? ` (${storeInfo.address})` : ''} để lấy món và thanh toán nhé.`
+                : 'Món sẽ được mang ra bàn của bạn. Muốn gọi thêm, cứ chọn món và gửi đơn mới.'),
+        },
+        PAID: {
+            cls: 'paid', icon: 'bi-emoji-smile',
+            title: 'Bạn đã nhận món. Cảm ơn bạn!',
+            text: () => 'Hẹn gặp lại bạn lần sau.',
+        },
+        REJECTED: {
+            cls: 'rejected', icon: 'bi-x-octagon',
+            title: 'Quán chưa thể nhận đơn này',
+            text: () => 'Xin lỗi vì sự bất tiện. Bạn có thể chọn món khác và đặt lại.',
+        },
+        CANCELLED: {
+            cls: 'cancelled', icon: 'bi-slash-circle',
+            title: 'Bạn đã hủy đơn',
+            text: () => 'Bạn có thể chọn món và đặt đơn mới bất cứ lúc nào.',
+        },
+    };
+
+    const stepsFor = (order) => {
+        const labels = isTakeaway
+            ? ['Đã gửi đơn', 'Quán xác nhận', 'Chuẩn bị món', 'Đã lấy món']
+            : ['Đã gửi đơn', 'Quán xác nhận', 'Đang chuẩn bị'];
+        let doneCount = 1;
+        if (order.status === 'APPROVED') doneCount = order.is_paid ? labels.length : 3;
+        const currentIndex = order.status === 'PENDING' ? 1 : (order.status === 'APPROVED' && !order.is_paid && isTakeaway ? 3 : -1);
+        return labels.map((label, index) => {
+            const state = index < doneCount ? 'done' : (index === currentIndex ? 'current' : '');
+            return `<div class="od-step ${state}"><div class="od-step-bar"></div>${label}</div>`;
+        }).join('');
+    };
+
+    const renderTrack = () => {
+        const slot = $('od-track-slot');
+        if (!activeOrder) { slot.innerHTML = ''; return; }
+        const order = activeOrder;
+        const viewKey = order.status === 'APPROVED' && order.is_paid ? 'PAID' : order.status;
+        const view = STATUS_VIEW[viewKey] || STATUS_VIEW.PENDING;
+        const showSteps = ['PENDING', 'APPROVED'].includes(order.status);
+        const live = ['PENDING', 'APPROVED'].includes(order.status) && !order.is_paid;
+        const itemsHtml = (order.items || []).map((item) => `
+            <div class="d-flex justify-content-between gap-2 py-1">
+                <span><strong>${item.qty}×</strong> ${esc(item.name)} <span class="text-muted">(${esc(item.size)})</span>
+                ${item.toppings?.length ? `<span class="d-block small text-muted">+ ${esc(toppingLine(item.toppings))}</span>` : ''}
+                ${item.note ? `<span class="d-block small text-muted fst-italic">${esc(item.note)}</span>` : ''}</span>
+                <span class="fw-semibold text-nowrap">${fmt(item.line_total)}</span>
+            </div>`).join('');
+
+        let actions = '';
+        if (order.status === 'PENDING') {
+            actions = `
+                <button type="button" class="btn btn-primary btn-sm px-3" data-track="edit" ${editing ? 'disabled' : ''}><i class="bi bi-pencil-square me-1"></i>${editing ? 'Đang sửa…' : 'Sửa / thêm món'}</button>
+                <button type="button" class="btn btn-outline-danger btn-sm px-3" data-track="cancel"><i class="bi bi-x-lg me-1"></i>Hủy đơn</button>`;
+        } else {
+            actions = `<button type="button" class="btn btn-light border btn-sm px-3 ms-auto" data-track="dismiss"><i class="bi bi-check2 me-1"></i>Đã hiểu</button>`;
+        }
+
+        const who = isTakeaway && order.customer_name
+            ? ` · ${esc(order.customer_name)}${order.customer_phone ? ` (${esc(order.customer_phone)})` : ''}`
+            : '';
+
+        slot.innerHTML = `
+            <section class="od-track ${view.cls}" id="od-track">
+                <div class="od-track-head">
+                    <span class="od-track-icon"><i class="bi ${view.icon}"></i></span>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <p class="od-track-title">${view.title}</p>
+                            ${live ? '<span class="od-live"><span class="od-live-dot"></span>Tự động cập nhật</span>' : ''}
+                        </div>
+                        <p class="od-track-text">${esc(view.text())}</p>
+                        <div class="od-track-meta mt-1">Đơn #${order.id} · ${esc(order.time)}${who}</div>
+                        ${order.status === 'REJECTED' && order.rejection_reason ? `<div class="od-reason"><i class="bi bi-chat-square-quote me-1"></i>Lý do: ${esc(order.rejection_reason)}</div>` : ''}
+                    </div>
+                </div>
+                ${showSteps ? `<div class="od-stepper">${stepsFor(order)}</div>` : ''}
+                <div class="od-track-items">
+                    <details>
+                        <summary class="d-flex justify-content-between align-items-center">
+                            <span>${(order.items || []).reduce((sum, item) => sum + item.qty, 0)} món · <span class="text-success fw-bold">${fmt(order.total)}</span></span>
+                            <span class="small text-muted">Xem chi tiết <i class="bi bi-chevron-down"></i></span>
+                        </summary>
+                        <div class="pt-2">${itemsHtml}
+                        ${order.customer_note ? `<div class="small text-muted fst-italic mt-1"><i class="bi bi-chat-left-text me-1"></i>${esc(order.customer_note)}</div>` : ''}</div>
+                    </details>
+                </div>
+                <div class="od-track-actions">${actions}</div>
+            </section>`;
+    };
+
+    const syncUi = () => {
+        renderTrack();
+        renderProducts();
+        renderCart();
+    };
+
+    // ---------- option sheet ----------
+    const sheetSelection = () => {
+        if (!sheetProduct) return { unit: null, toppings: [] };
+        const unitId = Number(document.querySelector('input[name="od-unit"]:checked')?.value || 0);
+        const unit = sheetProduct.units.find((row) => row.id === unitId) || sheetProduct.units[0];
+        const topIds = Array.from(document.querySelectorAll('input[name="od-top"]:checked')).map((el) => Number(el.value));
+        const toppings = (sheetProduct.toppings || []).filter((top) => topIds.includes(top.id));
+        return { unit, toppings };
+    };
+
+    const updateSheetTotal = () => {
+        if (!orderingEnabled || !sheetProduct) return;
+        const { unit, toppings } = sheetSelection();
+        const each = Number(unit?.price || 0) + toppings.reduce((sum, top) => sum + Number(top.price || 0), 0);
+        $('od-sheet-qty').textContent = sheetQty;
+        $('od-sheet-total').textContent = fmt(each * sheetQty);
+    };
+
+    const openSheet = (productId) => {
+        sheetProduct = getProduct(productId);
+        if (!sheetProduct) return;
+        sheetQty = 1;
+        $('od-sheet-img').src = sheetProduct.image || PLACEHOLDER_IMG;
+        $('od-sheet-img').alt = sheetProduct.name;
+        $('od-sheet-name').textContent = sheetProduct.name;
+        $('od-sheet-desc').textContent = sheetProduct.description || '';
+        $('od-sheet-base').innerHTML = `${sheetProduct.units.length > 1 ? '<small>từ </small>' : ''}${fmt(sheetProduct.base_price)}`;
+
+        const units = sheetProduct.units || [];
+        $('od-sheet-units-wrap').classList.toggle('d-none', units.length <= 1);
+        $('od-sheet-units').innerHTML = units.map((unit, index) => `
+            <input type="radio" class="btn-check" name="od-unit" id="od-unit-${unit.id}" value="${unit.id}" ${index === 0 ? 'checked' : ''}>
+            <label class="od-option" for="od-unit-${unit.id}">
+                <span class="d-flex align-items-center gap-2"><span class="od-option-mark radio"><i class="bi bi-check-lg"></i></span>${esc(unit.name)}</span>
+                <span class="od-option-price">${fmt(unit.price)}</span>
+            </label>`).join('');
+
+        const tops = sheetProduct.toppings || [];
+        $('od-sheet-toppings-wrap').classList.toggle('d-none', !tops.length);
+        $('od-sheet-toppings').innerHTML = tops.map((top) => `
+            <input type="checkbox" class="btn-check" name="od-top" id="od-top-${top.id}" value="${top.id}">
+            <label class="od-option" for="od-top-${top.id}">
+                <span class="d-flex align-items-center gap-2"><span class="od-option-mark box"><i class="bi bi-check-lg"></i></span>${esc(top.name)}</span>
+                <span class="od-option-price">+${fmt(top.price)}</span>
+            </label>`).join('');
+
+        if (orderingEnabled) $('od-sheet-note').value = '';
+        document.querySelectorAll('#od-sheet input[name="od-unit"], #od-sheet input[name="od-top"]').forEach((el) => {
+            el.addEventListener('change', updateSheetTotal);
+        });
+        updateSheetTotal();
+        sheetModal = sheetModal || new bootstrap.Modal($('od-sheet'));
+        sheetModal.show();
+    };
+
+    // ---------- cart ops ----------
+    const ensureComposable = () => {
+        if (!orderingEnabled) return false;
+        if (canCompose()) return true;
+        if (isPending()) {
+            startEditing({ silent: true });
+            toast(`Đang sửa đơn #${activeOrder.id}: thêm món rồi bấm "Cập nhật đơn".`, 'info');
+            return true;
+        }
+        return false;
+    };
+
+    const pushToCart = ({ product, unit, toppings, note, quantity }) => {
+        const item = {
+            product_id: product.id,
+            unit_id: unit.id,
+            name: product.name,
+            image: product.image,
+            unit_name: unit.name,
+            unit_price: Number(unit.price) + toppings.reduce((sum, top) => sum + Number(top.price || 0), 0),
+            quantity,
+            note: (note || '').trim(),
+            toppings: toppings.map((top) => ({ id: top.id, name: top.name, price: Number(top.price || 0) })),
+            topping_ids: toppings.map((top) => top.id),
+        };
+        const existing = cart.find((row) => itemKey(row) === itemKey(item));
+        if (existing) existing.quantity += quantity;
+        else cart.push(item);
+        saveCart();
+    };
+
+    const quickAdd = (productId, button) => {
+        const product = getProduct(productId);
+        if (!product) return;
+        if (hasOptions(product)) { openSheet(productId); return; }
+        if (!ensureComposable()) return;
+        pushToCart({ product, unit: product.units[0], toppings: [], note: '', quantity: 1 });
+        flyToCart(button?.closest('.od-card')?.querySelector('.od-card-img img'));
+        renderProducts();
+        renderCart();
+        bumpCart();
+    };
+
+    const addFromSheet = () => {
+        if (!sheetProduct) return;
+        if (!ensureComposable()) return;
+        const { unit, toppings } = sheetSelection();
+        if (!unit) { toast('Vui lòng chọn size.', 'warning'); return; }
+        pushToCart({ product: sheetProduct, unit, toppings, note: $('od-sheet-note').value, quantity: sheetQty });
+        flyToCart($('od-sheet-img'));
+        sheetModal?.hide();
+        renderProducts();
+        renderCart();
+        bumpCart();
+        toast(`Đã thêm ${sheetQty} × ${sheetProduct.name}`, 'success');
+    };
+
+    const changeQty = (index, delta) => {
+        const row = cart[index];
+        if (!row) return;
+        row.quantity += delta;
+        if (row.quantity <= 0) cart.splice(index, 1);
+        saveCart();
+        renderProducts();
+        renderCart();
+    };
+
+    // ---------- order actions ----------
+    const readCustomer = () => {
+        if (!isTakeaway) return {};
+        return {
+            customer_name: ($('od-customer-name').value || '').trim(),
+            customer_phone: ($('od-customer-phone').value || '').trim(),
+        };
+    };
+
+    const validateCustomer = () => {
+        if (!isTakeaway) return true;
+        const { customer_name: name, customer_phone: phone } = readCustomer();
+        const nameEl = $('od-customer-name');
+        const phoneEl = $('od-customer-phone');
+        nameEl.classList.toggle('is-invalid', !name);
+        const phoneOk = /^(\+?84|0)\d{8,10}$/.test(phone.replace(/[\s.\-()]/g, ''));
+        phoneEl.classList.toggle('is-invalid', !phoneOk);
+        if (!name) { nameEl.focus(); toast('Vui lòng nhập tên người nhận.', 'warning'); return false; }
+        if (!phoneOk) { phoneEl.focus(); toast('Số điện thoại chưa đúng.', 'warning'); return false; }
+        store.set(CUSTOMER_KEY, JSON.stringify({ name, phone }));
+        return true;
+    };
+
+    const closeCartSheet = () => {
+        const el = $('od-cart');
+        const inst = el && bootstrap.Offcanvas.getInstance(el);
+        if (inst) inst.hide();
+    };
+
+    const submitOrder = async () => {
+        if (submitting || !cart.length) return;
+        if (!validateCustomer()) return;
+        const payload = {
+            ...accessParams(),
+            ...readCustomer(),
+            note: ($('od-order-note').value || '').trim(),
+            items: cart.map((item) => ({
+                product_id: item.product_id,
+                unit_id: item.unit_id,
+                quantity: item.quantity,
+                note: item.note || '',
+                topping_ids: item.topping_ids || [],
+            })),
+        };
+        if (isTakeaway) {
+            delete payload.access_key;
+            payload.tenant_slug = cfg.tenant_slug;
+            payload.store_id = storeInfo.id;
+        }
+
+        submitting = true;
+        const btn = $('od-submit');
+        btn.disabled = true;
+        btn.querySelector('span').textContent = 'Đang gửi…';
+        try {
+            let response;
+            if (editing && isPending()) {
+                const patchPayload = { ...payload, ...accessParams() };
+                response = await requestJson(`${API_ORDER_BASE}${activeOrder.id}/`, { method: 'PATCH', payload: patchPayload });
+                toast('Đã cập nhật đơn.', 'success');
+            } else {
+                response = await requestJson(API_CREATE_URL, { method: 'POST', payload });
+                activeRef = { id: response.order.id, key: response.access_key };
+                toast('Đã gửi đơn! Quán sẽ xác nhận trong ít phút.', 'success');
+            }
+            editing = false;
+            cart = [];
+            saveCart();
+            $('od-order-note').value = '';
+            setActiveOrder(response.order);
+            closeCartSheet();
+            setTimeout(() => $('od-track')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
+        } catch (error) {
+            toast(error.message, 'danger');
+        } finally {
+            submitting = false;
+            renderCart();
+        }
+    };
+
+    const startEditing = ({ silent = false } = {}) => {
+        if (!isPending()) return;
+        cart = (activeOrder.items || []).map((item) => {
+            const product = getProduct(item.product_id);
+            return {
+                product_id: item.product_id,
+                unit_id: item.unit_id,
+                name: item.name,
+                image: product?.image || PLACEHOLDER_IMG,
+                unit_name: item.size,
+                unit_price: Number(item.price || 0),
+                quantity: Number(item.qty || 1),
+                note: item.note || '',
+                toppings: (item.toppings || []).map((top) => ({ id: top.id, name: top.name, price: Number(top.price || 0) })),
+                topping_ids: (item.topping_ids || []).map(Number),
+            };
+        });
+        $('od-order-note').value = activeOrder.customer_note || '';
+        editing = true;
+        syncUi();
+        if (!silent) {
+            toast(`Đang sửa đơn #${activeOrder.id}.`, 'info');
+            const el = $('od-cart');
+            if (el && !window.matchMedia('(min-width: 992px)').matches) bootstrap.Offcanvas.getOrCreateInstance(el).show();
+        }
+    };
+
+    function stopEditing() {
+        editing = false;
+        loadCart();
+        $('od-order-note').value = '';
+        syncUi();
+    }
+
+    const openCancel = () => {
+        cancelModal = cancelModal || new bootstrap.Modal($('od-cancel-modal'));
+        cancelModal.show();
+    };
+
+    const confirmCancel = async () => {
+        if (!isPending()) return;
+        const btn = $('od-cancel-confirm');
+        btn.disabled = true;
+        try {
+            const response = await requestJson(`${API_ORDER_BASE}${activeOrder.id}/cancel/`, { method: 'POST', payload: accessParams() });
+            cancelModal?.hide();
+            if (editing) { editing = false; loadCart(); }
+            setActiveOrder(response.order);
+            toast('Đã hủy đơn.', 'warning');
+        } catch (error) {
+            toast(error.message, 'danger');
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    const dismissOrder = () => {
+        activeOrder = null;
+        activeRef = null;
+        saveActiveRef();
+        syncRealtime();
+        syncUi();
+    };
+
+    // ---------- trạng thái đơn ----------
+    const STATUS_TOAST = {
+        APPROVED: isTakeaway ? 'Quán đã nhận đơn mang đi của bạn!' : 'Quán đã nhận đơn, món đang được chuẩn bị!',
+        REJECTED: 'Quán chưa thể nhận đơn của bạn.',
+        CANCELLED: 'Đơn đã được hủy.',
+    };
+
+    function setActiveOrder(order, { fromUpdate = false } = {}) {
+        const prev = activeOrder;
+        activeOrder = order || null;
+        if (activeOrder) {
+            activeRef = { ...(activeRef || {}), id: activeOrder.id };
+            saveActiveRef();
+        }
+        if (fromUpdate && prev && activeOrder && prev.status !== activeOrder.status && STATUS_TOAST[activeOrder.status]) {
+            toast(STATUS_TOAST[activeOrder.status], activeOrder.status === 'APPROVED' ? 'success' : 'warning');
+            if (navigator.vibrate) navigator.vibrate(120);
+        }
+        if (activeOrder && activeOrder.status !== 'PENDING' && editing) {
+            editing = false;
+            loadCart();
+            $('od-order-note').value = '';
+        }
+        syncRealtime();
+        syncUi();
+    }
+
+    const fetchOrder = async ({ fromUpdate = false } = {}) => {
+        if (!activeRef?.id || detailInFlight) return;
+        detailInFlight = true;
+        try {
+            const params = new URLSearchParams(accessParams());
+            const response = await requestJson(`${API_ORDER_BASE}${activeRef.id}/?${params.toString()}`);
+            setActiveOrder(response.order, { fromUpdate });
+        } catch (error) {
+            if ([403, 404].includes(error.status)) {
+                activeOrder = null;
+                activeRef = null;
+                editing = false;
+                saveActiveRef();
+                syncRealtime();
+                syncUi();
+            }
+        } finally {
+            detailInFlight = false;
+        }
+    };
+
+    // ---------- tự động cập nhật trạng thái (WebSocket, lỗi thì hỏi định kỳ) ----------
+    const needsLiveUpdates = () => !!activeRef?.id && !!activeOrder && (activeOrder.status === 'PENDING' || (isTakeaway && activeOrder.status === 'APPROVED' && !activeOrder.is_paid));
+
+    const stopPolling = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+    const startPolling = () => {
+        if (pollTimer) return;
+        pollTimer = setInterval(() => {
+            if (!document.hidden) fetchOrder({ fromUpdate: true });
+        }, FALLBACK_POLL_MS);
+    };
+    const stopSocket = () => {
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        if (!socket) return;
+        const old = socket;
+        socket = null;
+        socketOrderId = null;
+        old.onopen = old.onmessage = old.onclose = old.onerror = null;
+        try { old.close(); } catch (_) { /* bỏ qua */ }
+    };
+    const connectSocket = (orderId) => {
+        if (!('WebSocket' in window)) { startPolling(); return; }
+        if (socket && socketOrderId === orderId && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
+        stopSocket();
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const params = new URLSearchParams(accessParams());
+        const ws = new WebSocket(`${proto}//${window.location.host}/ws/public/qr/order/${orderId}/?${params.toString()}`);
+        socket = ws;
+        socketOrderId = orderId;
+        ws.onopen = () => { reconnectDelay = RECONNECT_BASE_MS; stopPolling(); };
+        ws.onmessage = (event) => {
+            let data = null;
+            try { data = JSON.parse(event.data || '{}'); } catch (_) { return; }
+            if (data?.type === 'qr.order.changed' && Number(data.order_id) === Number(activeRef?.id)) {
+                fetchOrder({ fromUpdate: true });
+            }
+        };
+        ws.onerror = () => { try { ws.close(); } catch (_) { /* bỏ qua */ } };
+        ws.onclose = () => {
+            if (socket === ws) { socket = null; socketOrderId = null; }
+            if (!needsLiveUpdates() || Number(activeRef?.id) !== orderId || reconnectTimer) return;
+            startPolling();
+            reconnectTimer = setTimeout(() => { reconnectTimer = null; connectSocket(orderId); }, reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+        };
+    };
+    function syncRealtime() {
+        if (!needsLiveUpdates()) { stopSocket(); stopPolling(); return; }
+        connectSocket(Number(activeRef.id));
+    }
+
+    // ---------- events ----------
+    $('od-products').addEventListener('click', (event) => {
+        const quick = event.target.closest('[data-quick]');
+        if (quick) { event.stopPropagation(); quickAdd(Number(quick.dataset.quick), quick); return; }
+        const card = event.target.closest('[data-product]');
+        if (card) openSheet(Number(card.dataset.product));
+    });
+
+    const searchInput = $('od-search');
+    searchInput.addEventListener('input', () => {
+        searchTerm = searchInput.value || '';
+        $('od-search-clear').classList.toggle('d-none', !searchTerm);
+        renderProducts();
+    });
+    $('od-search-clear').addEventListener('click', () => {
+        searchInput.value = '';
+        searchTerm = '';
+        $('od-search-clear').classList.add('d-none');
+        renderProducts();
+        searchInput.focus();
+    });
+
+    $('od-track-slot').addEventListener('click', (event) => {
+        const btn = event.target.closest('[data-track]');
+        if (!btn) return;
+        if (btn.dataset.track === 'edit') startEditing();
+        if (btn.dataset.track === 'cancel') openCancel();
+        if (btn.dataset.track === 'dismiss') dismissOrder();
+    });
+
+    if (orderingEnabled) {
+        $('od-cart-items').addEventListener('click', (event) => {
+            const qtyBtn = event.target.closest('[data-qty]');
+            if (qtyBtn) { changeQty(Number(qtyBtn.dataset.qty), Number(qtyBtn.dataset.delta)); return; }
+            const removeBtn = event.target.closest('[data-remove]');
+            if (removeBtn) changeQty(Number(removeBtn.dataset.remove), -Infinity);
+        });
+        $('od-submit').addEventListener('click', submitOrder);
+        $('od-sheet-add').addEventListener('click', addFromSheet);
+        $('od-sheet-minus').addEventListener('click', () => { sheetQty = Math.max(1, sheetQty - 1); updateSheetTotal(); });
+        $('od-sheet-plus').addEventListener('click', () => { sheetQty = Math.min(99, sheetQty + 1); updateSheetTotal(); });
+        $('od-cancel-confirm').addEventListener('click', confirmCancel);
+
+        if (isTakeaway) {
+            try {
+                const saved = JSON.parse(store.get(CUSTOMER_KEY) || '{}');
+                if (saved.name) $('od-customer-name').value = saved.name;
+                if (saved.phone) $('od-customer-phone').value = saved.phone;
+            } catch (_) { /* bỏ qua */ }
+            ['od-customer-name', 'od-customer-phone'].forEach((id) => {
+                $(id).addEventListener('input', () => $(id).classList.remove('is-invalid'));
+            });
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden || !activeRef?.id) return;
+        fetchOrder({ fromUpdate: true });
+        syncRealtime();
+    });
+    window.addEventListener('beforeunload', () => { stopSocket(); stopPolling(); });
+
+    // ---------- boot ----------
+    renderChips();
+    if (orderingEnabled) {
+        loadCart();
+        activeRef = loadActiveRef();
+    }
+    syncUi();
+    if (activeRef?.id) fetchOrder();
+})();
+</script>

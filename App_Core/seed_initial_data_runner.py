@@ -1,17 +1,21 @@
 """Logic seed dữ liệu demo (dùng bởi management command và admin phục hồi demo)."""
 from __future__ import annotations
 
+import shutil
 from argparse import BooleanOptionalAction
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone as django_timezone
 
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Catalog.product_image_utils import clear_product_uploaded_images
-from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
+from App_Core.tenant_media_paths import tenant_dir
+from App_Sales.models import DiningTable, Order, QROrder, QROrderItem, QROrderItemTopping
 from App_Sales.services import get_effective_unit_price
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 
@@ -462,3 +466,38 @@ def run_seed_initial_data(
     _write_line(stdout, f'Staff: {", ".join(u.username for u in staff_users)}')
     _write_line(stdout, f'Tổng sản phẩm seed: {len(product_ids)}')
     _write_line(stdout, 'Bàn mỗi cửa hàng: 12')
+
+
+def _delete_tenant_media_dir(tenant_id) -> None:
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    target = (media_root / tenant_dir(tenant_id)).resolve()
+    if target.parent == media_root and target.is_dir():
+        shutil.rmtree(target, ignore_errors=True)
+
+
+@transaction.atomic
+def reset_demo_tenant(*, stdout=None, style=None):
+    """
+    Xoá sạch doanh nghiệp demo (đơn hàng, tài khoản, cửa hàng, catalog, ảnh upload) rồi seed lại từ đầu.
+    Tài khoản demo hiện công khai ở trang đăng nhập nên chạy định kỳ để dữ liệu không bị phá lâu dài.
+    """
+    tenant_slug = settings.DEMO_TENANT_SLUG
+    tenant = Tenant.objects.filter(public_slug=tenant_slug).first()
+    if tenant is not None:
+        tenant_id = tenant.pk
+        # Order/User trỏ tới tenant bằng PROTECT nên phải xoá trước.
+        Order.objects.filter(tenant=tenant).delete()
+        get_user_model().objects.filter(tenant=tenant).delete()
+        tenant.delete()
+        transaction.on_commit(lambda: _delete_tenant_media_dir(tenant_id))
+        _write_line(stdout, f'Đã xoá doanh nghiệp demo cũ (id={tenant_id}).')
+
+    run_seed_initial_data(
+        tenant_slug=tenant_slug,
+        tenant_name='Demo FNB',
+        default_password=settings.DEMO_SEED_DEFAULT_PASSWORD,
+        reset_passwords=True,
+        seed_qr_pending=True,
+        stdout=stdout,
+        style=style,
+    )

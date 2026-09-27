@@ -22,7 +22,7 @@ Ghi chú cột **Kết quả / Thông báo**: ghi lại toast, `alert`, nội du
 |------|----------|-------------------------------|
 | 1.1 | Bấm tab **Thực đơn** (icon thìa dĩa) | Vùng trái hiển thị danh mục + lưới/list sản phẩm |
 | 1.2 | Bấm tab **Chọn bàn** | Hiển thị lưới bàn (trống / đang phục vụ / có đơn QR theo chú thích màu) |
-| 1.3 | Bấm tab **Đơn QR** | Tiêu đề *Danh sách đơn QR chờ duyệt*; nếu không có đơn: empty state *Chưa có đơn QR nào* |
+| 1.3 | Bấm tab **Đơn QR** | Tiêu đề *Đơn khách tự đặt chờ duyệt*; nếu không có đơn: empty state *Chưa có đơn QR chờ duyệt tại <cửa hàng>* |
 | 1.4 | Bấm icon chuông trên navbar | Chuyển sang tab **Đơn QR** (tương đương 1.3) |
 | 1.5 | Ô **Tìm món...** — gõ từ khóa có trong tên món | Danh sách sản phẩm lọc theo từ khóa |
 
@@ -92,6 +92,10 @@ Ghi chú cột **Kết quả / Thông báo**: ghi lại toast, `alert`, nội du
 | 6.2 | Bấm vào một đơn chờ | Modal **Chi tiết Đơn QR** — hiển thị bàn, thời gian, món, tổng |
 | 6.3 | Bấm **Duyệt đơn & Báo bếp** | Modal đóng; đơn chuyển trạng thái; danh sách cập nhật; có thể có toast |
 | 6.4 | Mở đơn khác (hoặc tạo đơn mới) → bấm **Từ chối** | Browser `confirm` *Xác nhận từ chối đơn này?* — OK → đơn bị từ chối; danh sách cập nhật |
+| 6.5 | Mở đơn **mang đi** (icon túi, đặt từ `/<public_slug>/`) | Modal ghi *Khách đặt mang đi:* + tên, SĐT (bấm gọi được), ghi chú |
+| 6.6 | Duyệt đơn mang đi | Toast *Đã duyệt đơn mang đi. Bấm "Thu tiền" khi khách tới lấy.*; đơn xuất hiện ở mục *Mang đi · chờ khách tới lấy & thu tiền* |
+| 6.7 | Bấm **Thu tiền** | Chuyển tab Thực đơn; giỏ mang về có đúng món của đơn, tên đơn *Mang đi · <tên>*; giỏ đang có món khác → hỏi xác nhận thay thế |
+| 6.8 | Thanh toán | Thành công; đơn biến mất khỏi mục chờ thu tiền; tên giỏ về *Khách mang về* |
 
 ---
 

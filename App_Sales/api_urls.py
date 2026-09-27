@@ -20,6 +20,7 @@ urlpatterns = [
     path('kitchen/tickets/', views.api_kitchen_tickets, name='kitchen_tickets'),
     path('kitchen/tickets/<int:ticket_id>/complete/', views.api_kitchen_ticket_complete, name='kitchen_ticket_complete'),
     path('kitchen/items/<int:item_id>/status/', views.api_kitchen_item_status, name='kitchen_item_status'),
+    path('shifts/current/', views.api_shift_current, name='shift_current'),
     path('qr/orders/', views.api_qr_orders, name='qr_orders'),
     path('qr/orders/<int:order_id>/approve/', views.api_qr_order_approve, name='qr_order_approve'),
     path('qr/orders/<int:order_id>/reject/', views.api_qr_order_reject, name='qr_order_reject'),

@@ -1,0 +1,135 @@
+{% load static %}<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}In{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'images/logo/favicon-eapp.ico' %}">
+    <style>
+        @page { margin: 0; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body {
+            background: #e5e7eb;
+            color: #000;
+            font-family: Arial, "Helvetica Neue", sans-serif;
+            font-size: 12px;
+            line-height: 1.35;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .print-toolbar {
+            position: sticky;
+            top: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 12px;
+            background: #0f172a;
+            color: #fff;
+            font-size: 14px;
+        }
+        .print-toolbar select,
+        .print-toolbar button,
+        .print-toolbar a {
+            font: inherit;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            padding: 6px 12px;
+            background: #1e293b;
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .print-toolbar .primary { background: #10b981; border-color: #10b981; font-weight: 700; }
+        .paper {
+            width: 80mm;
+            margin: 16px auto;
+            padding: 4mm 4mm 6mm;
+            background: #fff;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+        }
+        body.paper-58 .paper { width: 58mm; padding: 3mm 2.5mm 5mm; font-size: 11px; }
+        .center { text-align: center; }
+        .right { text-align: right; }
+        .bold { font-weight: 700; }
+        .muted { color: #333; }
+        .store-name { font-size: 1.35em; font-weight: 800; text-transform: uppercase; }
+        .doc-title { font-size: 1.25em; font-weight: 800; margin: 2mm 0 1mm; letter-spacing: 0.02em; }
+        .reprint { display: inline-block; border: 1px solid #000; padding: 0 4px; font-size: 0.9em; font-weight: 700; margin-top: 1mm; }
+        .sep { border: 0; border-top: 1px dashed #000; margin: 2mm 0; }
+        .sep.solid { border-top-style: solid; }
+        .row { display: flex; justify-content: space-between; gap: 6px; }
+        .row > span:last-child { text-align: right; white-space: nowrap; }
+        .meta .row > span:first-child { white-space: nowrap; }
+        .meta .row > span:last-child { white-space: normal; }
+        .items { width: 100%; border-collapse: collapse; }
+        .items th { font-size: 0.92em; text-align: left; border-bottom: 1px solid #000; padding: 0 0 1mm; }
+        .items td { vertical-align: top; padding: 1mm 0 0; }
+        .items .num { text-align: right; white-space: nowrap; padding-left: 4px; }
+        .item-sub { font-size: 0.92em; padding-left: 2mm; }
+        .total-row { font-size: 1.3em; font-weight: 800; }
+        .footer-note { margin-top: 3mm; text-align: center; font-style: italic; }
+        .qr-img { width: 38mm; max-width: 100%; height: auto; display: block; margin: 2mm auto 1mm; }
+        {% block print_css %}{% endblock %}
+        @media print {
+            body { background: #fff; }
+            .print-toolbar { display: none !important; }
+            .paper { margin: 0; box-shadow: none; }
+        }
+    </style>
+</head>
+<body class="paper-80">
+    <div class="print-toolbar">
+        <label for="paperSize">Khổ giấy</label>
+        <select id="paperSize">
+            <option value="80">80 mm</option>
+            <option value="58">58 mm</option>
+        </select>
+        <button type="button" class="primary" id="printNow">In</button>
+        <button type="button" id="closeWindow">Đóng</button>
+    </div>
+    <div class="paper">
+        {% block paper %}{% endblock %}
+    </div>
+    <script>
+    (() => {
+        const STORAGE_KEY = 'eapp_print_paper';
+        const readPaper = () => {
+            try { return window.localStorage.getItem(STORAGE_KEY) || '80'; } catch (error) { return '80'; }
+        };
+        const applyPaper = (value) => {
+            document.body.classList.toggle('paper-58', value === '58');
+            document.body.classList.toggle('paper-80', value !== '58');
+        };
+        const select = document.getElementById('paperSize');
+        select.value = readPaper();
+        applyPaper(select.value);
+        select.addEventListener('change', () => {
+            try { window.localStorage.setItem(STORAGE_KEY, select.value); } catch (error) { /* bỏ qua */ }
+            applyPaper(select.value);
+        });
+
+        const params = new URLSearchParams(window.location.search);
+        const inFrame = window.parent && window.parent !== window;
+        // Nút In tải lại với autoprint=1 để máy chủ đếm số lần in (đánh dấu "Bản in lại").
+        document.getElementById('printNow').addEventListener('click', () => {
+            params.set('autoprint', '1');
+            window.location.search = params.toString();
+        });
+        document.getElementById('closeWindow').addEventListener('click', () => {
+            if (window.history.length > 1 && !window.opener) window.history.back();
+            else window.close();
+        });
+        window.addEventListener('afterprint', () => {
+            if (inFrame) window.parent.postMessage({ type: 'eapp-print-done' }, window.location.origin);
+        });
+        if (params.get('autoprint') === '1') {
+            window.addEventListener('load', () => setTimeout(() => window.print(), 200));
+        }
+    })();
+    </script>
+</body>
+</html>

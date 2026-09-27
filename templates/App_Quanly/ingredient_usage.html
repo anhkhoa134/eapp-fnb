@@ -1,0 +1,109 @@
+{% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
+
+{% block title %}Tiêu hao nguyên liệu | eApp FnB{% endblock %}
+
+{% block quanly_content %}
+{% include 'App_Quanly/_recipe_tabs.html' with active='usage' %}
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="admin-card-title">
+            <i class="bi bi-graph-down-arrow"></i>
+            Tiêu hao nguyên liệu theo đơn bán
+        </h2>
+        <p class="text-muted small">
+            Lượng nguyên liệu lý thuyết = số lượng thành phẩm đã bán × định mức <strong>hiện tại</strong> (gồm topping).
+            Tính trên đơn đã thanh toán, gồm cả đơn hoàn tiền và không gồm đơn huỷ.
+            Đổi định mức hoặc giá vốn sẽ làm thay đổi cả số liệu các ngày trước.
+        </p>
+        <form method="get" class="recipe-usage-filter row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label small text-muted" for="usage-store">Cửa hàng</label>
+                <select name="store" id="usage-store" class="form-select">
+                    <option value="">Tất cả cửa hàng</option>
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:'s' %}selected{% endif %}>{{ store.name }}{% if not store.is_active %} (ngưng hoạt động){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small text-muted" for="usage-date-from">Từ ngày</label>
+                <input type="date" class="form-control" id="usage-date-from" name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small text-muted" for="usage-date-to">Đến ngày</label>
+                <input type="date" class="form-control" id="usage-date-to" name="date_to" value="{{ date_to }}">
+            </div>
+            <div class="col-12 col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i>Xem</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
+            <h3 class="h6 fw-bold mb-0">Nguyên liệu tiêu hao</h3>
+            <div>Tổng giá vốn: <strong>{{ total_cost|thousand_sep }} đ</strong></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 recipe-usage-table">
+                <thead>
+                    <tr>
+                        <th>Nguyên liệu</th>
+                        <th class="text-end">Lượng tiêu hao</th>
+                        <th class="text-end">Giá vốn / đơn vị</th>
+                        <th class="text-end">Thành tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in usage_rows %}
+                    <tr>
+                        <td class="fw-semibold">{{ row.ingredient.name }}</td>
+                        <td class="text-end">{{ row.quantity|decimal_sep }} {{ row.ingredient.unit }}</td>
+                        <td class="text-end">{{ row.ingredient.cost_per_unit|decimal_sep:2 }} đ</td>
+                        <td class="text-end">{{ row.cost|thousand_sep }} đ</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-muted">Không có tiêu hao trong khoảng thời gian này (chưa có đơn bán hoặc món bán ra chưa khai báo định mức).</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if missing_rows %}
+<div class="card border-0 shadow-sm border-start border-warning border-3">
+    <div class="card-body">
+        <h3 class="h6 fw-bold">
+            <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+            Thành phẩm đã bán nhưng chưa có định mức
+        </h3>
+        <p class="small text-muted">Các món này không được tính vào tiêu hao ở trên. <a href="{% url 'App_Quanly:recipes' %}?status=missing">Khai báo định mức</a>.</p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Thành phẩm</th>
+                        <th class="text-end">Số lượng bán</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in missing_rows %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td class="text-end">{{ row.sold|thousand_sep }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

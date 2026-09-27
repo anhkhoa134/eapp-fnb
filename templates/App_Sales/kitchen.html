@@ -12,27 +12,233 @@
         min-height: 100vh;
     }
     .kitchen-toolbar {
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.85);
-        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.22);
         box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 70px;
+        z-index: 1010;
     }
     .kitchen-title {
         font-size: 1.25rem;
         font-weight: 800;
         color: #0f172a;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+    .kitchen-title-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(140deg, #fb923c, #ef4444);
+        color: #fff;
+        font-size: 1.1rem;
+        box-shadow: 0 6px 14px rgba(239, 68, 68, 0.3);
     }
     .kitchen-conn {
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 700;
         border-radius: 999px;
-        padding: 0.25rem 0.6rem;
-        background: rgba(148, 163, 184, 0.18);
-        color: #475569;
+        padding: 0.28rem 0.65rem;
+        background: #f1f5f9;
+        color: #64748b;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .kitchen-conn::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #94a3b8;
     }
     .kitchen-conn.live {
-        background: rgba(16, 185, 129, 0.15);
+        background: rgba(16, 185, 129, 0.12);
         color: #047857;
+    }
+    .kitchen-conn.live::before {
+        background: var(--primary-color);
+        animation: kitchen-pulse 1.8s infinite;
+    }
+    .kitchen-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .k-divider {
+        width: 1px;
+        height: 28px;
+        background: #e2e8f0;
+    }
+    /* Chọn cửa hàng */
+    .k-select {
+        position: relative;
+    }
+    .k-select > i {
+        position: absolute;
+        left: 0.8rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #64748b;
+        pointer-events: none;
+    }
+    .k-select .form-select {
+        border-radius: 999px;
+        border: 1px solid #e2e8f0;
+        background-color: #f8fafc;
+        font-weight: 600;
+        font-size: 0.88rem;
+        color: #334155;
+        padding: 0.45rem 2.2rem 0.45rem 2.1rem;
+        min-width: 170px;
+        transition: all 0.2s ease;
+    }
+    .k-select .form-select:hover { border-color: #cbd5e1; background-color: #fff; }
+    .k-select .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.18);
+    }
+    /* Bộ lọc dạng segmented */
+    .kitchen-scope {
+        display: inline-flex;
+        padding: 4px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        gap: 2px;
+    }
+    .kitchen-scope label {
+        border-radius: 999px;
+        padding: 0.4rem 0.95rem;
+        font-weight: 700;
+        font-size: 0.86rem;
+        color: #64748b;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.25s ease;
+        user-select: none;
+    }
+    .kitchen-scope label:hover { color: var(--primary-color); }
+    .kitchen-scope .btn-check:checked + label {
+        background: #fff;
+        color: #0f172a;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+    }
+    .kitchen-scope .btn-check:focus-visible + label { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+    .k-count {
+        min-width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        padding: 0 6px;
+        font-size: 0.74rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #cbd5e1;
+        color: #fff;
+        transition: background 0.2s;
+    }
+    .k-count.has-items { background: #ef4444; }
+    /* Nút bật/tắt dạng chip */
+    .k-toggle {
+        border-radius: 999px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #64748b;
+        font-weight: 700;
+        font-size: 0.86rem;
+        padding: 0.42rem 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s ease;
+        margin: 0;
+    }
+    .k-toggle:hover { border-color: #cbd5e1; color: #334155; }
+    .k-toggle:active { transform: scale(0.96); }
+    .k-toggle .on-icon { display: none; }
+    .btn-check:checked + .k-toggle {
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.45);
+        color: #047857;
+    }
+    .btn-check:checked + .k-toggle .on-icon { display: inline; }
+    .btn-check:checked + .k-toggle .off-icon { display: none; }
+    .btn-check:focus-visible + .k-toggle { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+    .k-toggle .k-dot {
+        width: 26px;
+        height: 16px;
+        border-radius: 999px;
+        background: #cbd5e1;
+        position: relative;
+        transition: background 0.2s;
+    }
+    .k-toggle .k-dot::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    .btn-check:checked + .k-toggle .k-dot { background: var(--primary-color); }
+    .btn-check:checked + .k-toggle .k-dot::after { transform: translateX(10px); }
+    /* Nút icon */
+    .k-icon-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+    .k-icon-btn:hover { color: var(--primary-color); border-color: rgba(16, 185, 129, 0.45); transform: translateY(-1px); }
+    .k-icon-btn:active { transform: scale(0.94); }
+    .k-pos-btn {
+        border-radius: 999px;
+        padding: 0.42rem 0.95rem;
+        font-weight: 700;
+        font-size: 0.86rem;
+        background: var(--primary-color);
+        color: #fff;
+        border: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+    }
+    .k-pos-btn:hover { background: var(--primary-hover); color: #fff; transform: translateY(-1px); }
+    @keyframes kitchen-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @media (max-width: 767.98px) {
+        .kitchen-toolbar { position: static; }
+        .k-divider { display: none; }
+        .k-toggle .k-label-long { display: none; }
     }
     .kitchen-grid {
         display: grid;
@@ -41,11 +247,18 @@
         align-items: start;
     }
     .ticket-card {
-        border-radius: 14px;
+        border-radius: 16px;
         background: #ffffff;
         border: 2px solid #e2e8f0;
         box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
         overflow: hidden;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+        animation: ticket-in 0.3s ease;
+    }
+    .ticket-card:hover { box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1); }
+    @keyframes ticket-in {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: none; }
     }
     .ticket-card.age-warn { border-color: #f59e0b; }
     .ticket-card.age-late { border-color: #ef4444; }
@@ -114,10 +327,52 @@
     .ticket-item.is-cancelled { opacity: 0.55; }
     .ticket-item.is-cancelled .name,
     .ticket-item.is-cancelled .qty { text-decoration: line-through; }
-    .ticket-item .actions .btn {
-        min-width: 84px;
+    .k-item-btn {
+        min-width: 96px;
+        border-radius: 10px;
+        border: 0;
         font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.45rem 0.7rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.3rem;
+        transition: all 0.2s ease;
     }
+    .k-item-btn:hover { transform: translateY(-1px); filter: brightness(0.96); }
+    .k-item-btn:active { transform: scale(0.95); }
+    .k-item-btn:disabled { opacity: 0.6; transform: none; }
+    .k-item-btn.start { background: #fff7ed; color: #c2410c; box-shadow: inset 0 0 0 1.5px #fdba74; }
+    .k-item-btn.done { background: var(--primary-color); color: #fff; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); }
+    .k-item-btn.undo { background: #f1f5f9; color: #475569; }
+    .ticket-print {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        background: rgba(255, 255, 255, 0.75);
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+    .ticket-print:hover { background: #fff; color: #0f172a; }
+    .k-complete-btn {
+        width: 100%;
+        border: 0;
+        border-radius: 12px;
+        padding: 0.65rem 1rem;
+        font-weight: 800;
+        color: #fff;
+        background: linear-gradient(135deg, #10b981, #059669);
+        box-shadow: 0 6px 14px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+    }
+    .k-complete-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(16, 185, 129, 0.35); }
+    .k-complete-btn:active { transform: scale(0.98); }
+    .k-complete-btn:disabled { opacity: 0.65; transform: none; }
     .status-pill {
         font-size: 0.7rem;
         font-weight: 700;
@@ -144,16 +399,6 @@
         border-top: 1px solid #e2e8f0;
         background: #f8fafc;
     }
-    .kitchen-scope .btn {
-        color: #334155;
-        border-color: #cbd5e1;
-        background: #ffffff;
-    }
-    .kitchen-scope .btn-check:checked + .btn {
-        color: #ffffff;
-        border-color: #0f172a;
-        background: #0f172a;
-    }
     .kitchen-empty {
         border-radius: 16px;
         border: 2px dashed #cbd5e1;
@@ -167,34 +412,45 @@
 
 {% block content %}
 {% csrf_token %}
-<div class="kitchen-toolbar p-3 mb-3 d-flex flex-wrap align-items-center gap-2">
-    <div class="me-auto d-flex align-items-center gap-2">
-        <span class="kitchen-title"><i class="bi bi-fire text-danger me-1"></i>Màn hình bếp</span>
+<div class="kitchen-toolbar p-3 mb-3 d-flex flex-wrap align-items-center gap-3">
+    <div class="me-auto d-flex align-items-center gap-2 flex-wrap">
+        <span class="kitchen-title"><span class="kitchen-title-icon"><i class="bi bi-fire"></i></span>Màn hình bếp</span>
         <span class="kitchen-conn" id="kitchenConn">Đang kết nối…</span>
     </div>
-    {% if stores|length > 1 %}
-    <select class="form-select form-select-sm w-auto" id="kitchenStore" aria-label="Cửa hàng">
-        {% for store in stores %}
-        <option value="{{ store.id }}" {% if store.id == default_store_id %}selected{% endif %}>{{ store.name }}</option>
-        {% endfor %}
-    </select>
-    {% endif %}
-    <div class="btn-group btn-group-sm kitchen-scope" role="group" aria-label="Lọc phiếu">
-        <input type="radio" class="btn-check" name="kitchenScope" id="scopeActive" value="active" checked>
-        <label class="btn fw-bold" for="scopeActive">Đang chờ <span class="badge text-bg-danger ms-1" id="activeCount">0</span></label>
-        <input type="radio" class="btn-check" name="kitchenScope" id="scopeDone" value="done">
-        <label class="btn fw-bold" for="scopeDone">Đã xong hôm nay</label>
+    <div class="kitchen-controls">
+        {% if stores|length > 1 %}
+        <div class="k-select">
+            <i class="bi bi-shop"></i>
+            <select class="form-select" id="kitchenStore" aria-label="Cửa hàng">
+                {% for store in stores %}
+                <option value="{{ store.id }}" {% if store.id == default_store_id %}selected{% endif %}>{{ store.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div class="kitchen-scope" role="group" aria-label="Lọc phiếu">
+            <input type="radio" class="btn-check" name="kitchenScope" id="scopeActive" value="active" checked>
+            <label for="scopeActive"><i class="bi bi-hourglass-split"></i>Đang chờ <span class="k-count" id="activeCount">0</span></label>
+            <input type="radio" class="btn-check" name="kitchenScope" id="scopeDone" value="done">
+            <label for="scopeDone"><i class="bi bi-check2-circle"></i>Đã xong hôm nay</label>
+        </div>
+        <span class="k-divider" aria-hidden="true"></span>
+        <input type="checkbox" class="btn-check" id="kitchenSound" autocomplete="off">
+        <label class="k-toggle" for="kitchenSound" title="Phát chuông khi có phiếu mới">
+            <i class="bi bi-bell-fill on-icon"></i><i class="bi bi-bell-slash off-icon"></i>Chuông<span class="k-dot" aria-hidden="true"></span>
+        </label>
+        <input type="checkbox" class="btn-check" id="kitchenAutoPrint" autocomplete="off">
+        <label class="k-toggle" for="kitchenAutoPrint" title="Tự in phiếu bếp mới chưa được in ở máy khác">
+            <i class="bi bi-printer-fill on-icon"></i><i class="bi bi-printer off-icon"></i><span>Tự in<span class="k-label-long"> phiếu</span></span><span class="k-dot" aria-hidden="true"></span>
+        </label>
+        <span class="k-divider" aria-hidden="true"></span>
+        <button type="button" class="k-icon-btn" id="kitchenFullscreen" title="Toàn màn hình" aria-label="Toàn màn hình">
+            <i class="bi bi-arrows-fullscreen"></i>
+        </button>
+        <a class="k-pos-btn" href="{% url 'App_Sales:pos' %}" title="Về màn hình bán hàng">
+            <i class="bi bi-arrow-left"></i>Về POS
+        </a>
     </div>
-    <div class="form-check form-switch m-0 ms-1">
-        <input class="form-check-input" type="checkbox" role="switch" id="kitchenSound">
-        <label class="form-check-label small fw-semibold" for="kitchenSound">Chuông</label>
-    </div>
-    <button type="button" class="btn btn-sm btn-outline-secondary" id="kitchenFullscreen" title="Toàn màn hình">
-        <i class="bi bi-arrows-fullscreen"></i>
-    </button>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Sales:pos' %}" title="Về POS">
-        <i class="bi bi-arrow-left-circle me-1"></i>POS
-    </a>
 </div>
 
 <div id="kitchenBoard" class="kitchen-grid"></div>
@@ -205,6 +461,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/eapp_print.js' %}"></script>
 <script>
 (() => {
     const API_TICKETS_URL = "{% url 'App_Sales_API:kitchen_tickets' %}";
@@ -212,6 +469,9 @@
     const API_TICKET_BASE = '/api/pos/kitchen/tickets/';
     const NEW_TICKET_CLIP_URL = "{% static 'sounds/co-don-moi.mp3' %}";
     const SOUND_STORAGE_KEY = 'eapp_kitchen_sound_enabled';
+    const AUTO_PRINT_STORAGE_KEY = 'eapp_kitchen_auto_print';
+    const PRINT_URL_TEMPLATE = "{% url 'App_Sales:kitchen_ticket_print' 0 %}";
+    const printUrl = (ticketId) => PRINT_URL_TEMPLATE.replace('/0/', `/${ticketId}/`);
     const POLL_INTERVAL_MS = 15000;
     const WARN_MINUTES = 10;
     const LATE_MINUTES = 20;
@@ -228,6 +488,8 @@
     let pollTimer = null;
     let loadSeq = 0;
     let soundEnabled = true;
+    let autoPrintEnabled = false;
+    const autoPrintedIds = new Set();
     let audio = null;
 
     const escapeHtml = (text) => String(text ?? '')
@@ -250,21 +512,23 @@
         return data;
     };
 
-    const readSoundPref = () => {
+    const readBoolPref = (key, fallback) => {
         try {
-            const raw = window.localStorage.getItem(SOUND_STORAGE_KEY);
-            return raw === null ? true : raw === '1';
+            const raw = window.localStorage.getItem(key);
+            return raw === null ? fallback : raw === '1';
         } catch (error) {
-            return true;
+            return fallback;
         }
     };
-    const writeSoundPref = (value) => {
+    const writeBoolPref = (key, value) => {
         try {
-            window.localStorage.setItem(SOUND_STORAGE_KEY, value ? '1' : '0');
+            window.localStorage.setItem(key, value ? '1' : '0');
         } catch (error) {
             /* bỏ qua: trình duyệt chặn storage */
         }
     };
+    const readSoundPref = () => readBoolPref(SOUND_STORAGE_KEY, true);
+    const writeSoundPref = (value) => writeBoolPref(SOUND_STORAGE_KEY, value);
     const playNewTicketSound = () => {
         if (!soundEnabled) return;
         try {
@@ -279,12 +543,17 @@
     const setConn = (live) => {
         const el = document.getElementById('kitchenConn');
         el.classList.toggle('live', live);
-        el.textContent = live ? 'Realtime' : 'Tự làm mới 15s';
+        el.textContent = live ? 'Đang cập nhật trực tiếp' : 'Tự làm mới mỗi 15 giây';
     };
 
     const minutesSince = (iso) => {
         if (!iso) return 0;
         return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+    };
+    const formatElapsed = (minutes) => {
+        if (minutes < 60) return `${minutes}'`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}g${String(minutes % 60).padStart(2, '0')}'`;
     };
     const formatClock = (iso) => {
         if (!iso) return '';
@@ -294,12 +563,12 @@
     const itemActionsHtml = (item) => {
         if (item.status === 'CANCELLED') return '';
         if (item.status === 'PENDING') {
-            return `<button type="button" class="btn btn-sm btn-primary" data-item-id="${item.id}" data-status="PREPARING">Bắt đầu</button>`;
+            return `<button type="button" class="k-item-btn start" data-item-id="${item.id}" data-status="PREPARING"><i class="bi bi-play-fill"></i>Bắt đầu</button>`;
         }
         if (item.status === 'PREPARING') {
-            return `<button type="button" class="btn btn-sm btn-success" data-item-id="${item.id}" data-status="DONE">Xong</button>`;
+            return `<button type="button" class="k-item-btn done" data-item-id="${item.id}" data-status="DONE"><i class="bi bi-check-lg"></i>Xong</button>`;
         }
-        return `<button type="button" class="btn btn-sm btn-outline-secondary" data-item-id="${item.id}" data-status="PREPARING">Hoàn tác</button>`;
+        return `<button type="button" class="k-item-btn undo" data-item-id="${item.id}" data-status="PREPARING"><i class="bi bi-arrow-counterclockwise"></i>Hoàn tác</button>`;
     };
 
     const ticketHtml = (ticket) => {
@@ -336,12 +605,17 @@
                             <span class="ms-1">${escapeHtml(metaParts.join(' · '))}</span>
                         </div>
                     </div>
-                    ${isOpen ? `<div class="ticket-elapsed" title="Thời gian chờ"><i class="bi bi-stopwatch me-1"></i>${age}'</div>` : ''}
+                    <div class="d-flex align-items-start gap-2">
+                        ${isOpen ? `<div class="ticket-elapsed" title="Thời gian chờ"><i class="bi bi-stopwatch me-1"></i>${formatElapsed(age)}</div>` : ''}
+                        <button type="button" class="ticket-print" data-print-url="${printUrl(ticket.id)}" title="${ticket.print_count ? `In lại (đã in ${ticket.print_count} lần)` : 'In phiếu'}">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                    </div>
                 </div>
                 ${itemsHtml}
                 ${hasOpenItems ? `
                 <div class="ticket-foot">
-                    <button type="button" class="btn btn-success w-100 fw-bold" data-complete-ticket="${ticket.id}">
+                    <button type="button" class="k-complete-btn" data-complete-ticket="${ticket.id}">
                         <i class="bi bi-check2-all me-1"></i>Xong cả phiếu
                     </button>
                 </div>` : ''}
@@ -368,11 +642,22 @@
             if (seq !== loadSeq) return;
             const knownIds = new Set(tickets.map((ticket) => ticket.id));
             const nextTickets = data.tickets || [];
-            if (notifyNew && scope === 'active' && nextTickets.some((ticket) => !knownIds.has(ticket.id))) {
+            const newTickets = nextTickets.filter((ticket) => !knownIds.has(ticket.id));
+            if (notifyNew && scope === 'active' && newTickets.length) {
                 playNewTicketSound();
+                if (autoPrintEnabled) {
+                    newTickets
+                        .filter((ticket) => !ticket.print_count && !autoPrintedIds.has(ticket.id))
+                        .forEach((ticket) => {
+                            autoPrintedIds.add(ticket.id);
+                            window.eappPrint(printUrl(ticket.id));
+                        });
+                }
             }
             tickets = nextTickets;
-            document.getElementById('activeCount').textContent = data.active_count || 0;
+            const countEl = document.getElementById('activeCount');
+            countEl.textContent = data.active_count || 0;
+            countEl.classList.toggle('has-items', Boolean(data.active_count));
             render();
         } catch (error) {
             console.warn('Kitchen load failed:', error);
@@ -463,7 +748,7 @@
             await loadTickets();
         } catch (error) {
             btn.disabled = false;
-            window.alert(error.message);
+            window.eappDialog.alert({ title: 'Không cập nhật được', message: error.message, variant: 'danger' });
         }
     });
 
@@ -495,9 +780,23 @@
         if (soundEnabled) playNewTicketSound();
     });
 
-    document.getElementById('kitchenFullscreen').addEventListener('click', () => {
+    const autoPrintToggle = document.getElementById('kitchenAutoPrint');
+    autoPrintEnabled = readBoolPref(AUTO_PRINT_STORAGE_KEY, false);
+    autoPrintToggle.checked = autoPrintEnabled;
+    autoPrintToggle.addEventListener('change', () => {
+        autoPrintEnabled = autoPrintToggle.checked;
+        writeBoolPref(AUTO_PRINT_STORAGE_KEY, autoPrintEnabled);
+    });
+
+    const fullscreenBtn = document.getElementById('kitchenFullscreen');
+    fullscreenBtn.addEventListener('click', () => {
         if (document.fullscreenElement) document.exitFullscreen?.();
         else document.documentElement.requestFullscreen?.();
+    });
+    document.addEventListener('fullscreenchange', () => {
+        const active = Boolean(document.fullscreenElement);
+        fullscreenBtn.querySelector('i').className = active ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen';
+        fullscreenBtn.title = active ? 'Thoát toàn màn hình' : 'Toàn màn hình';
     });
 
     document.addEventListener('visibilitychange', () => {

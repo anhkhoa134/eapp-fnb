@@ -52,9 +52,11 @@ REAL_ADMIN_PATH = f'{REAL_ADMIN_PATH}/'
 
 # Mật khẩu đặt lại khi phục hồi tenant demo từ Jazzmin (App_Core.admin_views).
 DEMO_SEED_DEFAULT_PASSWORD = env('DEMO_SEED_DEFAULT_PASSWORD', default='123456')
+# Doanh nghiệp demo (tài khoản hiện ở trang đăng nhập); `manage.py reset_demo_data` xoá sạch và seed lại.
+DEMO_TENANT_SLUG = 'demo'
 
 # Số Zalo hiển thị ở trang Tài khoản để doanh nghiệp liên hệ nâng cấp gói.
-SUBSCRIPTION_CONTACT_ZALO = env('SUBSCRIPTION_CONTACT_ZALO', default='0989408926')
+SUBSCRIPTION_CONTACT_ZALO = env('SUBSCRIPTION_CONTACT_ZALO', default='0707080405')
 
 
 def env_required(key):
@@ -129,6 +131,8 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    # Giữ request hiện tại cho nhật ký thao tác (App_Core.audit).
+    'App_Core.audit.AuditContextMiddleware',
     # Chặn POS / quản lý khi doanh nghiệp bị tắt hoặc hết hạn gói.
     'App_Core.middleware.TenantAccessMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -228,6 +232,29 @@ LOGIN_FAILURE_LIMIT = env('LOGIN_FAILURE_LIMIT', default=5, cast=int)
 LOGIN_LOCKOUT_MINUTES = env('LOGIN_LOCKOUT_MINUTES', default=15, cast=int)
 # Chỉ bật khi chạy sau Nginx có `proxy_set_header X-Real-IP $remote_addr;` (xem docs/setup/6_production_env.md).
 LOGIN_TRUST_X_REAL_IP = env('LOGIN_TRUST_X_REAL_IP', default=(ENVIRONMENT == 'prod'), cast=bool)
+# Chống dò mật khẩu rải trên nhiều username: 1 IP sai quá số lần này trong LOGIN_LOCKOUT_MINUTES phút thì chặn IP.
+LOGIN_IP_FAILURE_LIMIT = env('LOGIN_IP_FAILURE_LIMIT', default=30, cast=int)
+# Chống spam đăng ký: tối đa SIGNUP_LIMIT_PER_IP tài khoản / IP trong SIGNUP_WINDOW_HOURS giờ.
+SIGNUP_LIMIT_PER_IP = env('SIGNUP_LIMIT_PER_IP', default=5, cast=int)
+SIGNUP_WINDOW_HOURS = env('SIGNUP_WINDOW_HOURS', default=24, cast=int)
+# Quên mật khẩu: tối đa PASSWORD_RESET_LIMIT_PER_IP yêu cầu / IP / giờ.
+PASSWORD_RESET_LIMIT_PER_IP = env('PASSWORD_RESET_LIMIT_PER_IP', default=5, cast=int)
+
+# Email (dùng cho Quên mật khẩu). Không đặt EMAIL_HOST thì in email ra console
+# và ẩn chức năng Quên mật khẩu ngoài môi trường dev.
+EMAIL_HOST = env('EMAIL_HOST', default='')
+EMAIL_PORT = env('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = env('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='eApp FnB <no-reply@eapp.vn>')
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend'
+    if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+PASSWORD_RESET_ENABLED = bool(EMAIL_HOST) or ENVIRONMENT == 'dev'
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_HTTPONLY = True

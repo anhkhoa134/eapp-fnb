@@ -55,6 +55,13 @@ Lưu ý:
 5. Verify WebSocket realtime cập nhật status sau khi staff xử lý.
 6. Nếu WS mất kết nối, verify fallback polling 15s vẫn cập nhật.
 
+## D2. Menu online — đặt mang đi
+1. Mở `http://127.0.0.1:8000/demo/` → thêm món, nhập tên + SĐT → **Đặt món mang đi**.
+2. POS tab Đơn QR: đơn có icon túi, tên + SĐT → **Duyệt**.
+3. Verify trang khách tự chuyển sang *Quán đã nhận đơn*; `/kitchen/` có phiếu *Mang đi · <tên>* (nếu bật bếp).
+4. POS mục *Mang đi · chờ khách tới lấy* → **Thu tiền** → thanh toán.
+5. Verify trang khách chuyển *Bạn đã nhận món*; không có phiếu bếp thứ hai; đơn biến mất khỏi mục chờ thu tiền.
+
 ## E. Quản lý QR bàn
 1. Tạo/sửa/xóa bàn QR.
 2. Reset token.

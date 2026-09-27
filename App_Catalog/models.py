@@ -231,3 +231,83 @@ class StoreProduct(TimeStampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class Ingredient(TimeStampedModel):
+    """Nguyên liệu dùng để pha chế / chế biến; giá vốn tính theo đơn vị tính."""
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='ingredients')
+    name = models.CharField('Tên nguyên liệu', max_length=120)
+    unit = models.CharField('Đơn vị tính', max_length=20)
+    cost_per_unit = models.DecimalField('Giá vốn / đơn vị', max_digits=14, decimal_places=2, default=0)
+    is_active = models.BooleanField('Đang hoạt động', default=True)
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='uq_ingredient_tenant_name'),
+        ]
+        ordering = ['display_order', 'name', 'id']
+        verbose_name = 'Nguyên liệu'
+        verbose_name_plural = 'Nguyên liệu'
+
+    def clean(self):
+        if self.cost_per_unit is not None and self.cost_per_unit < Decimal('0'):
+            raise ValidationError({'cost_per_unit': 'Giá vốn phải >= 0.'})
+
+    def __str__(self):
+        return f'{self.name} ({self.unit})'
+
+
+class RecipeItem(TimeStampedModel):
+    """Định mức: lượng nguyên liệu cho 1 thành phẩm (1 đơn vị bán của món, hoặc 1 phần topping)."""
+
+    product_unit = models.ForeignKey(
+        ProductUnit, on_delete=models.CASCADE, null=True, blank=True, related_name='recipe_items'
+    )
+    topping = models.ForeignKey(Topping, on_delete=models.CASCADE, null=True, blank=True, related_name='recipe_items')
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.PROTECT, related_name='recipe_items')
+    quantity = models.DecimalField('Định mức', max_digits=12, decimal_places=3)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(product_unit__isnull=False, topping__isnull=True)
+                    | models.Q(product_unit__isnull=True, topping__isnull=False)
+                ),
+                name='ck_recipe_item_single_target',
+            ),
+            models.UniqueConstraint(
+                fields=['product_unit', 'ingredient'],
+                condition=models.Q(product_unit__isnull=False),
+                name='uq_recipe_unit_ingredient',
+            ),
+            models.UniqueConstraint(
+                fields=['topping', 'ingredient'],
+                condition=models.Q(topping__isnull=False),
+                name='uq_recipe_topping_ingredient',
+            ),
+        ]
+        ordering = ['id']
+        verbose_name = 'Định mức nguyên liệu'
+        verbose_name_plural = 'Định mức nguyên liệu'
+
+    def clean(self):
+        super().clean()
+        if isinstance(self.quantity, Decimal) and self.quantity.is_finite() and self.quantity <= 0:
+            raise ValidationError({'quantity': 'Định mức phải lớn hơn 0.'})
+        if self.ingredient_id:
+            tenant_id = self.ingredient.tenant_id
+            if self.product_unit_id and self.product_unit.product.tenant_id != tenant_id:
+                raise ValidationError({'ingredient': 'Nguyên liệu và thành phẩm phải cùng doanh nghiệp.'})
+            if self.topping_id and self.topping.tenant_id != tenant_id:
+                raise ValidationError({'ingredient': 'Nguyên liệu và topping phải cùng doanh nghiệp.'})
+
+    @property
+    def cost(self) -> Decimal:
+        return self.quantity * self.ingredient.cost_per_unit
+
+    def __str__(self):
+        target = self.product_unit or self.topping
+        return f'{target}: {self.quantity} {self.ingredient.unit} {self.ingredient.name}'

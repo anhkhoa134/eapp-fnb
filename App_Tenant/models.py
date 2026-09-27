@@ -16,6 +16,7 @@ RESERVED_PUBLIC_SLUGS = {
     'api',
     'quanly',
     'kitchen',
+    'shifts',
     'static',
     'media',
     'offline',
@@ -64,6 +65,8 @@ class SubscriptionPlan(TimeStampedModel):
     feature_promotion = models.BooleanField('Khuyến mãi', default=True)
     feature_qr_order = models.BooleanField('QR bàn / gọi món QR', default=True)
     feature_kitchen = models.BooleanField('Màn hình bếp', default=True)
+    feature_shift = models.BooleanField('Ca làm việc (chốt ca)', default=True)
+    feature_recipe = models.BooleanField('Định mức nguyên liệu', default=True)
     is_default = models.BooleanField(
         'Gói đăng ký mặc định',
         default=False,
@@ -77,6 +80,8 @@ class SubscriptionPlan(TimeStampedModel):
         'feature_promotion': 'show_promotion_feature',
         'feature_qr_order': 'show_qr_order_feature',
         'feature_kitchen': 'show_kitchen_feature',
+        'feature_shift': 'show_shift_feature',
+        'feature_recipe': 'show_recipe_feature',
     }
     LIMIT_FIELDS = ('max_stores', 'max_staff_users', 'max_dining_tables', 'max_products')
 
@@ -116,6 +121,8 @@ class Tenant(TimeStampedModel):
     show_topping_feature = models.BooleanField('Hiển thị Topping / tuỳ chọn món', default=True)
     show_qr_order_feature = models.BooleanField('Hiển thị QR bàn / gọi món QR', default=True)
     show_kitchen_feature = models.BooleanField('Màn hình bếp (báo bếp)', default=False)
+    show_shift_feature = models.BooleanField('Ca làm việc (chốt ca)', default=False)
+    show_recipe_feature = models.BooleanField('Định mức nguyên liệu', default=False)
     subscription_plan = models.ForeignKey(
         SubscriptionPlan,
         on_delete=models.SET_NULL,
@@ -218,6 +225,10 @@ class Tenant(TimeStampedModel):
             if mapped_field == tenant_field:
                 return bool(getattr(plan, plan_field))
         return True
+
+    @property
+    def recipe_feature_enabled(self) -> bool:
+        return self.show_recipe_feature and self.plan_allows_feature('show_recipe_feature')
 
     def subscription_days_left(self, today=None):
         """Số ngày còn lại của gói (0 = hết hạn cuối hôm nay, âm = đã hết hạn). None = không có ngày hết hạn."""

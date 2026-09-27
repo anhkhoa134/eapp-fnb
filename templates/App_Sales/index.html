@@ -1151,6 +1151,31 @@
                             </div>
                         </li>
                         {% endif %}
+                        <li class="px-3 pb-2">
+                            <div class="section-label"><i class="fa-solid fa-print me-1"></i>In ấn</div>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-receipt me-1 text-success"></i>Tự in hoá đơn</div>
+                                        <div class="account-toggle-subtitle">In hoá đơn ngay sau khi thanh toán.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="autoPrintReceiptToggle">
+                                    </div>
+                                </div>
+                                {% if user.tenant.show_kitchen_feature %}
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-fire-burner me-1 text-danger"></i>Tự in phiếu bếp</div>
+                                        <div class="account-toggle-subtitle">In phiếu bếp khi báo bếp / thanh toán mang về.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="autoPrintKitchenToggle">
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </li>
                         <li><hr class="dropdown-divider"></li>
                         <li class="js-pwa-install-action d-none">
                             <button class="dropdown-item account-action mx-2" type="button">
@@ -1162,6 +1187,14 @@
                                 <span class="account-icon-pill"><i class="fa-solid fa-receipt"></i></span>Đơn hàng trong ngày
                             </a>
                         </li>
+                        {% if user.tenant.show_shift_feature %}
+                        <li>
+                            <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:shifts' %}" id="shiftMenuLink">
+                                <span class="account-icon-pill"><i class="fa-solid fa-cash-register"></i></span>Ca làm việc
+                                <span class="badge rounded-pill ms-auto d-none" id="shiftStatusBadge"></span>
+                            </a>
+                        </li>
+                        {% endif %}
                         {% if user.tenant.show_kitchen_feature %}
                         <li>
                             <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:kitchen' %}" target="_blank" rel="noopener">
@@ -1178,6 +1211,19 @@
                         <li>
                             <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
                                 <span class="account-icon-pill"><i class="fa-solid fa-chart-line"></i></span>Trang quản lý
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if user.tenant_id %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:account' %}">
+                                <span class="account-icon-pill"><i class="fa-solid fa-id-card"></i></span>Thông tin tài khoản
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:account' %}#doi-mat-khau">
+                                <span class="account-icon-pill"><i class="fa-solid fa-key"></i></span>Đổi mật khẩu
                             </a>
                         </li>
                         {% endif %}
@@ -1260,9 +1306,16 @@
                     {% if user.tenant.show_qr_order_feature %}
                     <!-- VIEW: ONLINE ORDERS (QR) -->
                     <div class="tab-pane fade h-100 p-3 p-md-4 bg-light" id="view-online" role="tabpanel">
+                        <div id="awaiting-payment-section" class="mb-4 d-none">
+                            <h5 class="fw-bold mb-3 text-dark">
+                                <i class="fa-solid fa-bag-shopping me-2 text-info"></i>Mang đi · chờ khách tới lấy &amp; thu tiền
+                            </h5>
+                            <div class="row g-3" id="awaiting-payment-container"></div>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-bold mb-0 text-dark">
-                                <i class="fa-solid fa-qrcode me-2 text-primary"></i>Danh sách đơn QR chờ duyệt
+                                <i class="fa-solid fa-qrcode me-2 text-primary"></i>Đơn khách tự đặt chờ duyệt
+                                <span class="d-block small text-muted fw-normal mt-1">Gọi món tại bàn qua QR và đặt mang đi từ trang thực đơn</span>
                             </h5>
                         </div>
                         
@@ -1309,6 +1362,9 @@
                         </button>
                         <button class="btn btn-outline-warning btn-sm fw-bold px-3 d-none" onclick="openMoveTableModal()" id="btn-move-table">
                             <i class="fa-solid fa-right-left me-1"></i>Chuyển bàn
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm fw-bold px-3 d-none" onclick="printTableBill()" id="btn-print-bill" title="In phiếu tạm tính cho khách xem trước khi thanh toán">
+                            <i class="fa-solid fa-print me-1"></i>In tạm tính
                         </button>
                         {% if user.tenant.show_kitchen_feature %}
                         <button class="btn btn-danger btn-sm fw-bold px-3 d-none" onclick="sendTableToKitchen()" id="btn-kitchen-send" title="Gửi các món chưa báo bếp">
@@ -1581,8 +1637,9 @@
                 <div class="modal-body p-4 bg-light">
                     <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border">
                         <div>
-                            <span class="text-muted small d-block">Bàn đặt:</span>
+                            <span class="text-muted small d-block" id="qr-modal-table-label">Bàn đặt:</span>
                             <h4 class="fw-bold text-primary mb-0" id="qr-modal-table-name">Bàn 01</h4>
+                            <div class="small text-muted d-none" id="qr-modal-customer"></div>
                         </div>
                         <div class="text-end">
                             <span class="text-muted small d-block">Thời gian:</span>
@@ -1774,8 +1831,23 @@
         </div>
     </div>
 
+    <!-- Toast sau thanh toán: in hoá đơn -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="receiptToast" class="toast align-items-center border-0 shadow" role="status" aria-live="polite" aria-atomic="true">
+            <div class="d-flex align-items-center gap-2 p-2 ps-3">
+                <div class="flex-grow-1 small fw-semibold" id="receiptToastMessage">Thanh toán thành công.</div>
+                <button type="button" class="btn btn-sm btn-success fw-bold text-nowrap" id="receiptToastPrint">
+                    <i class="fa-solid fa-print me-1"></i>In hoá đơn
+                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Đóng"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'js/eapp_print.js' %}"></script>
     <!-- Bootstrap 5.3 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="{% static 'js/eapp_dialog.js' %}"></script>
     
     <!-- Application Logic -->
     <script>
@@ -1786,6 +1858,13 @@
         const API_TABLES_URL = "{% url 'App_Sales_API:tables' %}";
         const API_QR_ORDERS_URL = "{% url 'App_Sales_API:qr_orders' %}";
         const API_TABLES_BASE = '/api/pos/tables/';
+        const API_SHIFT_CURRENT_URL = "{% url 'App_Sales_API:shift_current' %}";
+        const RECEIPT_URL_TEMPLATE = "{% url 'App_Sales:order_receipt' 0 %}";
+        const TABLE_BILL_URL_TEMPLATE = "{% url 'App_Sales:table_bill' 0 %}";
+        const KITCHEN_PRINT_URL_TEMPLATE = "{% url 'App_Sales:kitchen_ticket_print' 0 %}";
+        const AUTO_PRINT_RECEIPT_KEY = 'eapp_pos_auto_print_receipt';
+        const AUTO_PRINT_KITCHEN_KEY = 'eapp_pos_auto_print_kitchen';
+        const urlWithId = (template, id) => template.replace('/0/', `/${id}/`);
         const API_QR_ORDERS_BASE = '/api/pos/qr/orders/';
         const TENANT_SHOW_CUSTOMER_FEATURE = {{ user.tenant.show_customer_feature|yesno:"true,false" }};
         const TENANT_SHOW_PROMOTION_FEATURE = {{ user.tenant.show_promotion_feature|yesno:"true,false" }};
@@ -1807,6 +1886,8 @@
         let products = [];
         let tables = [];
         let onlineOrders = [];
+        let awaitingPaymentOrders = [];
+        let collectingQrOrder = null; // Đơn mang đi (khách đặt online) đang được thu tiền trong giỏ mang về.
         let currentSelectedTableId = null;
         let lastTableContextId = null;
         let takeawayCart = [];
@@ -1909,6 +1990,7 @@
             const isTakeaway = currentSelectedTableId === null;
             if (chooseBtn) chooseBtn.classList.toggle('d-none', !isTakeaway);
             if (moveBtn) moveBtn.classList.toggle('d-none', isTakeaway);
+            document.getElementById('btn-print-bill')?.classList.toggle('d-none', isTakeaway);
             const kitchenBtn = document.getElementById('btn-kitchen-send');
             if (kitchenBtn) kitchenBtn.classList.toggle('d-none', isTakeaway || !hasKitchenFeature);
             if (takeawayBtn) takeawayBtn.classList.toggle('d-none', isTakeaway);
@@ -1946,6 +2028,53 @@
             toastEl.classList.remove('bg-success', 'bg-primary', 'bg-warning', 'bg-danger', 'bg-secondary');
             toastEl.classList.add(`bg-${type}`);
             new bootstrap.Toast(toastEl, { delay: 2500 }).show();
+        };
+
+        let lastPaidOrderId = null;
+        const printReceipt = (orderId) => {
+            if (orderId) window.eappPrint(urlWithId(RECEIPT_URL_TEMPLATE, orderId));
+        };
+        const printKitchenTicket = (ticketId) => {
+            if (ticketId) window.eappPrint(urlWithId(KITCHEN_PRINT_URL_TEMPLATE, ticketId));
+        };
+        const printTableBill = () => {
+            if (currentSelectedTableId === null) return;
+            if (!cart.length) {
+                showToast('Bàn chưa có món để in tạm tính.', 'warning');
+                return;
+            }
+            window.eappPrint(urlWithId(TABLE_BILL_URL_TEMPLATE, currentSelectedTableId));
+        };
+        const handlePaidOrderPrinting = (data) => {
+            lastPaidOrderId = data.order_id;
+            const autoReceipt = readStoredBoolean(AUTO_PRINT_RECEIPT_KEY, false);
+            if (autoReceipt) printReceipt(data.order_id);
+            if (hasKitchenFeature && data.kitchen_ticket_id && readStoredBoolean(AUTO_PRINT_KITCHEN_KEY, false)) {
+                printKitchenTicket(data.kitchen_ticket_id);
+            }
+            if (!autoReceipt) {
+                document.getElementById('receiptToastMessage').textContent = `Đã thanh toán ${data.order_code}.`;
+                new bootstrap.Toast(document.getElementById('receiptToast'), { delay: 8000 }).show();
+            }
+        };
+        document.getElementById('receiptToastPrint')?.addEventListener('click', () => {
+            printReceipt(lastPaidOrderId);
+            bootstrap.Toast.getInstance(document.getElementById('receiptToast'))?.hide();
+        });
+
+        const loadShiftStatus = async () => {
+            const badge = document.getElementById('shiftStatusBadge');
+            const link = document.getElementById('shiftMenuLink');
+            if (!badge || !currentStoreId) return;
+            if (link) link.href = `{% url 'App_Sales:shifts' %}?store_id=${currentStoreId}`;
+            try {
+                const data = await fetchJson(`${API_SHIFT_CURRENT_URL}?store_id=${currentStoreId}`);
+                const open = !!data.shift;
+                badge.textContent = open ? 'Đang mở' : 'Chưa mở ca';
+                badge.className = `badge rounded-pill ms-auto ${open ? 'bg-success' : 'bg-warning text-dark'}`;
+            } catch (error) {
+                badge.className = 'badge rounded-pill ms-auto d-none';
+            }
         };
 
         const readStoredBoolean = (key, fallback = true) => {
@@ -2316,8 +2445,41 @@
             }
         };
 
+        const qrOrderHeading = (order) => (order.order_type === 'TAKEAWAY'
+            ? `<i class="fa-solid fa-bag-shopping text-info me-2"></i>${escapeHtml(order.customer_name || 'Khách mang đi')}`
+            : `<i class="fa-solid fa-chair text-warning me-2"></i>${escapeHtml(order.table_name)}`);
+
+        const renderAwaitingPaymentOrders = () => {
+            const section = document.getElementById('awaiting-payment-section');
+            const container = document.getElementById('awaiting-payment-container');
+            if (!section || !container) return;
+            section.classList.toggle('d-none', !awaitingPaymentOrders.length);
+            container.innerHTML = awaitingPaymentOrders.map((order) => {
+                let itemsSummary = order.items.slice(0, 2).map((i) => `${i.qty}x ${i.name}`).join(', ');
+                if (order.items.length > 2) itemsSummary += ` và ${order.items.length - 2} món khác...`;
+                return `
+                    <div class="col-12 col-md-6 col-xl-4">
+                        <div class="online-order-card p-3 shadow-sm" style="border-left-color: #0ea5e9;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <h5 class="fw-bold text-dark mb-0 text-truncate">${qrOrderHeading(order)}</h5>
+                                <span class="badge bg-info-subtle text-info-emphasis"><i class="fa-regular fa-clock me-1"></i>${escapeHtml(order.time)}</span>
+                            </div>
+                            <div class="small text-muted mb-2"><i class="fa-solid fa-phone me-1"></i>${escapeHtml(order.customer_phone || '')}</div>
+                            <div class="text-muted small mb-3 border-bottom pb-2" style="min-height: 40px;">${escapeHtml(itemsSummary)}</div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold text-danger">${formatCurrency(order.total)}</span>
+                                <button class="btn btn-sm btn-primary px-3 rounded-pill fw-bold" onclick="collectTakeawayQrOrder(${order.id})">
+                                    <i class="fa-solid fa-cash-register me-1"></i>Thu tiền
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+        };
+
         const renderOnlineOrders = () => {
             if (!hasQrOrderFeature) return;
+            renderAwaitingPaymentOrders();
             const container = document.getElementById('online-orders-container');
             if (!container) return;
             if (!onlineOrders.length) {
@@ -2344,7 +2506,7 @@
                     <div class="col-12 col-md-6 col-xl-4">
                         <div class="online-order-card p-3 shadow-sm cursor-pointer" onclick="openQrOrderModal(${order.id})" style="cursor: pointer;">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="fw-bold text-dark mb-0"><i class="fa-solid fa-chair text-warning me-2"></i>${escapeHtml(order.table_name)}</h5>
+                                <h5 class="fw-bold text-dark mb-0 text-truncate">${qrOrderHeading(order)}</h5>
                                 <span class="badge bg-warning text-dark"><i class="fa-regular fa-clock me-1"></i>${escapeHtml(order.time)}</span>
                             </div>
                             <div class="text-muted small mb-3 border-bottom pb-2" style="min-height: 40px;">${escapeHtml(itemsSummary)}</div>
@@ -2365,6 +2527,10 @@
         };
 
         const renderCart = () => {
+            if (collectingQrOrder && (currentSelectedTableId !== null || !cart.length)) {
+                collectingQrOrder = null;
+                if (currentSelectedTableId === null) document.getElementById('current-order-name').textContent = 'Khách mang về';
+            }
             const container = document.getElementById('cart-items-container');
             const emptyMsg = document.getElementById('empty-cart-msg');
             const btnPay = document.getElementById('btn-pay');
@@ -2545,7 +2711,12 @@
             if (!hasQrOrderFeature) return { newOrders: [], orders: [] };
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId, status: 'pending' });
-            const payload = await fetchJson(`${API_QR_ORDERS_URL}?${params.toString()}`);
+            const awaitingParams = new URLSearchParams({ store_id: currentStoreId, status: 'awaiting_payment' });
+            const [payload, awaitingPayload] = await Promise.all([
+                fetchJson(`${API_QR_ORDERS_URL}?${params.toString()}`),
+                fetchJson(`${API_QR_ORDERS_URL}?${awaitingParams.toString()}`).catch(() => ({ orders: awaitingPaymentOrders })),
+            ]);
+            awaitingPaymentOrders = awaitingPayload.orders || [];
             const nextOrders = payload.orders || [];
             let newOrders = [];
             if (hasLoadedOnlineOrdersOnce) {
@@ -2797,6 +2968,7 @@
                     body: '{}',
                 });
                 showToast(data.detail || 'Đã báo bếp.', data.ticket_id ? 'success' : 'secondary');
+                if (data.ticket_id && readStoredBoolean(AUTO_PRINT_KITCHEN_KEY, false)) printKitchenTicket(data.ticket_id);
                 await loadTableCart(currentSelectedTableId);
             } catch (error) {
                 showToast(error.message, 'danger');
@@ -3069,7 +3241,14 @@
             const order = onlineOrders.find((item) => item.id === orderId);
             if (!order) return;
             currentReviewingOrderId = orderId;
-            document.getElementById('qr-modal-table-name').textContent = order.table_name;
+            const isTakeawayOrder = order.order_type === 'TAKEAWAY';
+            document.getElementById('qr-modal-table-label').textContent = isTakeawayOrder ? 'Khách đặt mang đi:' : 'Bàn đặt:';
+            document.getElementById('qr-modal-table-name').textContent = isTakeawayOrder ? (order.customer_name || 'Khách mang đi') : order.table_name;
+            const customerEl = document.getElementById('qr-modal-customer');
+            customerEl.classList.toggle('d-none', !isTakeawayOrder);
+            customerEl.innerHTML = isTakeawayOrder
+                ? `<i class="fa-solid fa-phone me-1"></i><a href="tel:${escapeHtml(order.customer_phone || '')}">${escapeHtml(order.customer_phone || '')}</a>${order.customer_note ? `<div class="fst-italic mt-1"><i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(order.customer_note)}</div>` : ''}`
+                : '';
             document.getElementById('qr-modal-time').textContent = order.time;
             document.getElementById('qr-modal-total').textContent = formatCurrency(order.total);
             const itemsContainer = document.getElementById('qr-modal-items');
@@ -3099,14 +3278,59 @@
         const approveQrOrder = async () => {
             if (!currentReviewingOrderId) return;
             try {
-                await fetchJson(`${API_QR_ORDERS_BASE}${currentReviewingOrderId}/approve/`, { method: 'POST', body: '{}' });
+                const result = await fetchJson(`${API_QR_ORDERS_BASE}${currentReviewingOrderId}/approve/`, { method: 'POST', body: '{}' });
                 if (qrOrderModalInstance) qrOrderModalInstance.hide();
-                showToast('Đã duyệt đơn QR.', 'success');
+                showToast(
+                    result.order_type === 'TAKEAWAY'
+                        ? 'Đã duyệt đơn mang đi. Bấm "Thu tiền" khi khách tới lấy.'
+                        : 'Đã duyệt đơn QR.',
+                    'success',
+                );
                 await Promise.all([loadOnlineOrdersFromApi(), loadTablesFromApi()]);
                 if (currentSelectedTableId) await loadTableCart(currentSelectedTableId);
             } catch (error) {
                 showToast(error.message, 'danger');
             }
+        };
+
+        const collectTakeawayQrOrder = async (orderId) => {
+            const order = awaitingPaymentOrders.find((item) => item.id === orderId);
+            if (!order) return;
+            if (currentSelectedTableId !== null) {
+                startNewTakeawayOrder();
+            } else if (cart.length && collectingQrOrder?.id !== order.id) {
+                const replaceCart = await window.eappDialog.confirm({
+                    title: 'Thay giỏ mang về?',
+                    message: 'Giỏ mang về đang có món. Thay bằng đơn của khách này?',
+                    okText: 'Thay giỏ',
+                    variant: 'warning',
+                });
+                if (!replaceCart) return;
+            }
+            cart = order.items.map((item) => {
+                const toppingIds = (item.toppings || []).map((top) => Number(top.id)).filter(Boolean);
+                return {
+                    cartId: `${buildTakeawayCartId({ productId: item.product_id, unitId: item.unit_id, toppingIds })}::qr::${order.id}`,
+                    id: item.product_id,
+                    unitId: item.unit_id,
+                    name: item.name,
+                    size: item.size || '',
+                    price: Number(item.price || 0),
+                    qty: Number(item.qty || 1),
+                    note: item.note || '',
+                    source: 'QR',
+                    img: findProductImage(item.product_id),
+                    toppings: (item.toppings || []).map((top) => ({ ...top })),
+                    toppingIds,
+                };
+            });
+            takeawayCart = cart.map((item) => ({ ...item, toppings: [...item.toppings], toppingIds: [...item.toppingIds] }));
+            collectingQrOrder = { id: order.id, label: order.table_name };
+            document.getElementById('current-order-name').textContent = order.table_name;
+            new bootstrap.Tab(document.getElementById('tab-menu')).show();
+            renderCart();
+            syncOrderContextUi();
+            showToast(`Đã đưa đơn của ${order.customer_name || 'khách'} vào giỏ. Kiểm tra rồi bấm thanh toán.`, 'primary');
         };
 
         const clearQrRejectForm = () => {
@@ -4023,6 +4247,7 @@
                             customer_paid: received,
                             customer_id: hasCustomerFeature && selectedCustomer ? selectedCustomer.id : null,
                             promotion_id: hasPromotionFeature && selectedPromotion ? selectedPromotion.id : null,
+                            qr_order_id: collectingQrOrder ? collectingQrOrder.id : null,
                             items: cart.map((item) => ({
                                 product_id: item.id,
                                 unit_id: item.unitId,
@@ -4032,13 +4257,16 @@
                             })),
                         }),
                     });
+                    const paidQrOrder = collectingQrOrder;
                     cart = [];
                     takeawayCart = [];
                     renderCart();
+                    if (paidQrOrder) loadOnlineOrdersFromApi().catch(() => null);
                 }
                 if (paymentModalInstance) paymentModalInstance.hide();
                 const pointMsg = data.points_earned ? ` · +${data.points_earned} điểm` : '';
                 showToast(`Thanh toán thành công (${data.order_code})${pointMsg}!`, 'success');
+                handlePaidOrderPrinting(data);
                 selectedPromotion = null;
                 currentDiscountAmount = 0;
                 currentDiscountSource = 'none';
@@ -4053,6 +4281,7 @@
         };
 
         const bootstrapPage = async () => {
+            loadShiftStatus();
             try {
                 await loadProductsFromApi();
                 if (hasQrOrderFeature) {
@@ -4178,6 +4407,18 @@
         document.getElementById('qrVoiceToggle')?.addEventListener('change', (event) => {
             setQrVoiceEnabled(event.target.checked, true);
         });
+        [
+            ['autoPrintReceiptToggle', AUTO_PRINT_RECEIPT_KEY, 'Tự in hoá đơn'],
+            ['autoPrintKitchenToggle', AUTO_PRINT_KITCHEN_KEY, 'Tự in phiếu bếp'],
+        ].forEach(([id, key, label]) => {
+            const toggle = document.getElementById(id);
+            if (!toggle) return;
+            toggle.checked = readStoredBoolean(key, false);
+            toggle.addEventListener('change', () => {
+                writeStoredBoolean(key, toggle.checked);
+                showToast(`${toggle.checked ? 'Đã bật' : 'Đã tắt'} ${label.toLowerCase()}.`, toggle.checked ? 'success' : 'secondary');
+            });
+        });
 
         document.getElementById('storeSelector')?.addEventListener('change', async (event) => {
             stopPosQrSocket();
@@ -4222,12 +4463,14 @@
         window.selectTakeaway = selectTakeaway;
         window.openMoveTableModal = openMoveTableModal;
         window.sendTableToKitchen = sendTableToKitchen;
+        window.printTableBill = printTableBill;
         window.confirmMoveTable = confirmMoveTable;
         window.returnToLastTable = returnToLastTable;
         window.handleFooterLeftAction = handleFooterLeftAction;
         window.simulateQrOrder = simulateQrOrder;
         window.openQrOrderModal = openQrOrderModal;
         window.approveQrOrder = approveQrOrder;
+        window.collectTakeawayQrOrder = collectTakeawayQrOrder;
         window.rejectQrOrder = rejectQrOrder;
         window.confirmRejectQrOrder = confirmRejectQrOrder;
         window.selectQrRejectPreset = selectQrRejectPreset;

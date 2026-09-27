@@ -63,6 +63,21 @@ LOGIN_LOCKOUT_MINUTES=15
 # Lấy IP thật từ header X-Real-IP do Nginx gửi (mục Nginx bên dưới). Mặc định bật khi ENVIRONMENT=prod.
 # Tắt nếu Django KHÔNG chạy sau Nginx, vì client có thể tự giả header này.
 LOGIN_TRUST_X_REAL_IP=True
+# 1 IP sai quá số lần này (mọi username) trong LOGIN_LOCKOUT_MINUTES phút thì chặn cả IP.
+LOGIN_IP_FAILURE_LIMIT=30
+# Chống spam đăng ký: tối đa 5 tài khoản / IP / 24 giờ.
+SIGNUP_LIMIT_PER_IP=5
+SIGNUP_WINDOW_HOURS=24
+# Quên mật khẩu: tối đa 5 yêu cầu / IP / giờ.
+PASSWORD_RESET_LIMIT_PER_IP=5
+
+# Email gửi link Quên mật khẩu. Để trống EMAIL_HOST thì chức năng Quên mật khẩu bị ẩn.
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=no-reply@eapp.vn
+EMAIL_HOST_PASSWORD=<app-password>
+EMAIL_USE_TLS=True
+DEFAULT_FROM_EMAIL=eApp FnB <no-reply@eapp.vn>
 ```
 
 Tạo `SECRET_KEY`:
@@ -270,7 +285,56 @@ ws.onclose = (e) => console.log("WS closed", e.code, e.reason);
 ws.onerror = (e) => console.log("WS error", e);
 ```
 
-## 12. Quy trình deploy bản mới
+## 12. Tác vụ định kỳ
+> **Chưa chốt phương án** (systemd timer hay Celery) — xem `docs/backlog/1_backlog.md` BL-035.
+> Hướng dẫn dưới đây là cho phương án systemd timer. Trong lúc chưa cài, superuser reset demo tay trong admin.
+
+| Lệnh | Lịch | Việc làm |
+|---|---|---|
+| `python manage.py reset_demo_data` | 03:00 hằng ngày | Xoá sạch doanh nghiệp `demo` (đơn, tài khoản, cửa hàng, sản phẩm, ảnh upload) rồi seed lại. Tài khoản demo hiện công khai ở trang đăng nhập nên cần reset để dữ liệu không bị phá lâu dài. |
+| `python manage.py cleanup_auth_throttle` | 03:30 hằng ngày | Xoá bộ đếm đăng nhập sai / giới hạn tần suất đã hết hạn để bảng không phình to. |
+
+Tạo `/etc/systemd/system/eapp-fnb-reset-demo.service`:
+```ini
+[Unit]
+Description=eapp-fnb reset demo data
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/Project_Django/eapp-fnb
+EnvironmentFile=/opt/Project_Django/eapp-fnb/Project/.env
+ExecStart=/opt/Project_Django/env_10_web/bin/python manage.py reset_demo_data
+```
+
+Tạo `/etc/systemd/system/eapp-fnb-reset-demo.timer`:
+```ini
+[Unit]
+Description=Reset demo data daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Tạo tương tự `eapp-fnb-cleanup-throttle.service` (`ExecStart=... manage.py cleanup_auth_throttle`) và `eapp-fnb-cleanup-throttle.timer` (`OnCalendar=*-*-* 03:30:00`).
+
+Kích hoạt và kiểm tra:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now eapp-fnb-reset-demo.timer eapp-fnb-cleanup-throttle.timer
+systemctl list-timers | grep eapp-fnb
+sudo systemctl start eapp-fnb-reset-demo.service   # chạy thử ngay
+journalctl -u eapp-fnb-reset-demo.service -n 20
+```
+
+Muốn reset demo dày hơn (ví dụ mỗi 6 giờ) thì đổi `OnCalendar=*-*-* 00/6:00:00`. Superuser cũng có thể reset tay trong admin (trang "Phục hồi dữ liệu demo").
+
+## 13. Quy trình deploy bản mới
 ```bash
 cd /opt/Project_Django/eapp-fnb
 git pull
@@ -284,22 +348,22 @@ sudo systemctl restart daphne-eapp-fnb
 sudo systemctl reload nginx
 ```
 
-## 13. CI/CD
+## 14. CI/CD
 
-### 13.1 Hiện trạng
+### 14.1 Hiện trạng
 - Chưa có pipeline CI/CD tự động (không có `.github/workflows/`).
-- Deploy thủ công theo mục 12 (SSH vào server, `git pull`, migrate, restart service).
+- Deploy thủ công theo mục 13 (SSH vào server, `git pull`, migrate, restart service).
 - Script nội bộ phía dev: `scripts/pipeline.txt` (reset project + clean cache + `git push`).
 
-### 13.2 Khung pipeline đề xuất
+### 14.2 Khung pipeline đề xuất
 | Stage | Trigger | Việc làm | Điều kiện qua |
 |---|---|---|---|
 | Lint / check | Push, PR vào `main` | `python manage.py check`, `makemigrations --check --dry-run` | Không lỗi, không thiếu migration |
 | Test | Push, PR vào `main` | `python manage.py test` (kèm Redis service cho test WS) | Toàn bộ test pass |
 | Build | Merge vào `main` | `pip install -r requirements.txt`, `collectstatic --noinput` | Không lỗi |
-| Deploy | Tag / merge `main` (thủ công duyệt) | Chạy quy trình mục 12 qua SSH | `check` pass, service `active` |
+| Deploy | Tag / merge `main` (thủ công duyệt) | Chạy quy trình mục 13 qua SSH | `check` pass, service `active` |
 | Smoke | Sau deploy | Mở `/accounts/login/`, test WS (mục 11) | HTTP 200, WS connected |
 
-### 13.3 Việc cần làm trước khi bật CI
+### 14.3 Việc cần làm trước khi bật CI
 - ✅ `requirements.txt` đã pin đủ dependency (xem `docs/setup/2_tech_stack.md`).
 - Lưu secret (`SECRET_KEY`, `POSTGRES_PASSWORD`, SSH key) trong secret store của CI, không commit `.env`.

@@ -1,0 +1,845 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#10b981">
+    <title>{% block title %}{{ tenant.name }}{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'images/logo/favicon-eapp.ico' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --od-primary: #10b981;
+            --od-primary-hover: #059669;
+            --od-primary-soft: rgba(16, 185, 129, 0.12);
+            --od-ink: #0f172a;
+            --od-muted: #64748b;
+            --od-line: #e2e8f0;
+            --od-bg: #f4f7f6;
+            --od-card: #ffffff;
+            --od-price: #059669;
+            --od-radius: 16px;
+            --od-shadow: 0 4px 6px rgba(15, 23, 42, 0.04);
+            --od-shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.1);
+        }
+        body {
+            background: var(--od-bg);
+            color: var(--od-ink);
+            font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn { font-weight: 600; }
+        .min-w-0 { min-width: 0; }
+        .btn-primary {
+            background: var(--od-primary);
+            border-color: var(--od-primary);
+            color: #fff;
+        }
+        .btn-primary:hover, .btn-primary:focus, .btn-primary:active,
+        .btn-primary:disabled, .btn-primary.disabled {
+            background: var(--od-primary-hover) !important;
+            border-color: var(--od-primary-hover) !important;
+            color: #fff !important;
+        }
+        .btn-primary:disabled { opacity: 0.55; }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--od-primary);
+            box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.18);
+        }
+
+        /* --- Header --- */
+        .od-header {
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--od-line);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+        .od-brand-mark {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.15rem;
+            color: #fff;
+            background: linear-gradient(140deg, #34d399, #10b981 55%, #0ea5e9);
+            box-shadow: 0 6px 14px rgba(16, 185, 129, 0.35);
+            flex-shrink: 0;
+        }
+        .od-brand-name {
+            font-weight: 800;
+            font-size: 1.05rem;
+            line-height: 1.2;
+            margin: 0;
+        }
+        .od-brand-sub {
+            font-size: 0.8rem;
+            color: var(--od-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .od-context-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            background: var(--od-primary-soft);
+            color: #047857;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .od-store-select {
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            max-width: 200px;
+            border-color: var(--od-line);
+        }
+
+        /* --- Hero / info --- */
+        .od-hero {
+            border-radius: var(--od-radius);
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0f9ff 100%);
+            border: 1px solid rgba(16, 185, 129, 0.18);
+            padding: 1rem 1.1rem;
+        }
+        .od-hero-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 0.2rem; }
+        .od-hero-meta { color: var(--od-muted); font-size: 0.85rem; }
+        .od-hero-meta a { color: inherit; }
+        .od-steps-mini {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem 1rem;
+            margin-top: 0.6rem;
+            font-size: 0.8rem;
+            color: #334155;
+        }
+        .od-steps-mini span { display: inline-flex; align-items: center; gap: 0.3rem; }
+        .od-steps-mini i { color: var(--od-primary); }
+        .od-notice {
+            border-radius: var(--od-radius);
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #92400e;
+            padding: 0.85rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* --- Toolbar (search + categories) --- */
+        .od-toolbar {
+            position: sticky;
+            top: var(--od-header-h, 66px);
+            z-index: 1020;
+            background: var(--od-bg);
+            padding: 0.6rem 0 0.5rem;
+        }
+        .od-search {
+            position: relative;
+        }
+        .od-search > i {
+            position: absolute;
+            left: 0.95rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--od-muted);
+        }
+        .od-search input {
+            border-radius: 999px;
+            padding: 0.6rem 2.5rem 0.6rem 2.5rem;
+            border-color: var(--od-line);
+            background: #fff;
+        }
+        .od-search .od-search-clear {
+            position: absolute;
+            right: 0.4rem;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 0;
+            background: transparent;
+            color: var(--od-muted);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+        .od-chips {
+            display: flex;
+            gap: 0.5rem;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding: 0.6rem 0 0.1rem;
+        }
+        .od-chips::-webkit-scrollbar { display: none; }
+        .od-chip {
+            flex-shrink: 0;
+            border-radius: 999px;
+            border: 1px solid var(--od-line);
+            background: #fff;
+            color: #475569;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.95rem;
+            transition: all 0.25s ease;
+        }
+        .od-chip:hover { color: var(--od-primary); }
+        .od-chip.active {
+            color: #fff;
+            background: var(--od-primary);
+            border-color: var(--od-primary);
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* --- Product card (hiệu ứng như POS) --- */
+        .od-card {
+            border-radius: 14px;
+            background: var(--od-card);
+            box-shadow: var(--od-shadow);
+            overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .od-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .od-card:active { transform: scale(0.97); }
+        .od-card-img {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            background: #eef2f1;
+            overflow: hidden;
+        }
+        .od-card-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.35s ease;
+        }
+        .od-card:hover .od-card-img img { transform: scale(1.05); }
+        .od-card-body {
+            padding: 0.7rem 0.8rem 0.8rem;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .od-card-name {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin: 0 0 0.15rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .od-card-desc {
+            color: var(--od-muted);
+            font-size: 0.78rem;
+            line-height: 1.3;
+            margin: 0 0 0.4rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .od-card-foot {
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+        }
+        .od-price {
+            color: var(--od-price);
+            font-weight: 800;
+            font-size: 1rem;
+        }
+        .od-price small { color: var(--od-muted); font-weight: 500; font-size: 0.72rem; }
+        .od-add {
+            position: relative;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 0;
+            background: var(--od-primary);
+            color: #fff;
+            font-size: 1.15rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+            transition: transform 0.15s ease, background 0.2s ease;
+            flex-shrink: 0;
+        }
+        .od-add:hover { background: var(--od-primary-hover); }
+        .od-add:active { transform: scale(0.88); }
+        .od-add-count {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            background: #f97316;
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            border: 2px solid #fff;
+        }
+        .od-empty {
+            text-align: center;
+            color: var(--od-muted);
+            padding: 3rem 1rem;
+        }
+        .od-empty i { font-size: 2.6rem; opacity: 0.35; display: block; margin-bottom: 0.5rem; }
+
+        /* --- Order tracking card --- */
+        .od-track {
+            border-radius: var(--od-radius);
+            background: #fff;
+            box-shadow: var(--od-shadow-lg);
+            border: 1px solid var(--od-line);
+            overflow: hidden;
+            animation: od-pop-in 0.35s ease;
+        }
+        .od-track-head {
+            padding: 1rem 1.1rem 0.8rem;
+            display: flex;
+            gap: 0.85rem;
+            align-items: flex-start;
+        }
+        .od-track-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+        }
+        .od-track.pending .od-track-icon { background: #fef3c7; color: #b45309; }
+        .od-track.approved .od-track-icon { background: #d1fae5; color: #047857; }
+        .od-track.paid .od-track-icon { background: #dbeafe; color: #1d4ed8; }
+        .od-track.rejected .od-track-icon,
+        .od-track.cancelled .od-track-icon { background: #ffe4e6; color: #be123c; }
+        .od-track-title { font-weight: 800; font-size: 1rem; margin: 0; }
+        .od-track-text { color: var(--od-muted); font-size: 0.85rem; margin: 0.15rem 0 0; }
+        .od-track-meta { font-size: 0.78rem; color: var(--od-muted); }
+        .od-live {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.72rem;
+            color: var(--od-muted);
+            white-space: nowrap;
+        }
+        .od-live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--od-primary);
+            animation: od-pulse 1.8s infinite;
+        }
+        .od-stepper {
+            display: flex;
+            padding: 0 1.1rem 0.9rem;
+            gap: 0.3rem;
+        }
+        .od-step {
+            flex: 1;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .od-step-bar {
+            height: 5px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            margin-bottom: 0.35rem;
+            overflow: hidden;
+            position: relative;
+        }
+        .od-step.done { color: #047857; }
+        .od-step.done .od-step-bar { background: var(--od-primary); }
+        .od-step.current { color: #b45309; }
+        .od-step.current .od-step-bar::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            width: 40%;
+            border-radius: 999px;
+            background: #f59e0b;
+            animation: od-progress 1.4s ease-in-out infinite;
+        }
+        .od-track-items {
+            border-top: 1px dashed var(--od-line);
+            padding: 0.6rem 1.1rem;
+            font-size: 0.85rem;
+        }
+        .od-track-items summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #334155;
+            list-style: none;
+        }
+        .od-track-items summary::-webkit-details-marker { display: none; }
+        .od-track-items summary .bi-chevron-down { transition: transform 0.2s; }
+        .od-track-items details[open] summary .bi-chevron-down { transform: rotate(180deg); }
+        .od-track-actions {
+            border-top: 1px solid var(--od-line);
+            padding: 0.7rem 1.1rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            background: #f8fafc;
+        }
+        .od-reason {
+            margin-top: 0.5rem;
+            background: #fff1f2;
+            color: #9f1239;
+            border-radius: 10px;
+            padding: 0.45rem 0.65rem;
+            font-size: 0.82rem;
+        }
+
+        /* --- Cart panel --- */
+        .od-cart-col { position: relative; }
+        .od-cart {
+            background: #fff;
+            border-radius: var(--od-radius);
+            box-shadow: var(--od-shadow-lg);
+            border: 1px solid var(--od-line);
+            display: flex;
+            flex-direction: column;
+        }
+        @media (min-width: 992px) {
+            .od-cart {
+                position: sticky;
+                top: calc(var(--od-header-h, 66px) + 1rem);
+                max-height: calc(100vh - var(--od-header-h, 66px) - 2rem);
+                background-color: #fff !important;
+            }
+        }
+        @media (max-width: 991.98px) {
+            .od-cart.offcanvas-lg {
+                height: 88vh;
+                border-radius: 22px 22px 0 0;
+                border: 0;
+            }
+            .od-cart .od-grabber {
+                width: 44px;
+                height: 5px;
+                border-radius: 999px;
+                background: #cbd5e1;
+                margin: 0.55rem auto 0;
+            }
+        }
+        .od-cart-head {
+            padding: 0.9rem 1.1rem;
+            border-bottom: 1px solid var(--od-line);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .od-cart-title { font-weight: 800; font-size: 1.02rem; margin: 0; }
+        .od-cart-body {
+            padding: 0.8rem 1.1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .od-cart-foot {
+            padding: 0.9rem 1.1rem calc(0.9rem + env(safe-area-inset-bottom));
+            border-top: 1px solid var(--od-line);
+            background: #fff;
+            border-radius: 0 0 var(--od-radius) var(--od-radius);
+        }
+        .od-cart-item {
+            display: flex;
+            gap: 0.7rem;
+            padding: 0.7rem 0;
+            border-bottom: 1px solid #f1f5f9;
+            animation: od-slide-in 0.25s ease;
+        }
+        .od-cart-item:last-child { border-bottom: 0; }
+        .od-cart-item img {
+            width: 54px;
+            height: 54px;
+            border-radius: 12px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .od-cart-item-name { font-weight: 700; font-size: 0.9rem; line-height: 1.25; }
+        .od-cart-item-meta { font-size: 0.76rem; color: var(--od-muted); }
+        .od-qty {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid var(--od-line);
+            border-radius: 999px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .od-qty button {
+            width: 30px;
+            height: 30px;
+            border: 0;
+            background: transparent;
+            color: var(--od-ink);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+        }
+        .od-qty button:hover { background: #f1f5f9; }
+        .od-qty button:active { transform: scale(0.9); }
+        .od-qty span { min-width: 26px; text-align: center; font-weight: 700; font-size: 0.9rem; }
+        .od-qty.od-qty-lg button { width: 40px; height: 40px; font-size: 1.1rem; }
+        .od-qty.od-qty-lg span { min-width: 34px; font-size: 1.05rem; }
+        .od-total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.7rem;
+        }
+        .od-total-row strong { font-size: 1.3rem; color: var(--od-price); font-weight: 800; }
+        .od-submit {
+            border-radius: 14px;
+            padding: 0.8rem 1rem;
+            font-size: 1rem;
+            font-weight: 700;
+            box-shadow: 0 8px 18px rgba(16, 185, 129, 0.3);
+        }
+        .od-field-label { font-size: 0.78rem; font-weight: 600; color: #475569; margin-bottom: 0.25rem; }
+        .od-editing-banner {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 12px;
+            padding: 0.5rem 0.7rem;
+            font-size: 0.8rem;
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        /* --- Mobile cart bar --- */
+        .od-cartbar {
+            position: fixed;
+            left: 12px;
+            right: 12px;
+            bottom: calc(12px + env(safe-area-inset-bottom));
+            z-index: 1035;
+            border: 0;
+            border-radius: 18px;
+            background: var(--od-ink);
+            color: #fff;
+            padding: 0.7rem 0.8rem 0.7rem 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.35);
+            transform: translateY(140%);
+            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .od-cartbar.show { transform: translateY(0); }
+        .od-cartbar-icon {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: var(--od-primary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .od-cartbar-icon .od-add-count { top: -7px; right: -7px; border-color: var(--od-ink); }
+        .od-cartbar-cta {
+            margin-left: auto;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .od-bump { animation: od-bump 0.45s ease; }
+        .od-page-pad { padding-bottom: 110px; }
+        @media (min-width: 992px) {
+            .od-cartbar { display: none; }
+            .od-page-pad { padding-bottom: 2rem; }
+        }
+
+        /* --- Option sheet (giống modal chọn size/topping ở POS) --- */
+        .od-sheet .modal-content {
+            border: 0;
+            border-radius: 22px;
+            overflow: hidden;
+        }
+        @media (max-width: 575.98px) {
+            .od-sheet .modal-dialog {
+                margin: 0;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                max-width: 100%;
+                transform: translateY(100%);
+                height: auto;
+                min-height: 0;
+                display: block;
+                transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            }
+            .od-sheet.show .modal-dialog { transform: translateY(0); }
+            .od-sheet .modal-content {
+                border-radius: 22px 22px 0 0;
+                max-height: 92vh !important;
+            }
+        }
+        .od-sheet-hero {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            background: #eef2f1;
+        }
+        .od-sheet-hero img { width: 100%; height: 100%; object-fit: cover; }
+        .od-sheet-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 0;
+            background: rgba(15, 23, 42, 0.55);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .od-sheet .modal-body { overflow-y: auto; }
+        .od-section-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #475569;
+            margin: 1rem 0 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        .od-section-label span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--od-muted); }
+        .od-option {
+            border: 2px solid var(--od-line);
+            border-radius: 12px;
+            padding: 0.65rem 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+            margin-bottom: 0.5rem;
+        }
+        .od-option:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .btn-check:checked + .od-option {
+            border-color: var(--od-primary);
+            background: #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .od-option-mark {
+            width: 22px;
+            height: 22px;
+            border: 2px solid #cbd5e1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: transparent;
+            transition: 0.2s;
+            flex-shrink: 0;
+            font-size: 0.8rem;
+        }
+        .od-option-mark.radio { border-radius: 50%; }
+        .od-option-mark.box { border-radius: 6px; }
+        .btn-check:checked + .od-option .od-option-mark {
+            background: var(--od-primary);
+            border-color: var(--od-primary);
+            color: #fff;
+        }
+        .od-option-price { font-weight: 700; color: #334155; font-size: 0.88rem; white-space: nowrap; }
+        .od-sheet-foot {
+            padding: 0.8rem 1rem calc(0.8rem + env(safe-area-inset-bottom));
+            border-top: 1px solid var(--od-line);
+            display: flex;
+            gap: 0.7rem;
+            align-items: center;
+        }
+
+        /* --- Toast --- */
+        .od-toasts {
+            position: fixed;
+            top: calc(var(--od-header-h, 66px) + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1090;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: min(92vw, 380px);
+            pointer-events: none;
+        }
+        .od-toast {
+            pointer-events: auto;
+            background: var(--od-ink);
+            color: #fff;
+            border-radius: 14px;
+            padding: 0.65rem 0.9rem;
+            font-size: 0.88rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
+            animation: od-toast-in 0.3s ease;
+        }
+        .od-toast.hide { animation: od-toast-out 0.25s ease forwards; }
+        .od-toast i { font-size: 1.05rem; }
+        .od-toast.success i { color: #34d399; }
+        .od-toast.warning i { color: #fbbf24; }
+        .od-toast.danger i { color: #fb7185; }
+        .od-toast.info i { color: #7dd3fc; }
+
+        /* --- Ảnh bay vào giỏ (giống POS) --- */
+        .od-flying-img {
+            position: fixed;
+            z-index: 9999;
+            border-radius: 12px;
+            object-fit: cover;
+            transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* --- Error / closed state --- */
+        .od-state-card {
+            max-width: 440px;
+            margin: 3rem auto;
+            background: #fff;
+            border-radius: 22px;
+            box-shadow: var(--od-shadow-lg);
+            padding: 2rem 1.5rem;
+            text-align: center;
+        }
+        .od-state-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            background: #fff1f2;
+            color: #e11d48;
+        }
+
+        .od-footer-note {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            padding: 1.5rem 0 0.5rem;
+        }
+
+        @keyframes od-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        @keyframes od-progress {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(260%); }
+        }
+        @keyframes od-bump {
+            0% { transform: scale(1); }
+            35% { transform: scale(1.18); }
+            70% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+        @keyframes od-pop-in {
+            from { opacity: 0; transform: translateY(8px) scale(0.98); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes od-slide-in {
+            from { opacity: 0; transform: translateX(10px); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes od-toast-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: none; }
+        }
+        @keyframes od-toast-out {
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<header class="od-header" id="od-header">
+    <div class="container-xl px-3 py-2 d-flex align-items-center gap-3">
+        <div class="od-brand-mark" aria-hidden="true">{{ tenant.name|slice:":1"|upper }}</div>
+        <div class="min-w-0 flex-grow-1">
+            <h1 class="od-brand-name text-truncate">{{ tenant.name }}</h1>
+            <div class="od-brand-sub">{% block header_context %}{% endblock %}</div>
+        </div>
+        {% block header_actions %}{% endblock %}
+    </div>
+</header>
+
+<div class="container-xl px-3 pt-3 od-page-pad">
+    {% block app %}{% endblock %}
+    <div class="od-footer-note">Vận hành bởi eApp FnB</div>
+</div>
+
+<div class="od-toasts" id="od-toasts" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    (() => {
+        const header = document.getElementById('od-header');
+        const syncHeaderHeight = () => {
+            document.documentElement.style.setProperty('--od-header-h', `${header.offsetHeight}px`);
+        };
+        syncHeaderHeight();
+        window.addEventListener('resize', syncHeaderHeight);
+    })();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

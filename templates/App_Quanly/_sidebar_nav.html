@@ -15,32 +15,30 @@
 
         <div class="admin-section-title">Điều hướng</div>
         <div class="d-flex flex-column gap-1">
+            {% if user.is_manager %}
             <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}" title="Dashboard" data-quanly-tip="Dashboard">
                 <i class="bi bi-speedometer2" aria-hidden="true"></i><span class="admin-nav-label">Dashboard</span>
             </a>
             <a class="admin-nav-link {% if '/quanly/orders/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:orders' %}" title="Lịch sử đơn" data-quanly-tip="Lịch sử đơn">
                 <i class="bi bi-receipt-cutoff" aria-hidden="true"></i><span class="admin-nav-label">Lịch sử đơn</span>
             </a>
+            {% endif %}
+            {% if user.is_manager %}
             <a class="admin-nav-link {% if '/quanly/categories/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:categories' %}" title="Danh mục" data-quanly-tip="Danh mục">
                 <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i><span class="admin-nav-label">Danh mục</span>
             </a>
             <a class="admin-nav-link {% if '/quanly/products/' in request.path or '/quanly/units/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:products' %}" title="Sản phẩm" data-quanly-tip="Sản phẩm">
                 <i class="bi bi-cup-hot" aria-hidden="true"></i><span class="admin-nav-label">Sản phẩm</span>
             </a>
-            <a class="admin-nav-link {% if '/quanly/payment-qr/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:payment_qr_settings' %}" title="QR thanh toán" data-quanly-tip="QR thanh toán">
-                <i class="bi bi-credit-card-2-front" aria-hidden="true"></i><span class="admin-nav-label">QR thanh toán</span>
-            </a>
             <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}" title="Nhân viên" data-quanly-tip="Nhân viên">
                 <i class="bi bi-people" aria-hidden="true"></i><span class="admin-nav-label">Nhân viên</span>
             </a>
-            {% if user.is_manager %}
             <a class="admin-nav-link {% if '/quanly/settings/features/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:feature_settings' %}" title="Cấu hình tính năng" data-quanly-tip="Cấu hình tính năng">
                 <i class="bi bi-toggles" aria-hidden="true"></i><span class="admin-nav-label">Cấu hình tính năng</span>
             </a>
-            {% endif %}
             {% with t=user.tenant %}
-            {% if t.show_store_feature or t.show_customer_feature or t.show_promotion_feature or t.show_topping_feature or t.show_qr_order_feature %}
-            <div class="d-flex flex-column gap-1{% if user.is_manager %} admin-nav-subgroup{% endif %}">
+            {% if t.show_store_feature or t.show_customer_feature or t.show_promotion_feature or t.show_topping_feature or t.show_qr_order_feature or t.show_shift_feature or t.recipe_feature_enabled %}
+            <div class="d-flex flex-column gap-1 admin-nav-subgroup">
                 {% if t.show_store_feature %}
                 <a class="admin-nav-link {% if '/quanly/stores/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:stores' %}" title="Cửa hàng" data-quanly-tip="Cửa hàng">
                     <i class="bi bi-shop" aria-hidden="true"></i><span class="admin-nav-label">Cửa hàng</span>
@@ -66,9 +64,32 @@
                     <i class="bi bi-qr-code-scan" aria-hidden="true"></i><span class="admin-nav-label">QR bàn</span>
                 </a>
                 {% endif %}
+                {% if t.show_shift_feature %}
+                <a class="admin-nav-link {% if request.path == '/shifts/' %}active{% endif %}" href="{% url 'App_Sales:shifts' %}" title="Ca làm việc" data-quanly-tip="Ca làm việc">
+                    <i class="bi bi-hourglass-split" aria-hidden="true"></i><span class="admin-nav-label">Ca làm việc</span>
+                </a>
+                {% endif %}
+                {% if t.recipe_feature_enabled %}
+                <a class="admin-nav-link {% if '/quanly/ingredients/' in request.path or '/quanly/recipes/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:recipes' %}" title="Định mức NVL" data-quanly-tip="Định mức NVL">
+                    <i class="bi bi-basket" aria-hidden="true"></i><span class="admin-nav-label">Định mức NVL</span>
+                </a>
+                {% endif %}
             </div>
             {% endif %}
             {% endwith %}
+            {% endif %}
+        </div>
+
+        {% if user.is_manager %}<hr class="my-3">{% endif %}
+        <div class="d-flex flex-column gap-1">
+            {% if user.is_manager %}
+            <a class="admin-nav-link {% if '/quanly/audit-log/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:audit_log' %}" title="Nhật ký thao tác" data-quanly-tip="Nhật ký thao tác">
+                <i class="bi bi-journal-text" aria-hidden="true"></i><span class="admin-nav-label">Nhật ký thao tác</span>
+            </a>
+            <a class="admin-nav-link {% if '/quanly/payment-qr/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:payment_qr_settings' %}" title="QR thanh toán" data-quanly-tip="QR thanh toán">
+                <i class="bi bi-credit-card-2-front" aria-hidden="true"></i><span class="admin-nav-label">QR thanh toán</span>
+            </a>
+            {% endif %}
             <a class="admin-nav-link {% if '/quanly/account/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:account' %}" title="Tài khoản" data-quanly-tip="Tài khoản">
                 <i class="bi bi-person-circle" aria-hidden="true"></i><span class="admin-nav-label">Tài khoản</span>
             </a>
@@ -78,8 +99,8 @@
         <div class="admin-section-title">Liên kết nhanh</div>
         <div class="d-flex flex-column gap-1">
             {% if user.tenant %}
-            <a class="admin-nav-link" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener" title="Public catalog" data-quanly-tip="Public catalog">
-                <i class="bi bi-globe2" aria-hidden="true"></i><span class="admin-nav-label">Public catalog</span>
+            <a class="admin-nav-link" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener" title="Trang menu &amp; đặt món mang đi cho khách" data-quanly-tip="Menu online">
+                <i class="bi bi-shop-window" aria-hidden="true"></i><span class="admin-nav-label">Menu online</span>
                 <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
             </a>
             {% endif %}

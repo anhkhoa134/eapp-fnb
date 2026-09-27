@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from App_Accounts.models import User
-from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
+from App_Catalog.models import Category, Ingredient, Product, ProductTopping, ProductUnit, Topping
 from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload, clear_product_uploaded_images
 from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Promotion
 from App_Tenant.models import Store, Tenant
@@ -53,6 +53,53 @@ class ThousandSeparatedDecimalField(forms.DecimalField):
         return super().to_python(value)
 
 
+class AccountProfileForm(forms.ModelForm):
+    """Cập nhật thông tin tài khoản đang đăng nhập; quản lý sửa thêm tên doanh nghiệp."""
+
+    tenant_name = forms.CharField(label='Tên doanh nghiệp / quán', max_length=150)
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'email']
+        labels = {'first_name': 'Họ và tên', 'email': 'Email'}
+        widgets = {
+            'first_name': forms.TextInput(attrs={'placeholder': 'VD: Nguyễn Văn A', 'autocomplete': 'name'}),
+            'email': forms.EmailInput(attrs={'placeholder': 'VD: ban@gmail.com', 'autocomplete': 'email'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = self.instance
+        if user.is_manager and user.tenant_id:
+            self.fields['tenant_name'].initial = user.tenant.name
+            # Email của quản lý dùng để lấy lại mật khẩu, bắt buộc như lúc đăng ký.
+            self.fields['email'].required = True
+            self.fields['email'].help_text = 'Dùng để lấy lại mật khẩu khi quên.'
+        else:
+            del self.fields['tenant_name']
+        _apply_bootstrap_classes(self)
+
+    def clean_first_name(self):
+        return (self.cleaned_data.get('first_name') or '').strip()
+
+    def clean_email(self):
+        return (self.cleaned_data.get('email') or '').strip().lower()
+
+    def clean_tenant_name(self):
+        name = (self.cleaned_data.get('tenant_name') or '').strip()
+        if not name:
+            raise ValidationError('Vui lòng nhập tên doanh nghiệp.')
+        return name
+
+    def save(self, commit=True):
+        user = super().save(commit=commit)
+        tenant_name = self.cleaned_data.get('tenant_name')
+        if commit and tenant_name and user.tenant.name != tenant_name:
+            user.tenant.name = tenant_name
+            user.tenant.save(update_fields=['name', 'updated_at'])
+        return user
+
+
 class TenantFeatureSettingsForm(forms.ModelForm):
     # field -> (icon bootstrap-icons, mô tả hiển thị ở trang Cấu hình tính năng)
     FEATURE_META = {
@@ -86,6 +133,17 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             'Màn hình bếp hiển thị món cần làm theo thời gian thực. POS có nút "Báo bếp" cho giỏ bàn; '
             'đơn QR được duyệt và đơn mang về đã thanh toán tự gửi xuống bếp. Bếp bấm "Xong" thì POS nhận thông báo.',
         ),
+        'show_shift_feature': (
+            'bi-hourglass-split',
+            'Mở ca với tiền đầu ca, cuối ca đếm két và chốt ca để biết thừa/thiếu tiền mặt, in báo cáo chốt ca. '
+            'Tắt sẽ ẩn mục Ca làm việc ở POS và trang quản lý; lịch sử ca đã chốt vẫn được giữ lại.',
+        ),
+        'show_recipe_feature': (
+            'bi-basket',
+            'Khai báo nguyên liệu (đơn vị tính, giá vốn) và định mức cho từng thành phẩm (size món, topping) '
+            'để biết giá vốn, lãi gộp từng món và lượng nguyên liệu tiêu hao theo đơn bán. '
+            'Tắt sẽ ẩn mục Định mức NVL; dữ liệu đã khai báo vẫn được giữ lại.',
+        ),
     }
 
     class Meta:
@@ -97,6 +155,8 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             'show_topping_feature',
             'show_qr_order_feature',
             'show_kitchen_feature',
+            'show_shift_feature',
+            'show_recipe_feature',
         ]
         labels = {
             'show_store_feature': 'Cửa hàng (nhiều chi nhánh)',
@@ -105,6 +165,8 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             'show_topping_feature': 'Topping / tuỳ chọn món',
             'show_qr_order_feature': 'QR bàn / gọi món QR',
             'show_kitchen_feature': 'Màn hình bếp (báo bếp)',
+            'show_shift_feature': 'Ca làm việc (chốt ca)',
+            'show_recipe_feature': 'Định mức nguyên liệu, thành phẩm',
         }
 
     def __init__(self, *args, **kwargs):
@@ -348,6 +410,51 @@ class ToppingForm(forms.ModelForm):
         if price is None:
             return Decimal('0')
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+
+
+class IngredientForm(forms.ModelForm):
+    class Meta:
+        model = Ingredient
+        fields = ['name', 'unit', 'cost_per_unit', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'VD: Cà phê hạt'}),
+            'unit': forms.TextInput(attrs={'placeholder': 'VD: g, ml, cái', 'list': 'ingredient-unit-options'}),
+            'cost_per_unit': forms.NumberInput(attrs={'placeholder': 'VD: 350', 'min': '0', 'step': '0.01'}),
+        }
+
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tenant = tenant
+        self.fields['cost_per_unit'].required = False
+        _apply_bootstrap_classes(self)
+
+    def _post_clean(self):
+        tenant = getattr(self, 'tenant', None)
+        if tenant is not None and not self.instance.tenant_id:
+            self.instance.tenant = tenant
+        super()._post_clean()
+
+    def clean_name(self):
+        name = (self.cleaned_data.get('name') or '').strip()
+        tenant = self.tenant or getattr(self.instance, 'tenant', None)
+        if tenant is not None:
+            duplicate = Ingredient.objects.filter(tenant=tenant, name__iexact=name).exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise ValidationError('Đã có nguyên liệu cùng tên.')
+        return name
+
+    def clean_unit(self):
+        unit = (self.cleaned_data.get('unit') or '').strip()
+        if self.instance.pk and unit != self.instance.unit and self.instance.recipe_items.exists():
+            raise ValidationError(
+                'Không thể đổi đơn vị tính khi nguyên liệu đang dùng trong định mức. '
+                'Hãy tạo nguyên liệu với đơn vị mới và cập nhật lại định mức.'
+            )
+        return unit
+
+    def clean_cost_per_unit(self):
+        cost = self.cleaned_data.get('cost_per_unit')
+        return Decimal('0') if cost is None else cost
 
 
 class ProductToppingForm(forms.ModelForm):

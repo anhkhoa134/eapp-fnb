@@ -2,13 +2,12 @@
 {% block content %}
 <h1>Phục hồi dữ liệu doanh nghiệp demo</h1>
 <p>
-  Thao tác này chạy lại bộ seed cho doanh nghiệp có mã (slug) <strong>demo</strong> (idempotent):
-  đặt lại mật khẩu các tài khoản seed về <strong>{{ default_password }}</strong>,
-  khôi phục danh mục/sản phẩm/topping/bàn/đơn QR mẫu,
-  xóa ảnh upload sản phẩm (dùng lại ảnh URL mẫu),
-  xóa QR thanh toán và thông tin tài khoản ngân hàng trên các cửa hàng seed.
+  Thao tác này <strong>xoá sạch</strong> doanh nghiệp có mã (slug) <strong>demo</strong> — đơn hàng, tài khoản
+  (kể cả tài khoản người dùng thử tạo thêm), cửa hàng, sản phẩm, ảnh upload — rồi seed lại từ đầu.
+  Mật khẩu các tài khoản demo được đặt về <strong>{{ default_password }}</strong>.
 </p>
-<p><strong>Cảnh báo:</strong> mọi thay đổi thử nghiệm trên doanh nghiệp demo (sản phẩm, ảnh, mật khẩu, QR cửa hàng, …) sẽ bị ghi đè.</p>
+<p>Lệnh tương đương chạy định kỳ trên server: <code>python manage.py reset_demo_data</code>.</p>
+<p><strong>Cảnh báo:</strong> mọi thay đổi trên doanh nghiệp demo sẽ mất và người đang đăng nhập bằng tài khoản demo sẽ bị đăng xuất.</p>
 <form method="post">
   {% csrf_token %}
   <input type="submit" class="default" value="Xác nhận phục hồi">

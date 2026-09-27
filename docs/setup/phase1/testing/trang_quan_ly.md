@@ -1,6 +1,6 @@
 # Kiểm thử — Trang Quản lý (`/quanly/`)
 
-**Điều kiện:** Đăng nhập tài khoản **Quản lý** (manager). Nhân viên thường **không** vào được các URL dưới đây (kiểm tra: truy cập trực tiếp `/quanly/` → redirect hoặc 403 theo thiết kế).
+**Điều kiện:** Đăng nhập tài khoản **Quản lý** (manager). Nhân viên thường **không** vào được các URL dưới đây (kiểm tra: truy cập trực tiếp `/quanly/` → redirect hoặc 403 theo thiết kế). Ngoại lệ: `/quanly/account/` dành cho cả nhân viên (xem mục 1B).
 
 **Thông báo:** Nhiều thao tác dùng **toast** góc màn hình (Quản lý) hoặc **django messages** — ghi lại nội dung toast/alert để đối chiếu.
 
@@ -22,7 +22,21 @@
 | 1.1 | **Desktop (rộng):** bấm nút **Thu nhỏ menu** (mũi tên đôi) cạnh logo | Sidebar thu gọn chỉ icon; bấm lại **Mở rộng menu** → hiện đủ chữ |
 | 1.2 | **Mobile / cửa sổ hẹp:** bấm **Menu** (icon list) | Offcanvas trượt **từ trái**; có tiêu đề *Menu quản lý* và nút đóng (X) |
 | 1.3 | Trong offcanvas: bấm một mục (ví dụ **Cửa hàng**) | Panel đóng; chuyển đúng URL |
-| 1.4 | Menu avatar (góc phải) — xem thông tin / đăng xuất (theo quyền) | Giống `base.html` (đổi mật khẩu nếu có mục) |
+| 1.4 | Menu avatar (góc phải) | Có *Thông tin tài khoản* (→ `/quanly/account/`), *Lịch sử đơn* (→ `/quanly/orders/`), *Đăng xuất*; không còn modal thông tin |
+
+---
+
+## 1B. Trang Tài khoản (`/quanly/account/`)
+
+| Bước | Thao tác | Kết quả / Thông báo mong đợi |
+|------|----------|-------------------------------|
+| 1B.1 | Manager mở trang | Thẻ *Thông tin tài khoản* có: tên đăng nhập, vai trò, cửa hàng (chỉ xem) + ô Họ và tên, Email (*), Tên doanh nghiệp / quán (*); bên phải là thẻ *Đổi mật khẩu*; dưới có *Các gói cước* |
+| 1B.2 | Sửa họ tên, email, tên doanh nghiệp → **Lưu thông tin** | Toast *Đã cập nhật thông tin tài khoản.*; tên doanh nghiệp mới hiện ở sidebar |
+| 1B.3 | Manager xoá trống email → Lưu | Báo lỗi dưới ô Email, dữ liệu không đổi |
+| 1B.4 | Đổi mật khẩu hợp lệ | Toast *Đã đổi mật khẩu.*; vẫn đăng nhập |
+| 1B.5 | Đăng nhập **nhân viên** → avatar → *Thông tin tài khoản* | Mở trang; Doanh nghiệp chỉ xem (không có ô sửa); không có *Các gói cước* |
+| 1B.6 | Nhân viên: xem sidebar | Chỉ có *Ca làm việc* (nếu bật), *Tài khoản* và liên kết nhanh; không có Dashboard, Lịch sử đơn, Danh mục, Sản phẩm, Nhân viên… |
+| 1B.7 | Nhân viên: avatar → *Lịch sử đơn* | Chuyển tới `/orders/today/` (Đơn hàng trong ngày) |
 
 ---
 

@@ -2,7 +2,17 @@ from django import forms
 from django.contrib import admin
 from django.utils.text import slugify
 
-from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Catalog.models import (
+    Category,
+    Ingredient,
+    Product,
+    ProductTopping,
+    ProductUnit,
+    RecipeItem,
+    StoreCategory,
+    StoreProduct,
+    Topping,
+)
 from App_Tenant.models import Store
 
 
@@ -277,3 +287,18 @@ class ProductToppingAdmin(admin.ModelAdmin):
     list_display = ('product', 'topping', 'price', 'is_active', 'display_order')
     list_filter = ('product__tenant', 'is_active')
     search_fields = ('product__name', 'topping__name')
+
+
+@admin.register(Ingredient)
+class IngredientAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tenant', 'unit', 'cost_per_unit', 'is_active', 'display_order')
+    list_filter = ('tenant', 'is_active')
+    search_fields = ('name',)
+
+
+@admin.register(RecipeItem)
+class RecipeItemAdmin(admin.ModelAdmin):
+    list_display = ('product_unit', 'topping', 'ingredient', 'quantity')
+    list_filter = ('ingredient__tenant',)
+    search_fields = ('product_unit__product__name', 'topping__name', 'ingredient__name')
+    raw_id_fields = ('product_unit', 'topping', 'ingredient')

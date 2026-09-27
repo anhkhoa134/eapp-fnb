@@ -1,0 +1,83 @@
+{% comment %}Tab chuyển giữa các trang của tính năng Định mức nguyên liệu. Dùng: include với active='ingredients'|'recipes'|'usage'.{% endcomment %}
+<style>
+    .recipe-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: min(100%, 48rem);
+        gap: .35rem;
+        padding: .4rem;
+        margin-bottom: 1.25rem;
+        border: 1px solid rgba(148, 163, 184, .25);
+        border-radius: 1.5rem;
+        background: rgba(255, 255, 255, .72);
+        box-shadow: 0 3px 12px rgba(15, 23, 42, .04);
+        list-style: none;
+    }
+    .recipe-tabs .nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        height: 100%;
+        min-height: 2.75rem;
+        padding: .65rem .8rem;
+        border-radius: 999px;
+        color: #475569;
+        font-size: .875rem;
+        font-weight: 600;
+        line-height: 1.4;
+        text-align: center;
+        transition: background-color .15s, color .15s, box-shadow .15s;
+    }
+    .recipe-tabs .nav-link:hover {
+        background: rgba(15, 23, 42, .05);
+        color: #0f172a;
+    }
+    .recipe-tabs .nav-link.active {
+        background: var(--primary-hover);
+        color: #fff;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, .14);
+    }
+    .recipe-tabs .nav-link:focus-visible {
+        outline: 3px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+    .recipe-tabs .bi { flex-shrink: 0; font-size: 1.05rem; }
+    .recipe-usage-table { min-width: 32rem; }
+    @media (max-width: 575.98px) {
+        .recipe-tabs { gap: .2rem; padding: .3rem; border-radius: 1.25rem; }
+        .recipe-tabs .nav-link {
+            flex-direction: column;
+            gap: .3rem;
+            padding: .6rem .35rem;
+            border-radius: 1rem;
+            font-size: .75rem;
+        }
+        .quanly-page #recipeForm .btn:has(.bi),
+        .quanly-page .recipe-usage-filter .btn:has(.bi) { font-size: .875rem; }
+        .quanly-page #recipeForm .btn:has(.bi) .bi,
+        .quanly-page .recipe-usage-filter .btn:has(.bi) .bi { margin-right: .25rem !important; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .recipe-tabs .nav-link { transition: none; }
+    }
+</style>
+<nav aria-label="Định mức nguyên liệu">
+<ul class="nav nav-pills recipe-tabs">
+    <li class="nav-item">
+        <a class="nav-link {% if active == 'ingredients' %}active{% endif %}" {% if active == 'ingredients' %}aria-current="page"{% endif %} href="{% url 'App_Quanly:ingredients' %}">
+            <i class="bi bi-basket" aria-hidden="true"></i><span>Nguyên liệu</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if active == 'recipes' %}active{% endif %}" {% if active == 'recipes' %}aria-current="page"{% endif %} href="{% url 'App_Quanly:recipes' %}">
+            <i class="bi bi-list-check" aria-hidden="true"></i><span>Định mức thành phẩm</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if active == 'usage' %}active{% endif %}" {% if active == 'usage' %}aria-current="page"{% endif %} href="{% url 'App_Quanly:ingredient_usage' %}">
+            <i class="bi bi-graph-down-arrow" aria-hidden="true"></i><span>Tiêu hao theo đơn bán</span>
+        </a>
+    </li>
+</ul>
+</nav>

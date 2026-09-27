@@ -8,8 +8,10 @@ Hệ thống POS **multi-tenant** cho F&B (quán cà phê, nhà hàng nhỏ), te
 | POS bán hàng | `/` | Nhân viên, quản lý |
 | Đơn trong ngày | `/orders/today/` | Nhân viên, quản lý |
 | Màn hình bếp | `/kitchen/` | Nhân viên, quản lý (khi bật tính năng) |
+| Ca làm việc | `/shifts/` | Nhân viên, quản lý (khi bật tính năng) |
+| Trang in (hoá đơn, tạm tính, phiếu bếp, báo cáo ca) | `/orders/<id>/receipt/`, `/tables/<id>/bill/`, `/kitchen/tickets/<id>/print/`, `/shifts/<id>/print/` | Nhân viên, quản lý |
 | Quản lý tenant | `/quanly/` | Quản lý (manager) |
-| Catalog public | `/<public_slug>/` | Khách |
+| Menu online (xem menu, đặt mang đi) | `/<public_slug>/` | Khách |
 | Gọi món QR | `/<public_slug>/qr/?table_code=&token=` | Khách tại bàn |
 | Django Admin / Jazzmin | `/<REAL_ADMIN_PATH>/` | Superadmin |
 
@@ -22,6 +24,7 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 | Custom user, vai trò `MANAGER` / `STAFF`, tối đa 1 manager/tenant | ✅ | — | `phase1/2_architecture_and_data_model.md` |
 | Quyền theo cửa hàng (`UserStoreAccess`), store mặc định | ✅ | — | `phase1/3_routes_permissions_api.md` |
 | Login / logout (POST) / đổi mật khẩu | ✅ | — | `phase1/3_routes_permissions_api.md` |
+| Trang Tài khoản `/quanly/account/` (manager + staff): cập nhật họ tên, email, đổi mật khẩu; manager sửa thêm tên doanh nghiệp | ✅ | — | `phase1/3_routes_permissions_api.md` |
 | Superadmin tạo tenant → auto bootstrap dữ liệu tối thiểu | ✅ | — | `phase1/4_seed_demo_data.md` |
 | Seed demo idempotent (`seed_initial_data`), phục hồi demo từ admin | ✅ | — | `phase1/4_seed_demo_data.md` |
 
@@ -41,7 +44,7 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 | Tính năng | Trạng thái | Cờ tenant | Tài liệu |
 |---|---|---|---|
 | Dashboard doanh thu (lọc store + khoảng thời gian, ECharts) | ✅ | — | `phase1/3_routes_permissions_api.md` |
-| Lịch sử đơn, xoá đơn | ✅ | — | — |
+| Lịch sử đơn, xoá đơn (ghi nhật ký), in lại hoá đơn, hoàn tiền | ✅ | — | `phase4/2_shifts_and_refunds.md` |
 | CRUD danh mục / sản phẩm / unit, import Excel | ✅ | — | — |
 | CRUD topping + gán topping theo sản phẩm | ✅ | `show_topping_feature` | — |
 | CRUD cửa hàng (nhiều chi nhánh) | ✅ | `show_store_feature` (mặc định tắt) | — |
@@ -53,6 +56,9 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 |---|---|---|---|
 | Khách gọi món QR: tạo / sửa / huỷ đơn pending | ✅ | `show_qr_order_feature` | `phase2/1_qr_public_and_qr_admin.md` |
 | Nhân viên duyệt / từ chối đơn QR (có lý do từ chối) | ✅ | `show_qr_order_feature` | `phase2/1_qr_public_and_qr_admin.md` |
+| Menu online: khách đặt món mang đi (tên + SĐT), theo dõi trạng thái đơn | ✅ | `show_qr_order_feature` | `phase2/4_online_takeaway_ordering.md` |
+| POS: duyệt đơn mang đi → báo bếp; mục *Mang đi · chờ khách tới lấy*, nút **Thu tiền** | ✅ | `show_qr_order_feature` | `phase2/4_online_takeaway_ordering.md` |
+| Giao diện gọi món khách làm lại (dùng chung QR + mang đi, hiệu ứng theo POS) | ✅ | — | `phase2/4_online_takeaway_ordering.md` |
 | Quản lý bàn QR: CRUD, reset token, PNG, in PDF A3 15 bàn/trang | ✅ | `show_qr_order_feature` | `phase2/1_qr_public_and_qr_admin.md` |
 | Realtime WebSocket (POS + khách), fallback polling 15s | ✅ | — | `phase2/2_websocket_realtime.md` |
 | PWA: manifest, service worker, trang offline | ✅ | — | `phase2/3_pwa.md` |
@@ -62,15 +68,20 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 |---|---|---|---|
 | Khách hàng, tích điểm, hạng thành viên (Member/Silver/Gold/VIP) | ✅ | `show_customer_feature` | `phase3/0_overview.md` |
 | Khuyến mãi giảm hoá đơn (% / số tiền, trần giảm) | ✅ | `show_promotion_feature` | `phase3/0_overview.md` |
-| Màn hình bếp: báo bếp, phiếu bếp, trạng thái món | ✅ | `show_kitchen_feature` (mặc định tắt) | `phase3/1_kitchen_display.md` |
+| Màn hình bếp: báo bếp, phiếu bếp, trạng thái món (thanh công cụ làm lại 27/09/2026) | ✅ | `show_kitchen_feature` (mặc định tắt) | `phase3/1_kitchen_display.md` |
 | Trang Cấu hình tính năng + giới hạn gói (store/bàn/nhân viên) | ✅ | — | `phase3/2_feature_settings_and_plan_limits.md` |
 
-## 6. Kế hoạch — Phase 4
-| Tính năng | Trạng thái | Tài liệu |
-|---|---|---|
-| Quản lý tồn kho (inventory) | 📋 | `phase4/0_overview.md` |
-| Ca làm việc (shift), chốt ca | 📋 | `phase4/0_overview.md` |
-| Hoàn tiền / huỷ đơn đã thanh toán (refund) | 📋 | `phase4/0_overview.md` |
+## 6. Vận hành hằng ngày — Phase 4
+| Tính năng | Trạng thái | Cờ tenant | Tài liệu |
+|---|---|---|---|
+| In hoá đơn, phiếu tạm tính, phiếu bếp, báo cáo ca (khổ 80/58mm, tự in, đánh dấu in lại) | ✅ | — | `phase4/1_printing.md` |
+| In thẳng máy in nhiệt (ESC/POS) | 📋 | — | `phase4/0_overview.md` |
+| Ca làm việc: mở ca, chốt ca, đối soát tiền mặt, báo cáo ca | ✅ | `show_shift_feature` (mặc định tắt, gói *Cơ bản* trở lên) | `phase4/2_shifts_and_refunds.md` |
+| Hoàn tiền toàn bộ / một phần (manager), doanh thu thuần | ✅ | — | `phase4/2_shifts_and_refunds.md` |
+| Nhật ký thao tác `/quanly/audit-log/` | ✅ | — | `phase4/3_audit_log.md` |
+| Hộp thoại dùng chung thay `alert` / `confirm` | ✅ | — | `phase4/4_shared_dialog.md` |
+| Định mức nguyên liệu, thành phẩm: giá vốn, lãi gộp từng món, tiêu hao theo đơn bán | ✅ | `show_recipe_feature` (mặc định tắt, gói *Chuyên nghiệp* trở lên) | `phase4/5_recipes.md` |
+| Quản lý tồn kho (inventory) | 📋 | — | `phase4/0_overview.md` |
 
 ## Mục lục tài liệu
 ```
@@ -82,8 +93,8 @@ docs/setup/
 ├── 5_security_policy.md
 ├── 6_production_env.md
 ├── phase1/                       Nền tảng POS + Quản lý
-├── phase2/                       Gọi món QR + Realtime + PWA
+├── phase2/                       Gọi món QR + Menu online mang đi + Realtime + PWA
 ├── phase3/                       Vận hành nâng cao
-└── phase4/                       Kế hoạch (chưa làm)
+└── phase4/                       Vận hành hằng ngày (đang làm)
 ```
 Cây đầy đủ: `docs/setup/3_file_structure.md`.

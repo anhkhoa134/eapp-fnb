@@ -1,0 +1,301 @@
+{% extends 'App_Core/base.html' %}
+{% load static number_format %}
+
+{% block title %}Ca làm việc | eApp FnB{% endblock %}
+{% block body_class %}shifts-page{% endblock %}
+{% block container_class %}container-fluid py-4 px-3 px-xl-4{% endblock %}
+
+{% block extra_css %}
+<style>
+    .shifts-page {
+        background:
+            radial-gradient(circle at 12% 14%, rgba(16, 185, 129, 0.14), transparent 36%),
+            radial-gradient(circle at 88% 18%, rgba(14, 165, 233, 0.14), transparent 32%),
+            linear-gradient(150deg, #f8fafc 0%, #eef2ff 100%);
+        min-height: 100vh;
+    }
+    .shifts-hero {
+        border-radius: 18px;
+        background: linear-gradient(140deg, rgba(59, 130, 246, 0.95), rgba(20, 184, 166, 0.94), rgba(16, 185, 129, 0.92));
+        color: #fff;
+        box-shadow: 0 16px 30px rgba(15, 23, 42, 0.22);
+    }
+    .shifts-hero .kicker {
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.8;
+        font-weight: 700;
+    }
+    .shifts-glass {
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+    .shifts-title {
+        font-size: 0.98rem;
+        font-weight: 800;
+        color: #0f172a;
+        display: inline-flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .kpi {
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: #fff;
+        padding: 0.75rem 0.9rem;
+        height: 100%;
+    }
+    .kpi .label {
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+    }
+    .kpi .value { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+    .kpi.highlight { background: #ecfdf5; border-color: #a7f3d0; }
+    .kpi.highlight .value { color: #047857; }
+    .diff-pos { color: #047857; font-weight: 700; }
+    .diff-neg { color: #dc2626; font-weight: 700; }
+    .diff-zero { color: #334155; font-weight: 700; }
+    .status-pill {
+        font-size: 0.72rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.25rem 0.6rem;
+        white-space: nowrap;
+    }
+    .status-pill.open { background: rgba(16, 185, 129, 0.15); color: #047857; }
+    .status-pill.closed { background: rgba(100, 116, 139, 0.15); color: #334155; }
+    .shifts-table thead th {
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 0.72rem;
+        color: #64748b;
+        background: transparent;
+        white-space: nowrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shifts-hero p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+        <div>
+            <div class="kicker">Đối soát tiền mặt</div>
+            <h1 class="h4 fw-bold mb-1">Ca làm việc</h1>
+            <p class="mb-0 opacity-75">Mở ca với tiền đầu ca, cuối ca đếm két và chốt để biết chênh lệch.</p>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            {% if stores|length > 1 %}
+            <form method="get" class="m-0">
+                <select class="form-select" name="store_id" onchange="this.form.submit()" aria-label="Cửa hàng">
+                    {% for s in stores %}
+                    <option value="{{ s.id }}" {% if s.id == store.id %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+            {% if user.is_manager %}
+            <a href="{% url 'App_Quanly:dashboard' %}" class="btn btn-outline-light fw-semibold px-3">
+                <i class="bi bi-speedometer2 me-1"></i>Trang quản lý
+            </a>
+            {% endif %}
+            <a href="{% url 'App_Sales:pos' %}" class="btn btn-light fw-semibold px-3">
+                <i class="bi bi-arrow-left-circle me-1"></i>Quay lại POS
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if current_shift %}
+<div class="shifts-glass p-3 p-lg-4 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="shifts-title mb-0">
+            <i class="bi bi-hourglass-split text-success"></i>
+            Ca #{{ current_shift.id }} đang mở · {{ store.name }}
+        </h2>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="small text-muted">
+                Mở lúc {{ current_shift.opened_at|date:'H:i d/m/Y' }}{% if current_shift.opened_by %} bởi {{ current_shift.opened_by.username }}{% endif %}
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-print-url="{% url 'App_Sales:shift_print' current_shift.id %}">
+                <i class="bi bi-printer me-1"></i>In báo cáo tạm
+            </button>
+        </div>
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Số đơn</div><div class="value">{{ summary.order_count|thousand_sep }}</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Doanh thu</div><div class="value">{{ summary.gross_sales|thousand_sep }}</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Tiền mặt</div><div class="value">{{ summary.cash_sales|thousand_sep }}</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Thẻ / QR</div><div class="value">{{ summary.card_sales|thousand_sep }}</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Hoàn tiền</div><div class="value">{{ summary.refund_total|thousand_sep }}</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi highlight"><div class="label">Tiền mặt dự kiến</div><div class="value" id="expectedCash" data-value="{{ summary.expected_cash|floatformat:0 }}">{{ summary.expected_cash|thousand_sep }}</div></div></div>
+    </div>
+    <div class="small text-muted mb-3">
+        Tiền mặt dự kiến = tiền đầu ca {{ current_shift.opening_cash|thousand_sep }} đ + thu tiền mặt {{ summary.cash_sales|thousand_sep }} đ − hoàn tiền mặt {{ summary.cash_refunds|thousand_sep }} đ.
+    </div>
+    <form method="post" class="row g-2 align-items-end" id="closeShiftForm"
+          data-confirm="Sau khi chốt, số liệu ca sẽ được khoá lại và không sửa được."
+          data-confirm-title="Chốt ca #{{ current_shift.id }}?"
+          data-confirm-ok="Chốt ca"
+          data-confirm-variant="danger">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="close">
+        <input type="hidden" name="store_id" value="{{ store.id }}">
+        <div class="col-12 col-md-4">
+            <label class="form-label mb-1 small text-muted" for="countedCash">Tiền mặt thực đếm trong két (đ)</label>
+            <input type="text" inputmode="numeric" class="form-control form-control-lg fw-bold js-money" id="countedCash" name="counted_cash" placeholder="VD: 2.350.000" autocomplete="off" required>
+            <div class="small mt-1" id="cashDiffHint">&nbsp;</div>
+        </div>
+        <div class="col-12 col-md-5">
+            <label class="form-label mb-1 small text-muted" for="closeNote">Ghi chú (tuỳ chọn)</label>
+            <input type="text" class="form-control form-control-lg" id="closeNote" name="note" maxlength="300" placeholder="VD: thiếu 20k do trả nhầm tiền thừa">
+            <div class="small mt-1">&nbsp;</div>
+        </div>
+        <div class="col-12 col-md-3">
+            <button type="submit" class="btn btn-danger btn-lg w-100 fw-bold">
+                <i class="bi bi-lock me-1"></i>Chốt ca
+            </button>
+            <div class="small mt-1">&nbsp;</div>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="shifts-glass p-3 p-lg-4 mb-3">
+    <h2 class="shifts-title mb-2">
+        <i class="bi bi-play-circle text-primary"></i>
+        {{ store.name }} chưa mở ca
+    </h2>
+    <p class="text-muted small mb-3">Đếm tiền lẻ trong két trước khi bán, nhập vào ô bên dưới rồi bấm Mở ca.</p>
+    <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="open">
+        <input type="hidden" name="store_id" value="{{ store.id }}">
+        <div class="col-12 col-md-4">
+            <label class="form-label mb-1 small text-muted" for="openingCash">Tiền đầu ca (đ)</label>
+            <input type="text" inputmode="numeric" class="form-control form-control-lg fw-bold js-money" id="openingCash" name="opening_cash" placeholder="0" autocomplete="off">
+        </div>
+        <div class="col-12 col-md-5">
+            <label class="form-label mb-1 small text-muted" for="openNote">Ghi chú (tuỳ chọn)</label>
+            <input type="text" class="form-control form-control-lg" id="openNote" name="note" maxlength="300">
+        </div>
+        <div class="col-12 col-md-3">
+            <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">
+                <i class="bi bi-play-fill me-1"></i>Mở ca
+            </button>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+<div class="shifts-glass p-3">
+    <h2 class="shifts-title mb-3"><i class="bi bi-clock-history"></i>Lịch sử ca</h2>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0 shifts-table">
+            <thead>
+                <tr>
+                    <th>Ca</th>
+                    <th>Cửa hàng</th>
+                    <th>Mở ca</th>
+                    <th>Chốt ca</th>
+                    <th class="text-end">Số đơn</th>
+                    <th class="text-end">Doanh thu</th>
+                    <th class="text-end">TM dự kiến</th>
+                    <th class="text-end">TM thực đếm</th>
+                    <th class="text-end">Chênh lệch</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for shift in history_page %}
+                <tr>
+                    <td class="fw-semibold">
+                        #{{ shift.id }}
+                        {% if shift.is_open %}<span class="status-pill open ms-1">Đang mở</span>{% endif %}
+                    </td>
+                    <td>{{ shift.store.name }}</td>
+                    <td>
+                        <div>{{ shift.opened_at|date:'d/m H:i' }}</div>
+                        <div class="small text-muted">{{ shift.opened_by.username|default:'—' }}</div>
+                    </td>
+                    <td>
+                        {% if shift.closed_at %}
+                        <div>{{ shift.closed_at|date:'d/m H:i' }}</div>
+                        <div class="small text-muted">{{ shift.closed_by.username|default:'—' }}</div>
+                        {% else %}<span class="text-muted">—</span>{% endif %}
+                    </td>
+                    {% if shift.is_open %}
+                    <td colspan="5" class="text-end text-muted small">Số liệu chốt khi đóng ca</td>
+                    {% else %}
+                    <td class="text-end">{{ shift.order_count|thousand_sep }}</td>
+                    <td class="text-end">{{ shift.gross_sales|thousand_sep }}</td>
+                    <td class="text-end">{{ shift.expected_cash|thousand_sep }}</td>
+                    <td class="text-end">{{ shift.counted_cash|thousand_sep }}</td>
+                    <td class="text-end">
+                        <span class="{% if shift.cash_difference > 0 %}diff-pos{% elif shift.cash_difference < 0 %}diff-neg{% else %}diff-zero{% endif %}">
+                            {% if shift.cash_difference > 0 %}+{% endif %}{{ shift.cash_difference|thousand_sep }}
+                        </span>
+                    </td>
+                    {% endif %}
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-print-url="{% url 'App_Sales:shift_print' shift.id %}" title="In báo cáo ca">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="10" class="text-center text-muted py-4">Chưa có ca nào.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% include 'App_Quanly/_list_pagination.html' with page_obj=history_page query_string=history_query_string %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/eapp_print.js' %}"></script>
+<script>
+(() => {
+    const digitsOf = (value) => String(value || '').replace(/[^0-9]/g, '');
+    const formatVnd = (number) => Number(number || 0).toLocaleString('vi-VN');
+
+    document.querySelectorAll('.js-money').forEach((input) => {
+        input.addEventListener('input', () => {
+            const digits = digitsOf(input.value);
+            input.value = digits ? formatVnd(Number(digits)) : '';
+            input.dispatchEvent(new CustomEvent('money-change'));
+        });
+    });
+
+    const counted = document.getElementById('countedCash');
+    const expectedEl = document.getElementById('expectedCash');
+    const hint = document.getElementById('cashDiffHint');
+    if (counted && expectedEl && hint) {
+        const expected = Number(expectedEl.dataset.value || 0);
+        counted.addEventListener('money-change', () => {
+            const digits = digitsOf(counted.value);
+            if (!digits) {
+                hint.innerHTML = '&nbsp;';
+                hint.className = 'small mt-1';
+                return;
+            }
+            const diff = Number(digits) - expected;
+            hint.textContent = diff === 0
+                ? 'Khớp với tiền mặt dự kiến.'
+                : `${diff > 0 ? 'Thừa' : 'Thiếu'} ${formatVnd(Math.abs(diff))} đ so với dự kiến.`;
+            hint.className = `small mt-1 ${diff > 0 ? 'diff-pos' : diff < 0 ? 'diff-neg' : 'diff-zero'}`;
+        });
+    }
+
+    {% if print_shift_id %}
+    // Vừa chốt ca: in luôn báo cáo chốt ca.
+    window.addEventListener('load', () => window.eappPrint("{% url 'App_Sales:shift_print' print_shift_id %}"));
+    {% endif %}
+})();
+</script>
+{% endblock %}

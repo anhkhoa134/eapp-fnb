@@ -3,69 +3,135 @@
 
 {% block title %}Đăng ký miễn phí | eApp FnB{% endblock %}
 
-{% block body_class %}login-page{% endblock %}
-{% block container_class %}container-fluid py-5 login-wrap{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+{% block container_class %}container-fluid py-4 py-md-5 auth-wrap{% endblock %}
 
 {% block extra_css %}
 {% include 'App_Accounts/_auth_styles.html' %}
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-12 col-lg-11 col-xl-10">
-        <div class="glass-card login-shell">
-            <div class="row g-0">
-                <div class="col-lg-6 p-4 p-md-5 showcase-pane">
-                    <div class="d-flex align-items-center mb-4">
-                        <span class="login-brand-badge me-3">
-                            <img src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB" style="width: 100%; height: 100%; object-fit: cover;">
-                        </span>
-                        <div>
-                            <h1 class="h4 fw-bold mb-1 text-login-main">eApp FnB</h1>
-                            <p class="small mb-0 text-login-sub">Nền tảng POS đa cửa hàng, đa doanh nghiệp</p>
-                        </div>
-                    </div>
-                    <h2 class="showcase-title h4 mb-3">Mở quán trên eApp FnB chỉ trong 1 phút.</h2>
-                    <p class="showcase-sub mb-4">Tạo tài khoản quản lý, có ngay cửa hàng đầu tiên và bắt đầu bán hàng với gói Miễn phí.</p>
-                    <div class="feature-item"><i class="bi bi-gift me-2"></i>Gói Miễn phí, không cần thẻ thanh toán, không giới hạn thời gian</div>
+<div class="auth-card">
+    <div class="row g-0">
+        <div class="col-lg-6">
+            <div class="auth-showcase p-4 p-md-5">
+                <div class="auth-brand">
+                    <img src="{% static 'images/logo/eapp.png' %}" alt="">
+                    <span>eApp FnB</span>
+                </div>
+                <h1 class="auth-headline">Mở cửa hàng trên eApp FnB chỉ trong 1 phút</h1>
+                <div class="d-none d-lg-block">
+                    <p class="auth-lead">Tạo tài khoản quản lý, có ngay cửa hàng đầu tiên và bắt đầu bán hàng với gói Miễn phí.</p>
+                    <div class="auth-feature"><i class="bi bi-gift"></i><span>Gói Miễn phí, không cần thẻ thanh toán, không giới hạn thời gian</span></div>
                     {% if free_plan %}
-                    <div class="feature-item">
-                        <i class="bi bi-shop me-2"></i>{% if free_plan.max_stores %}{{ free_plan.max_stores }}{% else %}Không giới hạn{% endif %} cửa hàng, 1 tài khoản quản lý{% if free_plan.max_products %}, tối đa {{ free_plan.max_products }} món{% endif %}
+                    <div class="auth-feature">
+                        <i class="bi bi-shop"></i>
+                        <span>{% if free_plan.max_stores %}{{ free_plan.max_stores }}{% else %}Không giới hạn{% endif %} cửa hàng, 1 tài khoản quản lý{% if free_plan.max_products %}, tối đa {{ free_plan.max_products }} món{% endif %}</span>
                     </div>
                     {% endif %}
-                    <div class="feature-item"><i class="bi bi-graph-up-arrow me-2"></i>Nâng cấp gói bất cứ lúc nào khi quán phát triển</div>
+                    <div class="auth-feature"><i class="bi bi-graph-up-arrow"></i><span>Nâng cấp gói bất cứ lúc nào khi cửa hàng phát triển</span></div>
+                    <p class="auth-copyright mb-0">© 2026 eApp FnB. Đồng hành cùng cửa hàng bán lẻ hiện đại.</p>
                 </div>
-                <div class="col-lg-6 p-4 p-md-5 form-pane">
-                    <h3 class="h5 text-login-main fw-bold mb-2">Đăng ký miễn phí</h3>
-                    <p class="text-login-sub small mb-4">Tài khoản bạn tạo là tài khoản quản lý của quán.</p>
-                    {% if form.non_field_errors %}
-                    <div class="alert alert-danger py-2 px-3 small">{{ form.non_field_errors|join:' ' }}</div>
-                    {% endif %}
-                    <form method="post" novalidate>
-                        {% csrf_token %}
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="auth-form-pane p-4 p-md-5">
+                <div class="mb-4">
+                    <span class="auth-badge"><i class="bi bi-gift"></i>Miễn phí, không giới hạn thời gian dùng thử</span>
+                    <h2 class="auth-title">Đăng ký cửa hàng</h2>
+                    <p class="auth-subtitle">Tài khoản bạn tạo là tài khoản quản lý của cửa hàng.</p>
+                </div>
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger auth-alert py-2 px-3">{{ form.non_field_errors|join:' ' }}</div>
+                {% endif %}
+                <form method="post" class="auth-form" novalidate>
+                    {% csrf_token %}
+                    {# Ô ẩn chứa tên đăng nhập đầy đủ để trình duyệt/trình quản lý mật khẩu lưu đúng. #}
+                    <input type="text" id="usernameFull" class="d-none" autocomplete="username" aria-hidden="true" tabindex="-1">
+                    {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {% if field.name == 'username' %}
+                        <div class="input-group auth-input-group{% if field.errors %} has-validation{% endif %}">
                             {{ field }}
-                            {% if field.help_text %}
-                            <div class="form-text">{{ field.help_text }}</div>
-                            {% endif %}
-                            {% for error in field.errors %}
-                            <div class="invalid-feedback d-block">{{ error }}</div>
-                            {% endfor %}
+                            <span class="input-group-text">{{ form.USERNAME_SUFFIX }}</span>
                         </div>
+                        <div class="form-text">
+                            Tài khoản quản lý sẽ có tên đăng nhập dạng
+                            <strong class="text-dark"><span id="usernamePreview">cửahàng</span>{{ form.USERNAME_SUFFIX }}</strong>.
+                        </div>
+                        {% elif field.widget_type == 'password' %}
+                        <div class="auth-password">
+                            {{ field }}
+                            <button type="button" class="auth-password-toggle" aria-label="Hiện mật khẩu"><i class="bi bi-eye"></i></button>
+                        </div>
+                        {% else %}
+                        {{ field }}
+                        {% endif %}
+                        {% if field.help_text %}
+                        <div class="form-text">{{ field.help_text }}</div>
+                        {% endif %}
+                        {% for error in field.errors %}
+                        <div class="invalid-feedback d-block">{{ error }}</div>
                         {% endfor %}
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-rocket-takeoff me-1"></i>Tạo tài khoản
-                        </button>
-                    </form>
-                    <p class="small text-login-sub mt-3 mb-0 text-center">
-                        Đã có tài khoản?
-                        <a class="auth-switch-link" href="{% url 'App_Accounts:login' %}">Đăng nhập</a>
-                    </p>
-                </div>
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary w-100 auth-submit mt-2">
+                        <i class="bi bi-rocket-takeoff me-1"></i>Tạo tài khoản
+                    </button>
+                </form>
+                <p class="mt-3 mb-0">
+                    Đã có tài khoản?
+                    <a class="auth-link" href="{% url 'App_Accounts:login' %}">Đăng nhập</a>
+                </p>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% include 'App_Accounts/_password_toggle.html' %}
+<script>
+    (function () {
+        var storeInput = document.getElementById('{{ form.store_name.id_for_label }}');
+        var usernameInput = document.getElementById('{{ form.username.id_for_label }}');
+        var maxLength = usernameInput.maxLength > 0 ? usernameInput.maxLength : 143;
+
+        // "Cà phê Góc Phố" -> "caphegocpho" (hậu tố _quanly cố định bên cạnh ô nhập)
+        function suggestUsername(storeName) {
+            return storeName
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[đĐ]/g, 'd')
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, '')
+                .slice(0, maxLength);
+        }
+
+        var preview = document.getElementById('usernamePreview');
+        var usernameFull = document.getElementById('usernameFull');
+        var SUFFIX = '{{ form.USERNAME_SUFFIX }}';
+        function updatePreview() {
+            // Server lưu tên đăng nhập chữ thường, xem trước cũng hiển thị như vậy.
+            var base = usernameInput.value.trim().toLowerCase();
+            preview.textContent = base || 'cửahàng';
+            usernameFull.value = base ? base + SUFFIX : '';
+        }
+
+        // Chỉ tự điền khi người dùng chưa tự sửa tên đăng nhập.
+        var autoFill = !usernameInput.value || usernameInput.value === suggestUsername(storeInput.value);
+
+        storeInput.addEventListener('input', function () {
+            if (autoFill) {
+                usernameInput.value = suggestUsername(storeInput.value);
+                updatePreview();
+            }
+        });
+        usernameInput.addEventListener('input', function () {
+            autoFill = !usernameInput.value;
+            updatePreview();
+        });
+        updatePreview();
+    })();
+</script>
 {% endblock %}

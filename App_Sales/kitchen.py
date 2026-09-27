@@ -296,6 +296,7 @@ def serialize_kitchen_ticket(ticket: KitchenTicket):
         'created_by': ticket.created_by.username if ticket.created_by_id else '',
         'created_at': _iso(ticket.created_at),
         'completed_at': _iso(ticket.completed_at),
+        'print_count': ticket.print_count,
         'items': [
             {
                 'id': row.id,

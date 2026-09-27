@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.core.paginator import Paginator
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Prefetch, Q, Sum
@@ -27,7 +28,18 @@ from reportlab.pdfgen import canvas
 from App_Accounts.models import User
 from App_Accounts.forms import POSPasswordChangeForm
 from App_Accounts.permissions import manager_required, staff_or_manager_required
-from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Catalog.models import (
+    Category,
+    Ingredient,
+    Product,
+    ProductTopping,
+    ProductUnit,
+    RecipeItem,
+    StoreCategory,
+    StoreProduct,
+    Topping,
+)
+from App_Catalog.recipes import compute_ingredient_usage, parse_recipe_rows, recipe_cost, recipe_enabled, save_recipe
 from App_Quanly.catalog_excel import (
     MAX_UPLOAD_BYTES,
     import_catalog_from_upload,
@@ -35,10 +47,12 @@ from App_Quanly.catalog_excel import (
     template_workbook_bytes,
 )
 from App_Quanly.forms import (
+    AccountProfileForm,
     CategoryForm,
     CustomerForm,
     CustomerTierSettingsForm,
     DiningTableForm,
+    IngredientForm,
     ProductForm,
     ProductToppingForm,
     ProductUnitForm,
@@ -51,8 +65,27 @@ from App_Quanly.forms import (
     TenantFeatureSettingsForm,
     ToppingForm,
 )
-from App_Sales.models import Customer, DiningTable, Order, OrderItem, Promotion, QROrder, QROrderItem, generate_qr_token
-from App_Sales.services import ensure_customer_tier_settings, recompute_all_customer_stats, recompute_customer_stats
+from App_Core.audit import Action, log_action
+from App_Core.models import AuditLog
+from App_Core.templatetags.number_format import thousand_sep
+from App_Sales.models import (
+    Customer,
+    DiningTable,
+    Order,
+    OrderItem,
+    Promotion,
+    QROrder,
+    QROrderItem,
+    Refund,
+    generate_qr_token,
+)
+from App_Sales.services import (
+    create_refund,
+    ensure_customer_tier_settings,
+    recompute_all_customer_stats,
+    recompute_customer_stats,
+    sum_net_revenue,
+)
 from App_Tenant.models import Store, SubscriptionPlan, Tenant, UserStoreAccess
 
 
@@ -267,7 +300,7 @@ def dashboard(request):
         orders = orders.filter(created_at__lte=end_dt)
 
     stats = orders.aggregate(
-        total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
+        total_revenue=sum_net_revenue(),
         total_orders=Coalesce(Count('id'), 0),
     )
 
@@ -288,7 +321,7 @@ def dashboard(request):
     today_start = timezone.make_aware(datetime.combine(today_local, time.min), tz)
     today_end = timezone.make_aware(datetime.combine(today_local, time.max), tz)
     today_stats = tenant_orders.filter(created_at__gte=today_start, created_at__lte=today_end).aggregate(
-        total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
+        total_revenue=sum_net_revenue(),
         total_orders=Coalesce(Count('id'), 0),
     )
     today_qr_void_qs = QROrder.objects.filter(
@@ -305,7 +338,7 @@ def dashboard(request):
     store_kpis = list(
         orders.values('store__name')
         .annotate(
-            total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
+            total_revenue=sum_net_revenue(),
             total_orders=Coalesce(Count('id'), 0),
         )
         .order_by('-total_revenue', 'store__name')[:5]
@@ -326,7 +359,7 @@ def dashboard(request):
         chart_orders.annotate(day=TruncDate('created_at'))
         .values('day')
         .annotate(
-            total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
+            total_revenue=sum_net_revenue(),
             total_orders=Coalesce(Count('id'), 0),
         )
         .order_by('day')
@@ -459,7 +492,7 @@ def order_history(request):
         orders = orders.filter(store_id=int(selected_store))
     if selected_payment in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
         orders = orders.filter(payment_method=selected_payment)
-    if selected_status in {Order.Status.COMPLETED, Order.Status.CANCELLED}:
+    if selected_status in set(Order.Status.values):
         orders = orders.filter(status=selected_status)
     if selected_cashier.isdigit():
         orders = orders.filter(cashier_id=int(selected_cashier))
@@ -485,7 +518,7 @@ def order_history(request):
 
     summary = orders.aggregate(
         total_orders=Coalesce(Count('id'), 0),
-        total_revenue=Coalesce(Sum('total_amount'), Decimal('0')),
+        total_revenue=sum_net_revenue(),
     )
 
     qr_orders = QROrder.objects.filter(
@@ -496,13 +529,15 @@ def order_history(request):
         qr_orders = qr_orders.filter(store_id=int(selected_store))
     if selected_payment in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
         qr_orders = qr_orders.none()
-    if selected_status == Order.Status.COMPLETED:
+    if selected_status in {Order.Status.COMPLETED, Order.Status.REFUNDED}:
         qr_orders = qr_orders.none()
     if selected_cashier.isdigit():
         qr_orders = qr_orders.filter(rejected_by_id=int(selected_cashier))
     if selected_q:
         qq = (
             Q(table__name__icontains=selected_q)
+            | Q(customer_name__icontains=selected_q)
+            | Q(customer_phone__icontains=selected_q)
             | Q(rejection_reason__icontains=selected_q)
             | Q(store__name__icontains=selected_q)
             | Q(customer_note__icontains=selected_q)
@@ -536,7 +571,8 @@ def order_history(request):
             Prefetch(
                 'items',
                 queryset=OrderItem.objects.prefetch_related('toppings').order_by('id'),
-            )
+            ),
+            Prefetch('refunds', queryset=Refund.objects.select_related('created_by').order_by('created_at', 'id')),
         )
     }
     qr_by_id = {
@@ -600,17 +636,7 @@ def order_history(request):
     )
 
 
-@manager_required
-@require_POST
-def order_delete(request, pk):
-    tenant = _tenant_or_404(request.user)
-    order = get_object_or_404(Order, pk=pk, tenant=tenant)
-    customer = order.customer
-    code = order.order_code
-    order.delete()
-    if customer:
-        recompute_customer_stats(customer)
-    messages.success(request, f'Đã xóa đơn hàng {code}.')
+def _redirect_next_or(request, fallback):
     next_url = (request.POST.get('next') or '').strip()
     if next_url and url_has_allowed_host_and_scheme(
         next_url,
@@ -618,7 +644,164 @@ def order_delete(request, pk):
         require_https=request.is_secure(),
     ):
         return redirect(next_url)
-    return redirect('App_Quanly:orders')
+    return redirect(fallback)
+
+
+@manager_required
+@require_POST
+def order_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    order = get_object_or_404(Order, pk=pk, tenant=tenant)
+    customer = order.customer
+    code = order.order_code
+    log_action(
+        Action.ORDER_DELETE,
+        request=request,
+        store_id=order.store_id,
+        object_type='Đơn bán',
+        message=f'Xoá đơn {code} ({thousand_sep(order.total_amount)} đ)',
+        extra={
+            'order_id': order.id,
+            'order_code': code,
+            'total_amount': str(order.total_amount),
+            'payment_method': order.payment_method,
+            'created_at': timezone.localtime(order.created_at).isoformat(),
+        },
+    )
+    order.delete()
+    if customer:
+        recompute_customer_stats(customer)
+    messages.success(request, f'Đã xóa đơn hàng {code}.')
+    return _redirect_next_or(request, 'App_Quanly:orders')
+
+
+@manager_required
+@require_POST
+def order_refund(request, pk):
+    tenant = _tenant_or_404(request.user)
+    order = get_object_or_404(Order, pk=pk, tenant=tenant)
+    refund_type = request.POST.get('refund_type') or 'full'
+    if refund_type == 'full':
+        amount = order.refundable_amount
+    else:
+        digits = ''.join(ch for ch in (request.POST.get('amount') or '') if ch.isdigit())
+        amount = Decimal(digits or '0')
+    try:
+        refund = create_refund(
+            order=order,
+            amount=amount,
+            method=request.POST.get('method') or order.payment_method,
+            reason=request.POST.get('reason') or '',
+            user=request.user,
+        )
+    except ValidationError as exc:
+        messages.error(request, '; '.join(exc.messages))
+    else:
+        messages.success(
+            request,
+            f'Đã hoàn {thousand_sep(refund.amount)} đ cho đơn {order.order_code}.',
+        )
+    return _redirect_next_or(request, 'App_Quanly:orders')
+
+
+AUDIT_LOG_PER_PAGE = 30
+AUDIT_ACTION_GROUPS = [
+    (
+        'Bán hàng',
+        [
+            Action.ORDER_REFUND,
+            Action.ORDER_DELETE,
+            Action.ORDER_REPRINT,
+            Action.CART_VOID,
+            Action.TABLE_MOVE,
+            Action.QR_REJECT,
+            Action.KITCHEN_REPRINT,
+        ],
+    ),
+    ('Ca làm việc', [Action.SHIFT_OPEN, Action.SHIFT_CLOSE]),
+    ('Dữ liệu & cấu hình', [Action.OBJECT_CREATE, Action.OBJECT_UPDATE, Action.OBJECT_DELETE, Action.CATALOG_IMPORT]),
+    ('Đăng nhập', [Action.LOGIN, Action.LOGOUT, Action.LOGIN_FAILED]),
+]
+# Thao tác cần quản lý để ý: tô màu cảnh báo trong danh sách.
+AUDIT_SENSITIVE_ACTIONS = {
+    Action.ORDER_REFUND,
+    Action.ORDER_DELETE,
+    Action.ORDER_REPRINT,
+    Action.CART_VOID,
+    Action.LOGIN_FAILED,
+    Action.OBJECT_DELETE,
+}
+
+
+@manager_required
+def audit_log(request):
+    tenant = _tenant_or_404(request.user)
+    logs = AuditLog.objects.filter(tenant=tenant).select_related('store')
+
+    selected_action = (request.GET.get('action') or '').strip()
+    selected_user = (request.GET.get('user') or '').strip()
+    selected_store = (request.GET.get('store') or '').strip()
+    selected_q = (request.GET.get('q') or '').strip()
+    date_from = (request.GET.get('date_from') or '').strip()
+    date_to = (request.GET.get('date_to') or '').strip()
+
+    group_actions = {f'group:{index}': actions for index, (_label, actions) in enumerate(AUDIT_ACTION_GROUPS)}
+    if selected_action in group_actions:
+        logs = logs.filter(action__in=group_actions[selected_action])
+    elif selected_action in set(AuditLog.Action.values):
+        logs = logs.filter(action=selected_action)
+    if selected_user:
+        logs = logs.filter(username=selected_user)
+    if selected_store.isdigit():
+        logs = logs.filter(store_id=int(selected_store))
+    if selected_q:
+        logs = logs.filter(
+            Q(message__icontains=selected_q) | Q(object_repr__icontains=selected_q) | Q(username__icontains=selected_q)
+        )
+    try:
+        start_dt, end_dt = _parse_date_bounds(date_from, date_to)
+    except ValueError:
+        messages.error(request, 'Bộ lọc ngày không hợp lệ.')
+        start_dt, end_dt = None, None
+    if start_dt:
+        logs = logs.filter(created_at__gte=start_dt)
+    if end_dt:
+        logs = logs.filter(created_at__lte=end_dt)
+
+    page_obj = Paginator(logs.order_by('-created_at', '-id'), AUDIT_LOG_PER_PAGE).get_page(request.GET.get('page'))
+    usernames = (
+        AuditLog.objects.filter(tenant=tenant)
+        .exclude(username='')
+        .values_list('username', flat=True)
+        .distinct()
+        .order_by('username')
+    )
+    action_groups = [
+        {
+            'key': f'group:{index}',
+            'label': label,
+            'actions': [(action.value, action.label) for action in actions],
+        }
+        for index, (label, actions) in enumerate(AUDIT_ACTION_GROUPS)
+    ]
+    return render(
+        request,
+        'App_Quanly/audit_log.html',
+        {
+            'page_obj': page_obj,
+            'query_string': _list_query_without_keys(request, 'page'),
+            'action_groups': action_groups,
+            'usernames': list(usernames),
+            'stores': Store.objects.filter(tenant=tenant).order_by('name'),
+            'selected_action': selected_action,
+            'selected_user': selected_user,
+            'selected_store': selected_store,
+            'selected_q': selected_q,
+            'date_from': date_from,
+            'date_to': date_to,
+            'sensitive_actions': {action.value for action in AUDIT_SENSITIVE_ACTIONS},
+        },
+    )
 
 
 @manager_required
@@ -899,6 +1082,11 @@ def catalog_import_upload(request):
         return redirect('App_Quanly:categories')
     result = import_catalog_from_upload(tenant, upload)
     if result['ok']:
+        log_action(
+            Action.CATALOG_IMPORT,
+            request=request,
+            message=f'Nhập Excel "{upload.name[:80]}": {result["message"]}',
+        )
         messages.success(request, result['message'])
     else:
         err_list = result['errors']
@@ -1174,6 +1362,267 @@ def product_topping_delete(request, pk):
     return redirect('App_Quanly:toppings')
 
 
+RECIPE_DISABLED_MESSAGE = 'Tính năng định mức nguyên liệu đang tắt.'
+INGREDIENT_UNIT_SUGGESTIONS = ['g', 'kg', 'ml', 'l', 'cái', 'gói', 'hộp', 'chai', 'lon', 'quả']
+
+
+@manager_required
+def ingredient_list_create(request):
+    tenant = _tenant_or_404(request.user)
+    if not recipe_enabled(tenant):
+        return _feature_disabled_response(RECIPE_DISABLED_MESSAGE)
+    ingredients = (
+        Ingredient.objects.filter(tenant=tenant)
+        .annotate(recipe_count=Count('recipe_items'))
+        .order_by('display_order', 'name', 'id')
+    )
+    selected_q = (request.GET.get('q') or '').strip()
+    if selected_q:
+        ingredients = ingredients.filter(name__icontains=selected_q)
+
+    form = IngredientForm(request.POST if request.method == 'POST' else None, tenant=tenant)
+    open_create_modal = False
+    if request.method == 'POST':
+        if form.is_valid():
+            ingredient = form.save(commit=False)
+            ingredient.display_order = next_display_order(Ingredient.objects.filter(tenant=tenant))
+            ingredient.save()
+            messages.success(request, f'Đã tạo nguyên liệu "{ingredient.name}".')
+            return redirect('App_Quanly:ingredients')
+        messages.error(request, 'Không thể tạo nguyên liệu, vui lòng kiểm tra dữ liệu.')
+        open_create_modal = True
+
+    ingredients_page = Paginator(ingredients, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    return render(
+        request,
+        'App_Quanly/ingredients.html',
+        {
+            'ingredients_page': ingredients_page,
+            'ingredients_query_string': _list_query_without_keys(request, 'page'),
+            'selected_q': selected_q,
+            'form': form,
+            'open_create_modal': open_create_modal,
+            'unit_suggestions': INGREDIENT_UNIT_SUGGESTIONS,
+        },
+    )
+
+
+@manager_required
+def ingredient_edit(request, pk):
+    tenant = _tenant_or_404(request.user)
+    if not recipe_enabled(tenant):
+        return _feature_disabled_response(RECIPE_DISABLED_MESSAGE)
+    ingredient = get_object_or_404(Ingredient, pk=pk, tenant=tenant)
+    if request.method != 'POST':
+        return redirect('App_Quanly:ingredients')
+    form = IngredientForm(request.POST, instance=ingredient, tenant=tenant)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Đã cập nhật nguyên liệu "{ingredient.name}".')
+    else:
+        errors = ' '.join(error for field_errors in form.errors.values() for error in field_errors)
+        messages.error(request, f'Không thể cập nhật nguyên liệu. {errors}'.strip())
+    return _redirect_next_or(request, 'App_Quanly:ingredients')
+
+
+@manager_required
+@require_POST
+def ingredient_delete(request, pk):
+    tenant = _tenant_or_404(request.user)
+    if not recipe_enabled(tenant):
+        return _feature_disabled_response(RECIPE_DISABLED_MESSAGE)
+    ingredient = get_object_or_404(Ingredient, pk=pk, tenant=tenant)
+    name = ingredient.name
+    try:
+        ingredient.delete()
+    except ProtectedError:
+        messages.error(
+            request,
+            f'Không thể xóa "{name}" vì đang dùng trong định mức thành phẩm. '
+            'Hãy bỏ nguyên liệu khỏi các định mức trước, hoặc tắt "Đang hoạt động".',
+        )
+        return redirect('App_Quanly:ingredients')
+    messages.success(request, f'Đã xóa nguyên liệu "{name}".')
+    return redirect('App_Quanly:ingredients')
+
+
+def _recipe_row(recipe_items, price):
+    cost = recipe_cost(recipe_items)
+    margin = price - cost
+    return {
+        'recipe_items': recipe_items,
+        'cost': cost,
+        'margin': margin,
+        'margin_percent': (margin / price * 100) if price > 0 and recipe_items else None,
+        'recipe_json': json.dumps(
+            [{'ingredient_id': item.ingredient_id, 'quantity': _format_quantity(item.quantity)} for item in recipe_items]
+        ),
+    }
+
+
+def _format_quantity(value):
+    """18.500 -> '18.5', 20.000 -> '20' (định mức hiển thị/nhập lại gọn)."""
+    return format(value.normalize(), 'f')
+
+
+@manager_required
+def recipe_list(request):
+    tenant = _tenant_or_404(request.user)
+    if not recipe_enabled(tenant):
+        return _feature_disabled_response(RECIPE_DISABLED_MESSAGE)
+    recipe_prefetch = Prefetch('recipe_items', queryset=RecipeItem.objects.select_related('ingredient'))
+    products = (
+        Product.objects.filter(tenant=tenant)
+        .select_related('category')
+        .prefetch_related(Prefetch('units', queryset=ProductUnit.objects.prefetch_related(recipe_prefetch)))
+        .order_by('name')
+    )
+    selected_q = (request.GET.get('q') or '').strip()
+    selected_category = (request.GET.get('category') or '').strip()
+    selected_status = (request.GET.get('status') or '').strip()
+    if selected_q:
+        products = products.filter(name__icontains=selected_q)
+    if selected_category.isdigit():
+        products = products.filter(category_id=int(selected_category))
+    if selected_status == 'missing':
+        products = products.filter(units__recipe_items__isnull=True).distinct()
+
+    products_page = Paginator(products, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    product_rows = []
+    for product in products_page:
+        units = []
+        for unit in product.units.all():
+            recipe_items = list(unit.recipe_items.all())
+            units.append({'unit': unit, **_recipe_row(recipe_items, unit.price)})
+        product_rows.append({'product': product, 'units': units})
+
+    topping_rows = []
+    if tenant.show_topping_feature:
+        toppings = Topping.objects.filter(tenant=tenant).prefetch_related(recipe_prefetch).order_by(
+            'display_order', 'name', 'id'
+        )
+        if selected_status == 'missing':
+            toppings = toppings.filter(recipe_items__isnull=True)
+        for topping in toppings:
+            recipe_items = list(topping.recipe_items.all())
+            topping_rows.append({'topping': topping, **_recipe_row(recipe_items, topping.price)})
+
+    ingredient_options = [
+        {
+            'id': ingredient.id,
+            'name': ingredient.name,
+            'unit': ingredient.unit,
+            'cost': str(ingredient.cost_per_unit),
+            'active': ingredient.is_active,
+        }
+        for ingredient in Ingredient.objects.filter(tenant=tenant).order_by('display_order', 'name', 'id')
+    ]
+    return render(
+        request,
+        'App_Quanly/recipes.html',
+        {
+            'products_page': products_page,
+            'product_rows': product_rows,
+            'topping_rows': topping_rows,
+            'recipes_query_string': _list_query_without_keys(request, 'page'),
+            'categories': Category.objects.filter(tenant=tenant).order_by('name'),
+            'selected_q': selected_q,
+            'selected_category': selected_category,
+            'selected_status': selected_status,
+            'has_ingredients': bool(ingredient_options),
+            'ingredient_options': ingredient_options,
+        },
+    )
+
+
+@manager_required
+@require_POST
+def recipe_edit(request, kind, pk):
+    tenant = _tenant_or_404(request.user)
+    if not recipe_enabled(tenant):
+        return _feature_disabled_response(RECIPE_DISABLED_MESSAGE)
+    if kind == 'unit':
+        target = get_object_or_404(ProductUnit.objects.select_related('product'), pk=pk, product__tenant=tenant)
+        target_kwargs = {'product_unit': target}
+        label = f'{target.product.name} - {target.name}'
+    elif kind == 'topping':
+        target = get_object_or_404(Topping, pk=pk, tenant=tenant)
+        target_kwargs = {'topping': target}
+        label = f'topping {target.name}'
+    else:
+        raise Http404
+
+    try:
+        rows = parse_recipe_rows(request.POST.getlist('ingredient_id'), request.POST.getlist('quantity'))
+        save_recipe(tenant=tenant, rows=rows, **target_kwargs)
+    except ValidationError as exc:
+        messages.error(request, f'Không thể lưu định mức "{label}": {" ".join(exc.messages)}')
+        return _redirect_next_or(request, 'App_Quanly:recipes')
+
+    log_action(
+        Action.OBJECT_UPDATE,
+        user=request.user,
+        tenant_id=tenant.id,
+        obj=target,
+        object_type='Định mức nguyên liệu',
+        message=f'Cập nhật định mức "{label}": {len(rows)} nguyên liệu',
+        extra={'ingredients': [[ingredient_id, str(qty)] for ingredient_id, qty in rows]},
+    )
+    if rows:
+        messages.success(request, f'Đã lưu định mức "{label}".')
+    else:
+        messages.success(request, f'Đã xóa định mức "{label}".')
+    return _redirect_next_or(request, 'App_Quanly:recipes')
+
+
+@manager_required
+def ingredient_usage(request):
+    tenant = _tenant_or_404(request.user)
+    if not recipe_enabled(tenant):
+        return _feature_disabled_response(RECIPE_DISABLED_MESSAGE)
+    stores = Store.objects.filter(tenant=tenant).order_by('name')
+    today = timezone.localdate()
+    selected_store = (request.GET.get('store') or '').strip()
+    if selected_store and selected_store not in {str(store.pk) for store in stores}:
+        messages.error(request, 'Cửa hàng không hợp lệ, đã hiển thị tất cả cửa hàng.')
+        selected_store = ''
+    date_from = (request.GET.get('date_from') or '').strip() or (today - timedelta(days=6)).isoformat()
+    date_to = (request.GET.get('date_to') or '').strip() or today.isoformat()
+    try:
+        start_dt, end_dt = _parse_date_bounds(date_from, date_to)
+        if start_dt > end_dt:
+            raise ValueError('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.')
+        date_from, date_to = start_dt.date().isoformat(), end_dt.date().isoformat()
+    except ValueError:
+        messages.error(request, 'Ngày lọc không hợp lệ, đã dùng 7 ngày gần nhất.')
+        date_from, date_to = (today - timedelta(days=6)).isoformat(), today.isoformat()
+        start_dt, end_dt = _parse_date_bounds(date_from, date_to)
+
+    order_items = OrderItem.objects.filter(
+        order__tenant=tenant,
+        order__created_at__gte=start_dt,
+        order__created_at__lte=end_dt,
+        order__status__in=[Order.Status.COMPLETED, Order.Status.REFUNDED],
+    )
+    if selected_store:
+        order_items = order_items.filter(order__store_id=int(selected_store))
+
+    usage = compute_ingredient_usage(order_items)
+    return render(
+        request,
+        'App_Quanly/ingredient_usage.html',
+        {
+            'stores': stores,
+            'selected_store': selected_store,
+            'date_from': date_from,
+            'date_to': date_to,
+            'usage_rows': usage['rows'],
+            'total_cost': usage['total_cost'],
+            'missing_rows': usage['missing'],
+        },
+    )
+
+
 @manager_required
 @require_POST
 def reorder(request, kind):
@@ -1203,6 +1652,13 @@ def reorder(request, kind):
         if Topping.objects.filter(pk__in=ids, tenant=tenant).count() != len(ids):
             return invalid
         groups = [(Topping.objects.filter(tenant=tenant).order_by('display_order', 'name', 'id'), ids)]
+    elif kind == 'ingredients':
+        if not recipe_enabled(tenant):
+            return JsonResponse({'ok': False, 'error': RECIPE_DISABLED_MESSAGE}, status=403)
+        model = Ingredient
+        if Ingredient.objects.filter(pk__in=ids, tenant=tenant).count() != len(ids):
+            return invalid
+        groups = [(Ingredient.objects.filter(tenant=tenant).order_by('display_order', 'name', 'id'), ids)]
     elif kind == 'tables':
         if not tenant.show_qr_order_feature:
             return JsonResponse({'ok': False, 'error': 'Tính năng gọi món QR đang tắt.'}, status=403)
@@ -1728,7 +2184,7 @@ def store_delete(request, pk):
 @manager_required
 def feature_settings(request):
     tenant_obj = Tenant.objects.get(pk=_tenant_or_404(request.user).pk)
-    form = TenantFeatureSettingsForm(request.POST or None, instance=tenant_obj)
+    form = TenantFeatureSettingsForm(request.POST if request.method == 'POST' else None, instance=tenant_obj)
     if request.method == 'POST':
         if form.is_valid():
             form.save()
@@ -1748,16 +2204,27 @@ def account_settings(request):
     role_label = 'Quản lý' if user.role == User.Role.MANAGER else 'Nhân viên'
     tenant_obj = Tenant.objects.select_related('subscription_plan').get(pk=user.tenant_id)
 
-    if request.method == 'POST':
-        form = POSPasswordChangeForm(user, request.POST)
+    form_action = request.POST.get('form_action') if request.method == 'POST' else None
+    # Bản sao riêng: form lỗi không làm lệch dữ liệu đang hiển thị ở thẻ thông tin.
+    profile_form = AccountProfileForm(
+        request.POST if form_action == 'profile' else None,
+        instance=User.objects.select_related('tenant').get(pk=user.pk),
+    )
+    form = POSPasswordChangeForm(user, request.POST if form_action == 'password_change' else None)
+
+    if form_action == 'profile':
+        if profile_form.is_valid():
+            profile_form.save()
+            messages.success(request, 'Đã cập nhật thông tin tài khoản.')
+            return redirect('App_Quanly:account')
+        messages.error(request, 'Không thể cập nhật thông tin. Vui lòng kiểm tra lại.')
+    elif form_action == 'password_change':
         if form.is_valid():
             form.save()
             update_session_auth_hash(request, user)
             messages.success(request, 'Đã đổi mật khẩu.')
             return redirect('App_Quanly:account')
         messages.error(request, 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại.')
-    else:
-        form = POSPasswordChangeForm(user)
 
     usage = {
         'stores_used': tenant_obj.stores.count(),
@@ -1777,6 +2244,8 @@ def account_settings(request):
         'App_Quanly/account.html',
         {
             'form': form,
+            'profile_form': profile_form,
+            'store_accesses': user.store_accesses.select_related('store').order_by('-is_default', 'store__name'),
             'role_label': role_label,
             'usage': usage,
             'today': timezone.now().date(),

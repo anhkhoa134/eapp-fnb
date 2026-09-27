@@ -3,50 +3,58 @@
 
 {% block quanly_content %}
 <div class="row g-3">
-    <div class="col-12 col-lg-5">
-        <div class="card border-0 shadow-sm h-100">
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm h-100" id="thong-tin">
             <div class="card-body">
                 <h2 class="admin-card-title h5 mb-3">
                     <i class="bi bi-person-badge"></i>
                     Thông tin tài khoản
                 </h2>
-                <dl class="row mb-0 small">
-                    <dt class="col-sm-4 text-muted">Tên đăng nhập</dt>
-                    <dd class="col-sm-8 fw-semibold">{{ user.username }}</dd>
-                    <dt class="col-sm-4 text-muted">Email</dt>
-                    <dd class="col-sm-8">{{ user.email|default:'—' }}</dd>
-                    <dt class="col-sm-4 text-muted">Vai trò</dt>
-                    <dd class="col-sm-8">{{ role_label }}</dd>
-                    <dt class="col-sm-4 text-muted">Doanh nghiệp</dt>
-                    <dd class="col-sm-8">{{ user.tenant.name|default:'—' }}</dd>
-                </dl>
-                <hr class="my-3 opacity-50">
-                <h3 class="h6 fw-bold mb-2 text-secondary">Gói cước</h3>
-                <dl class="row mb-3 small">
-                    <dt class="col-sm-4 text-muted">Gói hiện tại</dt>
-                    <dd class="col-sm-8 fw-semibold">
-                        {% if current_plan %}{{ current_plan.name }}{% else %}Gói tuỳ chỉnh{% endif %}
-                    </dd>
-                    <dt class="col-sm-4 text-muted">Ngày hiện tại</dt>
-                    <dd class="col-sm-8">{{ today|date:'d/m/Y' }}</dd>
-                    <dt class="col-sm-4 text-muted">Bắt đầu gói</dt>
-                    <dd class="col-sm-8">{% if usage.subscription_starts_on %}{{ usage.subscription_starts_on|date:'d/m/Y' }}{% else %}—{% endif %}</dd>
-                    <dt class="col-sm-4 text-muted">Kết thúc gói</dt>
-                    <dd class="col-sm-8">{% if usage.subscription_ends_on %}{{ usage.subscription_ends_on|date:'d/m/Y' }}{% else %}Không thời hạn{% endif %}</dd>
-                </dl>
-                <h3 class="h6 fw-bold mb-2 text-secondary">Giới hạn tài nguyên (theo gói)</h3>
-                <p class="small text-muted mb-2">Số lượng đang dùng so với hạn mức doanh nghiệp được phép tạo.</p>
-                <dl class="row mb-0 small">
-                    {% include 'App_Quanly/_usage_row.html' with label='Cửa hàng' used=usage.stores_used limit=usage.stores_max %}
-                    {% include 'App_Quanly/_usage_row.html' with label='Nhân viên' used=usage.staff_used limit=usage.staff_max %}
-                    {% include 'App_Quanly/_usage_row.html' with label='Món' used=usage.products_used limit=usage.products_max %}
-                    {% include 'App_Quanly/_usage_row.html' with label='Bàn' used=usage.tables_used limit=usage.tables_max %}
-                </dl>
+                <form method="post" class="quanly-account-profile-form" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="profile">
+                    <div class="row align-items-center mb-2">
+                        <div class="col-sm-4 text-muted fw-semibold">Tên đăng nhập</div>
+                        <div class="col-sm-8 fw-semibold">{{ user.username }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted fw-semibold">Vai trò</div>
+                        <div class="col-sm-8">{{ role_label }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted fw-semibold">Cửa hàng</div>
+                        <div class="col-sm-8 d-flex flex-wrap gap-1">
+                            {% for access in store_accesses %}
+                            <span class="badge text-bg-light border">{{ access.store.name }}{% if access.is_default %} (mặc định){% endif %}</span>
+                            {% empty %}
+                            <span class="text-muted">Chưa được gán cửa hàng.</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% if not user.is_manager %}
+                    <div class="row mb-2">
+                        <div class="col-sm-4 text-muted fw-semibold">Doanh nghiệp</div>
+                        <div class="col-sm-8">{{ user.tenant.name|default:'—' }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="row">
+                        {% include 'App_Quanly/_account_field_row.html' with field=profile_form.first_name %}
+                        {% include 'App_Quanly/_account_field_row.html' with field=profile_form.email %}
+                        {% if user.is_manager %}
+                        {% include 'App_Quanly/_account_field_row.html' with field=profile_form.tenant_name %}
+                        {% endif %}
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check2 me-1"></i>Lưu thông tin
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-    <div class="col-12 col-lg-7">
-        <div class="card border-0 shadow-sm">
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm" id="doi-mat-khau">
             <div class="card-body">
                 <h2 class="admin-card-title h5 mb-3">
                     <i class="bi bi-shield-lock"></i>
@@ -73,8 +81,39 @@
     </div>
 </div>
 
-{% if plans %}
 <style>
+    .acct-plan-current-tag {
+        position: absolute;
+        top: -0.7rem;
+        right: 1.1rem;
+        padding: 0.15rem 0.65rem;
+        border: 1px solid var(--primary-color);
+        border-radius: 999px;
+        background: #fff;
+        color: var(--primary-hover);
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .acct-plan-usage {
+        margin-left: auto;
+        padding: 0.05rem 0.5rem;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.12);
+        color: var(--primary-hover);
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .acct-plan-usage.is-full {
+        background: rgba(245, 158, 11, 0.18);
+        color: #b45309;
+    }
+    .acct-plan-period {
+        padding-top: 0.6rem;
+        border-top: 1px dashed rgba(148, 163, 184, 0.5);
+        font-size: 0.8rem;
+        color: #475569;
+    }
     .acct-plans-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -92,6 +131,7 @@
     }
     .acct-plan-card.is-current {
         border-color: var(--primary-color);
+        background: rgba(236, 253, 245, 0.7);
         box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
     }
     .acct-plan-badge {
@@ -171,6 +211,7 @@
         }
     }
 </style>
+{% if plans %}
 <div class="card border-0 shadow-sm mt-3" id="goi-cuoc">
     <div class="card-body">
         <h2 class="admin-card-title h5 mb-2">
@@ -185,7 +226,9 @@
         <div class="acct-plans-grid">
             {% for plan in plans %}
             <div class="acct-plan-card{% if current_plan and current_plan.pk == plan.pk %} is-current{% endif %}">
-                {% if plan.highlight %}
+                {% if current_plan and current_plan.pk == plan.pk %}
+                <span class="acct-plan-current-tag"><i class="bi bi-check2 me-1"></i>Đang dùng</span>
+                {% elif plan.highlight %}
                 <span class="acct-plan-badge">{{ plan.highlight }}</span>
                 {% endif %}
                 <p class="acct-plan-name">{{ plan.name }}</p>
@@ -203,24 +246,35 @@
                     <li>
                         <i class="bi bi-shop"></i>
                         {% if plan.max_stores is None %}Không giới hạn cửa hàng{% else %}Tối đa {{ plan.max_stores }} cửa hàng{% endif %}
+                        {% if current_plan and current_plan.pk == plan.pk %}{% include 'App_Quanly/_plan_usage_pill.html' with used=usage.stores_used limit=plan.max_stores %}{% endif %}
                     </li>
                     <li class="{% if plan.max_staff_users == 0 %}is-off{% endif %}">
                         <i class="bi {% if plan.max_staff_users == 0 %}bi-dash-circle{% else %}bi-people{% endif %}"></i>
                         {% if plan.max_staff_users is None %}Không giới hạn nhân viên{% elif plan.max_staff_users == 0 %}Không có tài khoản nhân viên (chỉ 1 quản lý){% else %}Tối đa {{ plan.max_staff_users }} nhân viên{% endif %}
+                        {% if current_plan and current_plan.pk == plan.pk and plan.max_staff_users != 0 %}{% include 'App_Quanly/_plan_usage_pill.html' with used=usage.staff_used limit=plan.max_staff_users %}{% endif %}
                     </li>
                     <li>
                         <i class="bi bi-cup-hot"></i>
                         {% if plan.max_products is None %}Không giới hạn món{% else %}Tối đa {{ plan.max_products }} món{% endif %}
+                        {% if current_plan and current_plan.pk == plan.pk %}{% include 'App_Quanly/_plan_usage_pill.html' with used=usage.products_used limit=plan.max_products %}{% endif %}
                     </li>
                     <li>
                         <i class="bi bi-grid-3x3-gap"></i>
                         {% if plan.max_dining_tables is None %}Không giới hạn bàn{% else %}Tối đa {{ plan.max_dining_tables }} bàn{% endif %}
+                        {% if current_plan and current_plan.pk == plan.pk %}{% include 'App_Quanly/_plan_usage_pill.html' with used=usage.tables_used limit=plan.max_dining_tables %}{% endif %}
                     </li>
                     {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_qr_order label='Gọi món QR tại bàn' %}
                     {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_kitchen label='Màn hình bếp' %}
+                    {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_shift label='Ca làm việc, chốt ca' %}
+                    {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_recipe label='Định mức nguyên liệu, giá vốn' %}
                     {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_customer label='Khách hàng thân thiết' %}
                     {% include 'App_Quanly/_plan_feature.html' with enabled=plan.feature_promotion label='Khuyến mãi' %}
                 </ul>
+                {% if current_plan and current_plan.pk == plan.pk %}
+                <div class="acct-plan-period">
+                    <i class="bi bi-calendar-check me-1"></i>Hiệu lực: {% include 'App_Quanly/_plan_period.html' %}
+                </div>
+                {% endif %}
                 <div class="acct-plan-cta">
                     {% if current_plan and current_plan.pk == plan.pk %}
                     <button type="button" class="btn btn-sm btn-light border w-100" disabled>

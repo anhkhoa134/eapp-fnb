@@ -1,0 +1,10 @@
+<label class="col-sm-4 col-form-label text-muted fw-semibold" for="{{ field.id_for_label }}">
+    {{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}
+</label>
+<div class="col-sm-8 mb-2">
+    {{ field }}
+    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+    {% if field.errors %}
+    <div class="invalid-feedback d-block">{{ field.errors|join:' ' }}</div>
+    {% endif %}
+</div>

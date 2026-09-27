@@ -1,0 +1,1 @@
+{% if usage.subscription_starts_on %}{{ usage.subscription_starts_on|date:'d/m/Y' }}{% else %}—{% endif %} → {% if usage.subscription_ends_on %}{{ usage.subscription_ends_on|date:'d/m/Y' }}{% else %}Không thời hạn{% endif %}

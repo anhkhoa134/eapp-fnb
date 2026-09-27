@@ -1,0 +1,29 @@
+{% extends 'App_Sales/print/_base.html' %}
+{% load number_format %}
+
+{% block title %}Tạm tính {{ table.name }}{% endblock %}
+
+{% block paper %}
+{% include 'App_Sales/print/_store_header.html' %}
+<div class="center">
+    <div class="doc-title">PHIẾU TẠM TÍNH</div>
+</div>
+<hr class="sep">
+<div class="meta">
+    <div class="row"><span>Bàn:</span><span class="bold">{{ table.name }}</span></div>
+    <div class="row"><span>Giờ in:</span><span>{{ printed_at|date:'d/m/Y H:i' }}</span></div>
+    <div class="row"><span>Nhân viên:</span><span>{{ request.user.get_full_name|default:request.user.username }}</span></div>
+</div>
+<hr class="sep">
+{% if rows %}
+{% include 'App_Sales/print/_items.html' with rows=rows %}
+{% else %}
+<div class="center muted">Bàn chưa có món.</div>
+{% endif %}
+<hr class="sep solid">
+<div class="row total-row"><span>TẠM TÍNH</span><span>{{ subtotal|thousand_sep }}</span></div>
+<div class="center muted">(Chưa gồm khuyến mãi / ưu đãi thành viên)</div>
+{% include 'App_Sales/print/_payment_qr.html' %}
+<hr class="sep">
+<div class="footer-note">Phiếu này không phải hoá đơn thanh toán.</div>
+{% endblock %}

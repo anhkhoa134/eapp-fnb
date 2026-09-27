@@ -20,12 +20,16 @@ class PublicQROrderConsumer(AsyncJsonWebsocketConsumer):
         query = parse_qs(raw_query)
         table_code = ((query.get('table_code') or [''])[0] or '').strip().upper()
         token = ((query.get('token') or [''])[0] or '').strip()
+        access_key = ((query.get('access_key') or [''])[0] or '').strip()
 
-        if not table_code or not token:
+        if access_key:
+            is_valid = await self._is_valid_takeaway_key(order_id=order_id, access_key=access_key)
+        elif table_code and token:
+            is_valid = await self._is_valid_order_credentials(order_id=order_id, table_code=table_code, token=token)
+        else:
             await self.close(code=4400)
             return
 
-        is_valid = await self._is_valid_order_credentials(order_id=order_id, table_code=table_code, token=token)
         if not is_valid:
             await self.close(code=4403)
             return
@@ -41,6 +45,15 @@ class PublicQROrderConsumer(AsyncJsonWebsocketConsumer):
 
     async def qr_order_changed(self, event):
         await self.send_json(event.get('data', {}))
+
+    @database_sync_to_async
+    def _is_valid_takeaway_key(self, *, order_id, access_key):
+        return QROrder.objects.filter(
+            id=order_id,
+            access_key=access_key,
+            order_type=QROrder.OrderType.TAKEAWAY,
+            tenant__is_active=True,
+        ).exists()
 
     @database_sync_to_async
     def _is_valid_order_credentials(self, *, order_id, table_code, token):

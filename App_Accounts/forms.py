@@ -1,11 +1,13 @@
+from datetime import timedelta
+
 from django import forms
+from django.conf import settings
 from django.contrib.admin.forms import AdminAuthenticationForm
-from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, PasswordResetForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.utils import timezone
 
-from App_Accounts import login_throttle
+from App_Accounts import login_throttle, rate_limit
 from App_Accounts.models import User
 from App_Tenant.access import (
     BLOCK_SUBSCRIPTION_EXPIRED,
@@ -16,21 +18,35 @@ from App_Tenant.access import (
 )
 
 
+def _add_form_control_class(form):
+    for field in form.fields.values():
+        existing = field.widget.attrs.get('class', '')
+        field.widget.attrs['class'] = f'{existing} form-control'.strip()
+
+
 class LoginThrottleMixin:
-    """Khoá tạm username + IP sau nhiều lần đăng nhập sai. Dùng cho form kế thừa AuthenticationForm."""
+    """
+    Chống brute-force cho form kế thừa AuthenticationForm:
+    - khoá tạm username + IP sau LOGIN_FAILURE_LIMIT lần sai;
+    - chặn cả IP sau LOGIN_IP_FAILURE_LIMIT lần sai (dò mật khẩu rải trên nhiều username).
+    """
 
     def clean(self):
         username = self.cleaned_data.get('username')
         if not username:
             return super().clean()
         ip_address = login_throttle.get_client_ip(self.request)
-        until = login_throttle.locked_until(username, ip_address)
+        window = timedelta(minutes=settings.LOGIN_LOCKOUT_MINUTES)
+        until = login_throttle.locked_until(username, ip_address) or rate_limit.limited_until(
+            rate_limit.SCOPE_LOGIN_IP, ip_address, limit=settings.LOGIN_IP_FAILURE_LIMIT, window=window
+        )
         if until:
             raise self._locked_error(until)
         try:
             cleaned_data = super().clean()
         except ValidationError as error:
             if getattr(error, 'code', None) == 'invalid_login':
+                rate_limit.hit(rate_limit.SCOPE_LOGIN_IP, ip_address, window=window)
                 until = login_throttle.record_failure(username, ip_address)
                 if until:
                     raise self._locked_error(until) from error
@@ -40,22 +56,34 @@ class LoginThrottleMixin:
 
     @staticmethod
     def _locked_error(until):
-        minutes = max(1, -(-int((until - timezone.now()).total_seconds()) // 60))
         return ValidationError(
-            f'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau {minutes} phút.',
+            f'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau {rate_limit.minutes_until(until)} phút.',
             code='locked',
         )
 
 
 class POSAuthenticationForm(LoginThrottleMixin, AuthenticationForm):
-    username = forms.CharField(label='Tên đăng nhập')
-    password = forms.CharField(label='Mật khẩu', widget=forms.PasswordInput)
+    username = forms.CharField(
+        label='Tên đăng nhập',
+        widget=forms.TextInput(attrs={'placeholder': 'Nhập tên đăng nhập', 'autocomplete': 'username', 'autofocus': True}),
+    )
+    password = forms.CharField(
+        label='Mật khẩu',
+        widget=forms.PasswordInput(attrs={'placeholder': 'Nhập mật khẩu', 'autocomplete': 'current-password'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            existing = field.widget.attrs.get('class', '')
-            field.widget.attrs['class'] = f'{existing} form-control'.strip()
+        _add_form_control_class(self)
+
+    def clean_username(self):
+        # Đăng nhập không phân biệt hoa thường khi chỉ có đúng 1 tài khoản khớp.
+        username = self.cleaned_data['username'].strip()
+        if not User.objects.filter(username=username).exists():
+            matches = list(User.objects.filter(username__iexact=username).values_list('username', flat=True)[:2])
+            if len(matches) == 1:
+                username = matches[0]
+        return username
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
@@ -81,12 +109,32 @@ class POSPasswordChangeForm(PasswordChangeForm):
         self.fields['old_password'].label = 'Mật khẩu hiện tại'
         self.fields['new_password1'].label = 'Mật khẩu mới'
         self.fields['new_password2'].label = 'Xác nhận mật khẩu mới'
-        for field in self.fields.values():
-            existing = field.widget.attrs.get('class', '')
-            field.widget.attrs['class'] = f'{existing} form-control'.strip()
+        _add_form_control_class(self)
+
+
+class POSPasswordResetForm(PasswordResetForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'].label = 'Email đăng ký'
+        self.fields['email'].widget.attrs.update({'placeholder': 'VD: ban@gmail.com', 'autofocus': True})
+        _add_form_control_class(self)
+
+
+class POSSetPasswordForm(SetPasswordForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['new_password1'].label = 'Mật khẩu mới'
+        self.fields['new_password1'].help_text = ''
+        self.fields['new_password1'].widget.attrs['placeholder'] = 'Tối thiểu 8 ký tự'
+        self.fields['new_password2'].label = 'Xác nhận mật khẩu mới'
+        self.fields['new_password2'].widget.attrs['placeholder'] = 'Nhập lại mật khẩu mới'
+        _add_form_control_class(self)
 
 
 class SignupForm(forms.Form):
+    # Tài khoản đăng ký luôn là tài khoản quản lý: người dùng nhập phần đầu, hậu tố cố định.
+    USERNAME_SUFFIX = '_quanly'
+
     store_name = forms.CharField(
         label='Tên quán / cửa hàng',
         max_length=150,
@@ -94,10 +142,16 @@ class SignupForm(forms.Form):
     )
     username = forms.CharField(
         label='Tên đăng nhập',
-        max_length=150,
+        max_length=150 - len(USERNAME_SUFFIX),
         validators=[User.username_validator],
         help_text='Chỉ gồm chữ, số và các ký tự @ . + - _',
-        widget=forms.TextInput(attrs={'placeholder': 'VD: gocpho_quanly', 'autocomplete': 'username'}),
+        # Ô này chỉ là phần đầu; template có ô ẩn autocomplete=username chứa tên đầy đủ cho trình duyệt lưu.
+        widget=forms.TextInput(attrs={'placeholder': 'VD: gocpho', 'autocomplete': 'off', 'autocapitalize': 'none'}),
+    )
+    email = forms.EmailField(
+        label='Email',
+        help_text='Dùng để lấy lại mật khẩu khi quên.',
+        widget=forms.EmailInput(attrs={'placeholder': 'VD: ban@gmail.com', 'autocomplete': 'email'}),
     )
     password1 = forms.CharField(
         label='Mật khẩu',
@@ -110,9 +164,7 @@ class SignupForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            existing = field.widget.attrs.get('class', '')
-            field.widget.attrs['class'] = f'{existing} form-control'.strip()
+        _add_form_control_class(self)
 
     def clean_store_name(self):
         store_name = self.cleaned_data['store_name'].strip()
@@ -121,10 +173,21 @@ class SignupForm(forms.Form):
         return store_name
 
     def clean_username(self):
-        username = self.cleaned_data['username'].strip()
+        # Luôn lưu chữ thường để đăng nhập không bị lệch hoa/thường.
+        username = self.cleaned_data['username'].strip().lower()
+        if username.endswith(self.USERNAME_SUFFIX):
+            username = username[:-len(self.USERNAME_SUFFIX)]
+        if not username:
+            raise ValidationError('Vui lòng nhập tên đăng nhập.')
+        if username == settings.DEMO_TENANT_SLUG:
+            raise ValidationError('Tên đăng nhập này đã được hệ thống sử dụng, vui lòng chọn tên khác.')
+        username = f'{username}{self.USERNAME_SUFFIX}'
         if User.objects.filter(username__iexact=username).exists():
             raise ValidationError('Tên đăng nhập đã tồn tại, vui lòng chọn tên khác.')
         return username
+
+    def clean_email(self):
+        return self.cleaned_data['email'].strip().lower()
 
     def clean(self):
         cleaned_data = super().clean()

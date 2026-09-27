@@ -1,0 +1,10 @@
+{% if store.payment_qr or store.payment_account_number %}
+<hr class="sep">
+<div class="center">
+    <div class="bold">Quét mã để thanh toán</div>
+    {% if store.payment_qr %}<img class="qr-img" src="{{ store.payment_qr.url }}" alt="QR thanh toán">{% endif %}
+    {% if store.payment_bank_name %}<div>{{ store.payment_bank_name }}</div>{% endif %}
+    {% if store.payment_account_number %}<div class="bold">{{ store.payment_account_number }}</div>{% endif %}
+    {% if store.payment_account_name %}<div>{{ store.payment_account_name }}</div>{% endif %}
+</div>
+{% endif %}

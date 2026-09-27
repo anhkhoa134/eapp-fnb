@@ -1,0 +1,232 @@
+{% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
+
+{% block title %}Nguyên liệu | eApp FnB{% endblock %}
+
+{% block quanly_content %}
+{% include 'App_Quanly/_recipe_tabs.html' with active='ingredients' %}
+<datalist id="ingredient-unit-options">
+    {% for unit in unit_suggestions %}<option value="{{ unit }}">{% endfor %}
+</datalist>
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-basket"></i>
+                Nguyên liệu
+            </h2>
+            <div class="d-flex flex-wrap gap-2">
+                <form method="get" class="d-flex gap-2">
+                    <input type="search" class="form-control" name="q" value="{{ selected_q }}" placeholder="Tìm nguyên liệu..." aria-label="Tìm nguyên liệu">
+                </form>
+                <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createIngredientModal">
+                    <i class="bi bi-plus-lg me-1"></i>Thêm nguyên liệu
+                </button>
+            </div>
+        </div>
+        <p class="text-muted small">
+            Giá vốn tính theo <strong>đơn vị tính</strong> của nguyên liệu. VD: cà phê hạt mua 350.000 đ/kg, đơn vị tính là <code>g</code> thì giá vốn là 350 đ/g.
+        </p>
+
+        <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th title="Kéo để sắp xếp thứ tự"><span class="visually-hidden">Sắp xếp</span></th>
+                        <th>Tên nguyên liệu</th>
+                        <th>Đơn vị tính</th>
+                        <th class="text-end">Giá vốn / đơn vị</th>
+                        <th class="text-center">Dùng trong định mức</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody {% if not selected_q %}data-sortable-url="{% url 'App_Quanly:reorder' 'ingredients' %}"{% endif %}>
+                    {% for ingredient in ingredients_page %}
+                    <tr data-sort-id="{{ ingredient.id }}">
+                        <td class="{% if not selected_q %}js-drag-handle{% endif %}" title="Kéo để sắp xếp">{% if not selected_q %}<i class="bi bi-grip-vertical" aria-hidden="true"></i>{% endif %}</td>
+                        <td class="fw-semibold">{{ ingredient.name }}</td>
+                        <td>{{ ingredient.unit }}</td>
+                        <td class="text-end">{{ ingredient.cost_per_unit|decimal_sep:2 }} đ</td>
+                        <td class="text-center">{{ ingredient.recipe_count }} thành phẩm</td>
+                        <td class="text-center">
+                            {% include 'App_Quanly/_status_icon.html' with active=ingredient.is_active %}
+                        </td>
+                        <td class="text-end">
+                            <button
+                                class="btn btn-sm btn-outline-primary js-edit-ingredient"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editIngredientModal"
+                                data-action="{% url 'App_Quanly:ingredient_edit' ingredient.id %}"
+                                data-ingredient-name="{{ ingredient.name }}"
+                                data-ingredient-unit="{{ ingredient.unit }}"
+                                data-ingredient-cost="{{ ingredient.cost_per_unit|stringformat:'s' }}"
+                                data-ingredient-active="{% if ingredient.is_active %}1{% else %}0{% endif %}"
+                                data-delete-action="{% url 'App_Quanly:ingredient_delete' ingredient.id %}"
+                                data-delete-name="{{ ingredient.name }}"
+                                title="Sửa"
+                                aria-label="Sửa"
+                            >
+                                <i class="bi bi-pencil-square quanly-action-icon" aria-hidden="true"></i><span class="quanly-action-label">Sửa</span>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-muted">
+                            {% if selected_q %}Không tìm thấy nguyên liệu phù hợp.{% else %}Chưa có nguyên liệu. Bấm "Thêm nguyên liệu" để bắt đầu.{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% include 'App_Quanly/_list_pagination.html' with page_obj=ingredients_page query_string=ingredients_query_string page_param='page' %}
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="createIngredientModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-basket me-2 text-primary"></i>Thêm nguyên liệu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'App_Quanly:ingredients' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên nguyên liệu</label>
+                            {{ form.name }}
+                            {{ form.name.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.unit.id_for_label }}">Đơn vị tính</label>
+                            {{ form.unit }}
+                            {{ form.unit.errors }}
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="{{ form.cost_per_unit.id_for_label }}">Giá vốn / đơn vị (đ)</label>
+                            {{ form.cost_per_unit }}
+                            {{ form.cost_per_unit.errors }}
+                        </div>
+                        <div class="switch-card full">
+                            <div class="form-check m-0">
+                                {{ form.is_active }}
+                                <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Đang hoạt động</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu nguyên liệu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="editIngredientModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa nguyên liệu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editIngredientForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-ingredient-name">Tên nguyên liệu</label>
+                            <input class="form-control" id="edit-ingredient-name" name="name" maxlength="120" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-ingredient-unit">Đơn vị tính</label>
+                            <input class="form-control" id="edit-ingredient-unit" name="unit" maxlength="20" list="ingredient-unit-options" required>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold" for="edit-ingredient-cost">Giá vốn / đơn vị (đ)</label>
+                            <input class="form-control" id="edit-ingredient-cost" name="cost_per_unit" type="number" min="0" step="0.01">
+                        </div>
+                        <div class="switch-card full">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" id="edit-ingredient-active" name="is_active" type="checkbox">
+                                <label class="form-check-label fw-semibold" for="edit-ingredient-active">Đang hoạt động</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">Đổi giá vốn sẽ cập nhật giá vốn của mọi thành phẩm dùng nguyên liệu này.</div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-danger me-auto" type="button" data-bs-toggle="modal" data-bs-target="#deleteIngredientModal">
+                        <i class="bi bi-trash me-1"></i>Xóa
+                    </button>
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade crud-modal" id="deleteIngredientModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa nguyên liệu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="deleteIngredientForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <p class="mb-0">Bạn chắc chắn muốn xóa nguyên liệu <strong id="deleteIngredientName"></strong>?</p>
+                    <p class="small text-muted mb-0 mt-2">Nguyên liệu đang dùng trong định mức sẽ không xóa được.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Xóa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% include 'App_Quanly/_sortable_script.html' %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const editForm = document.getElementById('editIngredientForm');
+        const deleteForm = document.getElementById('deleteIngredientForm');
+        const fields = {
+            name: document.getElementById('edit-ingredient-name'),
+            unit: document.getElementById('edit-ingredient-unit'),
+            cost: document.getElementById('edit-ingredient-cost'),
+            active: document.getElementById('edit-ingredient-active'),
+        };
+        document.querySelectorAll('.js-edit-ingredient').forEach((button) => {
+            button.addEventListener('click', () => {
+                const data = button.dataset;
+                editForm.action = data.action || '';
+                fields.name.value = data.ingredientName || '';
+                fields.unit.value = data.ingredientUnit || '';
+                fields.cost.value = data.ingredientCost || '0';
+                fields.active.checked = data.ingredientActive === '1';
+                deleteForm.action = data.deleteAction || '';
+                document.getElementById('deleteIngredientName').textContent = data.deleteName || '';
+            });
+        });
+
+        {% if open_create_modal %}
+        const createModalEl = document.getElementById('createIngredientModal');
+        if (createModalEl) bootstrap.Modal.getOrCreateInstance(createModalEl).show();
+        {% endif %}
+    });
+</script>
+{% endblock %}

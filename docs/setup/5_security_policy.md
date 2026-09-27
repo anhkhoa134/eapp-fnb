@@ -75,6 +75,8 @@ Chỉ khi `ENVIRONMENT=prod`:
 
 ## 7. Logging & xử lý sự cố
 - Lỗi ghi vào `logs/recent-errors.log` (mức theo `LOG_LEVEL`).
+- **Nhật ký thao tác** (`App_Core.AuditLog`, `/quanly/audit-log/`): ghi hoàn tiền, xoá đơn, huỷ món, in lại hoá đơn / phiếu bếp, chuyển bàn, từ chối đơn QR, mở / chốt ca, đăng nhập / đăng xuất / đăng nhập sai, và mọi thay đổi món, giá, khuyến mãi, nhân viên, cửa hàng, cấu hình (kèm giá trị cũ → mới; mật khẩu và token QR chỉ ghi *đã thay đổi*). Chỉ ghi thêm, không có giao diện sửa / xoá; manager chỉ xem được tenant của mình. Chi tiết: `docs/setup/phase4/3_audit_log.md`.
+- Hoàn tiền chỉ manager làm được, bắt buộc lý do. Hoá đơn in lại có dấu *BẢN IN LẠI (lần N)*.
 - 404 được chuyển hướng bởi `NotFoundRedirectMiddleware` (không lộ trang debug); API vẫn trả JSON 404.
 - Khi nghi lộ token QR: reset token bàn. Khi nghi lộ mật khẩu: đổi mật khẩu + xoá session (`python manage.py clearsessions` hoặc đổi `SECRET_KEY`).
 
@@ -88,6 +90,6 @@ Chỉ khi `ENVIRONMENT=prod`:
 
 ## 9. Việc cần làm (backlog bảo mật)
 1. Chống brute-force đăng nhập (ví dụ `django-axes` hoặc rate limit ở Nginx cho `/accounts/login/`).
-2. Rate limit `/api/public/` (Nginx `limit_req` hoặc middleware).
+2. Rate limit `/api/public/` (Nginx `limit_req` hoặc middleware). Đã có cho `POST /api/public/takeaway/orders/` (10 đơn / 30 phút / IP / tenant); API QR tại bàn chưa có (BL-003).
 3. Bắt buộc đổi mật khẩu lần đầu với tài khoản bootstrap.
 4. Bổ sung Content-Security-Policy (hiện tải Bootstrap/ECharts/Font Awesome từ CDN).

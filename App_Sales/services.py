@@ -1,11 +1,15 @@
 from decimal import Decimal
 
-from django.db.models import Max, Q, Sum
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from App_Catalog.models import ProductUnit, StoreProduct
-from App_Sales.models import Customer, CustomerTierSetting, Order, Promotion
+from App_Core.audit import Action, log_action
+from App_Core.templatetags.number_format import thousand_sep
+from App_Sales.models import Customer, CustomerTierSetting, Order, Promotion, Refund
 from App_Tenant.services import get_default_store_for_user, get_user_accessible_stores
 
 
@@ -66,6 +70,18 @@ def calculate_points_for_amount(amount: Decimal) -> int:
     return int(amount // LOYALTY_POINT_STEP)
 
 
+def net_revenue_expr():
+    """Doanh thu thực của đơn = tổng tiền - phần đã hoàn."""
+    return ExpressionWrapper(
+        F('total_amount') - F('refunded_amount'),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+
+
+def sum_net_revenue():
+    return Coalesce(Sum(net_revenue_expr()), Decimal('0'), output_field=DecimalField(max_digits=14, decimal_places=2))
+
+
 def recompute_customer_stats(customer: Customer):
     if not customer:
         return None
@@ -74,7 +90,7 @@ def recompute_customer_stats(customer: Customer):
         tenant=customer.tenant,
         status=Order.Status.COMPLETED,
     ).aggregate(
-        total_spent=Coalesce(Sum('total_amount'), Decimal('0')),
+        total_spent=sum_net_revenue(),
         last_order_at=Max('created_at'),
     )
     total_spent = stats['total_spent'] or Decimal('0')
@@ -174,3 +190,62 @@ def resolve_promotion_for_checkout(*, tenant, store, promotion_id, subtotal: Dec
     if not promotion_id:
         return None
     return get_available_promotions(tenant=tenant, store=store, subtotal=subtotal).filter(pk=promotion_id).first()
+
+
+REFUND_METHOD_LABELS = {
+    Order.PaymentMethod.CASH: 'tiền mặt',
+    Order.PaymentMethod.CARD: 'thẻ/QR',
+}
+
+
+def create_refund(*, order: Order, amount: Decimal, method: str, reason: str, user):
+    """Hoàn tiền toàn bộ hoặc một phần. Hoàn đủ tổng tiền thì đơn chuyển sang 'Đã hoàn tiền'."""
+    reason = (reason or '').strip()[:255]
+    if not reason:
+        raise ValidationError('Vui lòng nhập lý do hoàn tiền.')
+    if method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+        raise ValidationError('Hình thức hoàn tiền không hợp lệ.')
+    if amount is None or amount <= 0:
+        raise ValidationError('Số tiền hoàn phải lớn hơn 0.')
+
+    with transaction.atomic():
+        order = Order.objects.select_for_update().select_related('store', 'customer').get(pk=order.pk)
+        if order.status == Order.Status.CANCELLED:
+            raise ValidationError('Đơn đã huỷ, không thể hoàn tiền.')
+        refundable = order.refundable_amount
+        if refundable <= 0:
+            raise ValidationError('Đơn này đã được hoàn tiền toàn bộ.')
+        if amount > refundable:
+            raise ValidationError(f'Số tiền hoàn vượt quá số còn có thể hoàn ({thousand_sep(refundable)} đ).')
+
+        is_full = amount == refundable and order.refunded_amount == 0
+        refund = Refund.objects.create(
+            tenant_id=order.tenant_id,
+            store_id=order.store_id,
+            order=order,
+            amount=amount,
+            method=method,
+            reason=reason,
+            is_full=is_full,
+            created_by=user,
+        )
+        order.refunded_amount += amount
+        update_fields = ['refunded_amount', 'updated_at']
+        if order.refunded_amount >= order.total_amount:
+            order.status = Order.Status.REFUNDED
+            update_fields.append('status')
+        order.save(update_fields=update_fields)
+        if order.customer_id:
+            recompute_customer_stats(order.customer)
+
+    log_action(
+        Action.ORDER_REFUND,
+        user=user,
+        tenant_id=order.tenant_id,
+        store_id=order.store_id,
+        obj=order,
+        object_type='Đơn bán',
+        message=f'Hoàn {thousand_sep(amount)} đ ({REFUND_METHOD_LABELS[method]}) cho đơn {order.order_code}: {reason}',
+        extra={'refund_id': refund.id, 'amount': str(amount), 'method': method, 'is_full': is_full},
+    )
+    return refund

@@ -8,19 +8,20 @@
 ## Endpoint
 - POS: `ws://<host>/ws/pos/store/<store_id>/`
 - Public QR: `ws://<host>/ws/public/qr/order/<order_id>/?table_code=<CODE>&token=<TOKEN>`
+- Public mang đi: `ws://<host>/ws/public/qr/order/<order_id>/?access_key=<KEY>`
 
 ## Event được push
 - POS:
   - `qr.changed` với `reason`: `created|updated|approved|rejected|cancelled`
 - Public QR:
-  - `qr.order.changed` với `status`: `PENDING|APPROVED|REJECTED|CANCELLED`
+  - `qr.order.changed` với `status`: `PENDING|APPROVED|REJECTED|CANCELLED`, `reason`: `created|updated|approved|rejected|cancelled|paid` (`paid` khi POS thu tiền đơn mang đi)
 
 ## Điều kiện để WS hoạt động
 1. Server chạy ASGI (`python manage.py runserver ...`, không dùng `--noasgi`).
 2. Redis hoạt động theo `REDIS_URL`.
 3. Session/quyền hợp lệ:
    - POS: user login + có quyền store.
-   - Public: `table_code + token` hợp lệ và order thuộc đúng bàn.
+   - Public: `table_code + token` hợp lệ và order thuộc đúng bàn; hoặc `access_key` đúng của đơn mang đi.
 
 ## Troubleshooting nhanh
 - Lỗi browser:

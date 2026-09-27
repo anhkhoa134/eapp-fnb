@@ -10,9 +10,21 @@ Manager bật/tắt tại `GET|POST /quanly/settings/features/` (form `TenantFea
 | `show_promotion_feature` | Bật | Ẩn mục Khuyến mãi và phần chọn khuyến mãi ở POS |
 | `show_topping_feature` | Bật | Ẩn Topping trong Quản lý và POS |
 | `show_qr_order_feature` | Bật | Ẩn QR bàn / gọi món QR |
-| `show_kitchen_feature` | Tắt | `/kitchen/` trả 403, ẩn nút Báo bếp |
+| `show_kitchen_feature` | Tắt | `/kitchen/` trả 403, ẩn nút Báo bếp, không in được phiếu bếp |
+| `show_shift_feature` | Tắt | `/shifts/`, báo cáo ca, API `shifts/current/` trả 403; ẩn mục Ca làm việc (sidebar, POS, Đơn trong ngày). Ca đang mở được giữ nguyên |
 
-Khi thêm tính năng tuỳ chọn mới: thêm field `show_<x>_feature` vào `Tenant`, thêm vào `TenantFeatureSettingsForm.FEATURE_META`, kiểm tra cờ trong view/API (403 khi tắt), ẩn menu trong `templates/App_Quanly/_sidebar_nav.html`.
+Khi thêm tính năng tuỳ chọn mới: thêm field `show_<x>_feature` vào `Tenant`, thêm vào `TenantFeatureSettingsForm.FEATURE_META`, kiểm tra cờ trong view/API (403 khi tắt), ẩn menu trong `templates/App_Quanly/_sidebar_nav.html` (mục của tính năng tuỳ chọn đặt trong nhóm con `admin-nav-subgroup` dưới *Cấu hình tính năng*, và thêm cờ vào điều kiện hiện nhóm con). Nếu tính năng bán theo gói: thêm `feature_<x>` vào `SubscriptionPlan` và `SubscriptionPlan.TENANT_FEATURE_FIELDS`.
+
+## Tính năng theo gói cước (`SubscriptionPlan`)
+- `SubscriptionPlan.TENANT_FEATURE_FIELDS` nối cờ của gói với cờ tenant: `feature_customer` → `show_customer_feature`, `feature_promotion` → `show_promotion_feature`, `feature_qr_order` → `show_qr_order_feature`, `feature_kitchen` → `show_kitchen_feature`, `feature_shift` → `show_shift_feature`.
+- Gán gói (`Tenant.apply_subscription_plan`, dùng ở Django Admin và khi tự đăng ký) sẽ **tắt** các tính năng gói không có; không tự bật tính năng gói có.
+- Trang Cấu hình tính năng khoá công tắc của tính năng ngoài gói (nhãn *Cần nâng cấp gói* → `/quanly/account/#goi-cuoc`); dữ liệu POST cho cờ đó bị bỏ qua.
+
+| Tính năng | Miễn phí | Cơ bản | Chuyên nghiệp | Doanh nghiệp |
+|---|---|---|---|---|
+| Khách hàng, Khuyến mãi, QR bàn | — | ✓ | ✓ | ✓ |
+| Màn hình bếp | — | — | ✓ | ✓ |
+| Ca làm việc | — | ✓ | ✓ | ✓ |
 
 ## Giới hạn gói (do superadmin đặt trong Django Admin)
 | Field | Mặc định gói mới | Ý nghĩa |

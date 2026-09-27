@@ -1,0 +1,280 @@
+{% extends 'App_Quanly/_layout.html' %}
+{% load number_format %}
+
+{% block title %}Định mức thành phẩm | eApp FnB{% endblock %}
+
+{% block quanly_content %}
+<style>
+    .recipe-lines { margin: 0; padding: 0; list-style: none; }
+    .recipe-lines li { white-space: nowrap; }
+    .recipe-product-row td { background: var(--bs-tertiary-bg); }
+    .recipe-margin-neg { color: var(--bs-danger); font-weight: 600; }
+    .recipe-edit-row { display: grid; grid-template-columns: minmax(0, 1fr) 7.5rem 2.5rem; gap: .5rem; align-items: center; }
+    .recipe-edit-row .recipe-line-cost { grid-column: 1 / -1; margin-top: -.25rem; }
+    #recipeForm { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    #recipeForm .modal-body { overflow-y: auto; }
+    #recipeForm .modal-footer { flex-shrink: 0; }
+    @media (max-width: 575.98px) {
+        .recipe-edit-row { grid-template-columns: minmax(0, 1fr) 2.5rem; }
+        .recipe-edit-row > select { grid-column: 1 / -1; }
+    }
+</style>
+{% include 'App_Quanly/_recipe_tabs.html' with active='recipes' %}
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="admin-card-title">
+            <i class="bi bi-list-check"></i>
+            Định mức thành phẩm
+        </h2>
+        <p class="text-muted small">
+            Khai báo lượng nguyên liệu cho <strong>1 đơn vị bán</strong> của món (VD: 1 ly size L). Giá vốn = tổng (định mức × giá vốn nguyên liệu);
+            lãi gộp tính trên giá bán gốc của đơn vị, chưa trừ khuyến mãi và giá riêng theo cửa hàng.
+        </p>
+        {% if not has_ingredients %}
+        <div class="alert alert-warning small mb-3">
+            Chưa có nguyên liệu nào. Hãy <a href="{% url 'App_Quanly:ingredients' %}">thêm nguyên liệu</a> trước khi khai báo định mức.
+        </div>
+        {% endif %}
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label small text-muted" for="recipe-search">Tìm món</label>
+                <input type="search" class="form-control" id="recipe-search" name="q" value="{{ selected_q }}" placeholder="Tên món...">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small text-muted" for="recipe-category">Danh mục</label>
+                <select name="category" id="recipe-category" class="form-select">
+                    <option value="">Tất cả</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small text-muted" for="recipe-status">Định mức</label>
+                <select name="status" id="recipe-status" class="form-select">
+                    <option value="">Tất cả món</option>
+                    <option value="missing" {% if selected_status == 'missing' %}selected{% endif %}>Món còn thiếu định mức</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:recipes' %}" title="Xóa bộ lọc"><i class="bi bi-x-lg"></i></a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-2">
+                <thead>
+                    <tr>
+                        <th>Thành phẩm</th>
+                        <th>Định mức nguyên liệu</th>
+                        <th class="text-end">Giá vốn</th>
+                        <th class="text-end">Giá bán</th>
+                        <th class="text-end">Lãi gộp</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product_row in product_rows %}
+                    <tr class="recipe-product-row">
+                        <td colspan="6" class="fw-semibold">
+                            {{ product_row.product.name }}
+                            {% if product_row.product.category %}<span class="small text-muted fw-normal">· {{ product_row.product.category.name }}</span>{% endif %}
+                            {% if not product_row.product.is_active %}<span class="badge text-bg-secondary ms-1">Ngưng bán</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% for row in product_row.units %}
+                    {% include 'App_Quanly/_recipe_row.html' with label=row.unit.name price=row.unit.price action_kind='unit' target_id=row.unit.id title=product_row.product.name|add:' - '|add:row.unit.name %}
+                    {% empty %}
+                    <tr><td colspan="6" class="small text-muted ps-4">Món chưa có đơn vị bán.</td></tr>
+                    {% endfor %}
+                    {% empty %}
+                    <tr><td colspan="6" class="text-muted">Không có món phù hợp.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% include 'App_Quanly/_list_pagination.html' with page_obj=products_page query_string=recipes_query_string page_param='page' %}
+    </div>
+</div>
+
+{% if topping_rows %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <h2 class="admin-card-title">
+            <i class="bi bi-plus-circle"></i>
+            Định mức topping
+        </h2>
+        <p class="text-muted small">Định mức cho 1 phần topping; khi bán, tiêu hao nhân theo số lượng món có topping đó.</p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Topping</th>
+                        <th>Định mức nguyên liệu</th>
+                        <th class="text-end">Giá vốn</th>
+                        <th class="text-end">Giá bán</th>
+                        <th class="text-end">Lãi gộp</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in topping_rows %}
+                    {% include 'App_Quanly/_recipe_row.html' with label=row.topping.name price=row.topping.price action_kind='topping' target_id=row.topping.id title='Topping '|add:row.topping.name %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="modal fade crud-modal" id="recipeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-list-check me-2 text-primary"></i><span id="recipeModalTitle">Định mức</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="recipeForm" action="">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <p class="small text-muted">Lượng nguyên liệu cho 1 thành phẩm, lớn hơn 0 và tối đa 3 chữ số thập phân. Để trống tất cả dòng rồi lưu để xóa định mức.</p>
+                    <div id="recipeRows" class="d-flex flex-column gap-3 mb-3"></div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="recipeAddRow" {% if not has_ingredients %}disabled{% endif %}>
+                        <i class="bi bi-plus-lg me-1"></i>Thêm nguyên liệu
+                    </button>
+                    <div class="border-top mt-3 pt-3 small">
+                        <div class="d-flex justify-content-between"><span>Giá vốn</span><strong id="recipeTotalCost">0 đ</strong></div>
+                        <div class="d-flex justify-content-between"><span>Giá bán</span><span id="recipePrice">0 đ</span></div>
+                        <div class="d-flex justify-content-between"><span>Lãi gộp</span><strong id="recipeMargin">0 đ</strong></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Lưu định mức</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{ ingredient_options|json_script:'recipe-ingredients' }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const ingredients = JSON.parse(document.getElementById('recipe-ingredients').textContent);
+        const ingredientById = new Map(ingredients.map((item) => [String(item.id), item]));
+        const form = document.getElementById('recipeForm');
+        const rowsEl = document.getElementById('recipeRows');
+        const totalEl = document.getElementById('recipeTotalCost');
+        const priceEl = document.getElementById('recipePrice');
+        const marginEl = document.getElementById('recipeMargin');
+        let price = 0;
+
+        const money = (value) => {
+            const rounded = Math.round(value * 100) / 100;
+            return `${rounded.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} đ`;
+        };
+
+        const recalc = () => {
+            let total = 0;
+            const selected = new Set();
+            rowsEl.querySelectorAll('.recipe-edit-row').forEach((row) => {
+                const select = row.querySelector('select');
+                const input = row.querySelector('input');
+                select.required = input.value !== '';
+                input.required = select.value !== '';
+                select.setCustomValidity(select.value && selected.has(select.value) ? 'Nguyên liệu này đã có trong định mức.' : '');
+                if (select.value) selected.add(select.value);
+                const ingredient = ingredientById.get(select.value);
+                const quantity = parseFloat(input.value) || 0;
+                const cost = ingredient ? quantity * parseFloat(ingredient.cost) : 0;
+                total += cost;
+                row.querySelector('.recipe-unit').textContent = ingredient ? ingredient.unit : '';
+                row.querySelector('.recipe-line-cost').textContent = ingredient && quantity ? `= ${money(cost)}` : '';
+            });
+            totalEl.textContent = money(total);
+            priceEl.textContent = money(price);
+            const margin = price - total;
+            const percent = price > 0 ? ` (${Math.round((margin / price) * 100)}%)` : '';
+            marginEl.textContent = `${money(margin)}${percent}`;
+            marginEl.classList.toggle('text-danger', margin < 0);
+        };
+
+        const addRow = (ingredientId = '', quantity = '') => {
+            const row = document.createElement('div');
+            row.className = 'recipe-edit-row';
+            const select = document.createElement('select');
+            select.name = 'ingredient_id';
+            select.className = 'form-select';
+            select.setAttribute('aria-label', 'Nguyên liệu');
+            select.add(new Option('— Chọn nguyên liệu —', ''));
+            ingredients.forEach((item) => {
+                if (!item.active && String(item.id) !== String(ingredientId)) return;
+                const label = `${item.name} (${item.unit})${item.active ? '' : ' · ngưng dùng'}`;
+                select.add(new Option(label, item.id));
+            });
+            select.value = ingredientId;
+
+            const group = document.createElement('div');
+            group.className = 'input-group';
+            const input = document.createElement('input');
+            input.name = 'quantity';
+            input.type = 'number';
+            input.min = '0.001';
+            input.max = '999999999.999';
+            input.step = '0.001';
+            input.className = 'form-control';
+            input.placeholder = 'Lượng';
+            input.setAttribute('aria-label', 'Định mức');
+            input.value = quantity;
+            const unit = document.createElement('span');
+            unit.className = 'input-group-text recipe-unit';
+            group.append(input, unit);
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn btn-outline-danger';
+            remove.title = 'Bỏ dòng';
+            remove.setAttribute('aria-label', 'Bỏ dòng');
+            remove.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+            remove.addEventListener('click', () => { row.remove(); recalc(); });
+
+            const lineCost = document.createElement('div');
+            lineCost.className = 'recipe-line-cost small text-muted';
+
+            row.append(select, group, remove, lineCost);
+            select.addEventListener('change', recalc);
+            input.addEventListener('input', recalc);
+            rowsEl.appendChild(row);
+            return row;
+        };
+
+        document.getElementById('recipeAddRow').addEventListener('click', () => {
+            addRow().querySelector('select').focus();
+            recalc();
+        });
+
+        document.querySelectorAll('.js-edit-recipe').forEach((button) => {
+            button.addEventListener('click', () => {
+                form.action = button.dataset.action;
+                document.getElementById('recipeModalTitle').textContent = `Định mức: ${button.dataset.title}`;
+                price = parseFloat(button.dataset.price) || 0;
+                rowsEl.innerHTML = '';
+                const lines = JSON.parse(button.dataset.recipe || '[]');
+                lines.forEach((line) => addRow(String(line.ingredient_id), line.quantity));
+                if (!lines.length && ingredients.length) addRow();
+                recalc();
+            });
+        });
+    });
+</script>
+{% endblock %}

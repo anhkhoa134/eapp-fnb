@@ -1,5 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
-{% load number_format %}
+{% load static number_format %}
 
 {% block extra_css %}
 {{ block.super }}
@@ -40,6 +40,10 @@
     }
     .order-stat-value--money {
         color: #0f766e;
+    }
+    .payment-pill.status-refunded {
+        background: rgba(245, 158, 11, 0.18);
+        color: #b45309;
     }
     .order-row-actions {
         display: flex;
@@ -207,19 +211,35 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if order.status == 'completed' %}
+                            {% if order.status == 'refunded' %}
+                            <span class="payment-pill status-refunded"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>Đã hoàn tiền</span>
+                            {% elif order.status == 'completed' %}
                             <span class="payment-pill status-done"><i class="bi bi-check-circle" aria-hidden="true"></i>Hoàn thành</span>
+                            {% if order.refunded_amount %}
+                            <div class="small text-danger mt-1">Hoàn 1 phần</div>
+                            {% endif %}
                             {% else %}
                             <span class="payment-pill status-sale-cancel"><i class="bi bi-x-circle" aria-hidden="true"></i>Đã hủy</span>
                             {% endif %}
                         </td>
-                        <td class="text-end fw-semibold">{{ order.total_amount|thousand_sep }} đ</td>
+                        <td class="text-end fw-semibold">
+                            {{ order.total_amount|thousand_sep }} đ
+                            {% if order.refunded_amount %}<div class="small text-danger fw-normal">-{{ order.refunded_amount|thousand_sep }} đ hoàn</div>{% endif %}
+                        </td>
                         <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
                         <td class="text-end">
                             <div class="order-row-actions">
                                 <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#orderDetailModal-sale-{{ order.id }}">
                                     <i class="bi bi-eye"></i> Chi tiết
                                 </button>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-print-url="{% url 'App_Sales:order_receipt' order.id %}" title="In hoá đơn" aria-label="In hoá đơn">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+                                {% if user.is_manager and order.refundable_amount %}
+                                <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#orderRefundModal-sale-{{ order.id }}" title="Hoàn tiền" aria-label="Hoàn tiền">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                {% endif %}
                                 {% if user.is_manager %}
                                 <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal-sale-{{ order.id }}">
                                     <i class="bi bi-trash"></i> Xóa
@@ -315,9 +335,7 @@
                     </div>
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Trạng thái</span>
-                        <div class="fw-semibold">
-                            {% if order.status == 'completed' %}Hoàn thành{% else %}Đã hủy{% endif %}
-                        </div>
+                        <div class="fw-semibold">{{ order.get_status_display }}</div>
                     </div>
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Tạm tính</span>
@@ -372,13 +390,99 @@
                         </tbody>
                     </table>
                 </div>
+                {% if order.refunds.all %}
+                <div class="form-section-title mt-3">Hoàn tiền</div>
+                <div class="table-responsive border rounded-3 overflow-hidden">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Người hoàn</th>
+                                <th>Hình thức</th>
+                                <th>Lý do</th>
+                                <th class="text-end">Số tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for refund in order.refunds.all %}
+                            <tr>
+                                <td>{{ refund.created_at|date:'d/m/Y H:i' }}</td>
+                                <td>{{ refund.created_by.username|default:'—' }}</td>
+                                <td>{{ refund.get_method_display }}</td>
+                                <td>{{ refund.reason }}</td>
+                                <td class="text-end fw-semibold text-danger">-{{ refund.amount|thousand_sep }} đ</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-print-url="{% url 'App_Sales:order_receipt' order.id %}"><i class="bi bi-printer me-1"></i>In hoá đơn</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Đóng</button>
             </div>
         </div>
     </div>
 </div>
+{% if user.is_manager and order.refundable_amount %}
+<div class="modal fade crud-modal" id="orderRefundModal-sale-{{ order.id }}" tabindex="-1" aria-labelledby="orderRefundLabel-sale-{{ order.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="{% url 'App_Quanly:order_refund' order.id %}" class="js-refund-form"
+                  data-confirm="Thao tác hoàn tiền được ghi vào nhật ký và không hoàn tác được."
+                  data-confirm-title="Hoàn tiền đơn {{ order.order_code }}?"
+                  data-confirm-ok="Hoàn tiền"
+                  data-confirm-variant="warning">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <div class="modal-header">
+                    <h2 class="modal-title h5 mb-0" id="orderRefundLabel-sale-{{ order.id }}">
+                        <i class="bi bi-arrow-counterclockwise text-warning me-2"></i>Hoàn tiền đơn {{ order.order_code }}
+                    </h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        Tổng đơn {{ order.total_amount|thousand_sep }} đ{% if order.refunded_amount %}, đã hoàn {{ order.refunded_amount|thousand_sep }} đ{% endif %}.
+                        Có thể hoàn tối đa <strong>{{ order.refundable_amount|thousand_sep }} đ</strong>.
+                    </p>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input js-refund-type" type="radio" name="refund_type" value="full" id="refundFull-{{ order.id }}" checked>
+                            <label class="form-check-label" for="refundFull-{{ order.id }}">Hoàn toàn bộ số còn lại ({{ order.refundable_amount|thousand_sep }} đ)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input js-refund-type" type="radio" name="refund_type" value="partial" id="refundPartial-{{ order.id }}">
+                            <label class="form-check-label" for="refundPartial-{{ order.id }}">Hoàn một phần</label>
+                        </div>
+                    </div>
+                    <div class="mb-3 js-refund-amount d-none">
+                        <label class="form-label small text-muted" for="refundAmount-{{ order.id }}">Số tiền hoàn (đ)</label>
+                        <input type="text" inputmode="numeric" class="form-control" name="amount" id="refundAmount-{{ order.id }}" placeholder="VD: 25.000" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted" for="refundMethod-{{ order.id }}">Hoàn bằng</label>
+                        <select class="form-select" name="method" id="refundMethod-{{ order.id }}">
+                            {% for value, label in payment_choices %}
+                            <option value="{{ value }}" {% if order.payment_method == value %}selected{% endif %}>{% if value == 'cash' %}Tiền mặt (trừ vào két ca hiện tại){% else %}{{ label }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label small text-muted" for="refundReason-{{ order.id }}">Lý do <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="reason" id="refundReason-{{ order.id }}" maxlength="255" required placeholder="VD: món bị lỗi, khách huỷ món">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
+                    <button type="submit" class="btn btn-warning fw-semibold"><i class="bi bi-arrow-counterclockwise me-1"></i>Xác nhận hoàn tiền</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% if user.is_manager %}
 <div class="modal fade crud-modal" id="orderDeleteModal-sale-{{ order.id }}" tabindex="-1" aria-labelledby="orderDeleteLabel-sale-{{ order.id }}" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -424,12 +528,12 @@
                         <div class="fw-semibold">{{ q.store.name }}</div>
                     </div>
                     <div class="col-sm-6 col-lg-4">
-                        <span class="text-muted">Bàn</span>
-                        <div class="fw-semibold">{{ q.table.name }}</div>
+                        <span class="text-muted">{% if q.is_takeaway %}Khách{% else %}Bàn{% endif %}</span>
+                        <div class="fw-semibold">{% if q.is_takeaway %}{{ q.customer_name }}{% if q.customer_phone %} · {{ q.customer_phone }}{% endif %}{% else %}{{ q.table.name }}{% endif %}</div>
                     </div>
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Loại đơn</span>
-                        <div class="fw-semibold">Đặt qua QR</div>
+                        <div class="fw-semibold">{% if q.is_takeaway %}Đặt mang đi online{% else %}Gọi món tại bàn (QR){% endif %}</div>
                     </div>
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Thời gian đặt</span>
@@ -531,4 +635,25 @@
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/eapp_print.js' %}"></script>
+<script>
+    document.querySelectorAll('.js-refund-form').forEach((form) => {
+        const amountWrap = form.querySelector('.js-refund-amount');
+        const amountInput = amountWrap.querySelector('input');
+        const sync = () => {
+            const partial = form.querySelector('.js-refund-type:checked')?.value === 'partial';
+            amountWrap.classList.toggle('d-none', !partial);
+            amountInput.required = partial;
+        };
+        form.querySelectorAll('.js-refund-type').forEach((radio) => radio.addEventListener('change', sync));
+        amountInput.addEventListener('input', () => {
+            const digits = amountInput.value.replace(/[^0-9]/g, '');
+            amountInput.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+        });
+        sync();
+    });
+</script>
 {% endblock %}

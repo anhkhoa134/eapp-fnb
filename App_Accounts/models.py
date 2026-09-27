@@ -63,3 +63,23 @@ class LoginAttempt(models.Model):
 
     def __str__(self):
         return f'{self.username} @ {self.ip_address or "?"}'
+
+
+class RateLimit(models.Model):
+    """Bộ đếm theo cửa sổ thời gian cố định cho 1 hành động (scope) + 1 khoá (thường là IP)."""
+
+    scope = models.CharField('Hành động', max_length=40)
+    key = models.CharField('Khoá', max_length=150)
+    count = models.PositiveIntegerField('Số lần', default=0)
+    window_started_at = models.DateTimeField('Bắt đầu cửa sổ')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['scope', 'key'], name='uq_rate_limit_scope_key'),
+        ]
+        ordering = ['-window_started_at']
+        verbose_name = 'Giới hạn tần suất'
+        verbose_name_plural = 'Giới hạn tần suất'
+
+    def __str__(self):
+        return f'{self.scope}: {self.key}'

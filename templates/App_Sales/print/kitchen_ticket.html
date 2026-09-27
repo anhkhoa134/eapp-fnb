@@ -1,0 +1,41 @@
+{% extends 'App_Sales/print/_base.html' %}
+
+{% block title %}Phiếu bếp #{{ ticket.id }}{% endblock %}
+
+{% block print_css %}
+.kt-table { font-size: 1.9em; font-weight: 800; text-align: center; margin: 1mm 0; }
+.kt-item { display: flex; gap: 2mm; padding: 1.5mm 0; border-bottom: 1px dotted #000; }
+.kt-item:last-child { border-bottom: 0; }
+.kt-qty { font-size: 1.5em; font-weight: 800; min-width: 9mm; }
+.kt-name { font-size: 1.3em; font-weight: 700; }
+.kt-note { font-weight: 700; font-style: italic; }
+.kt-item.cancelled .kt-qty, .kt-item.cancelled .kt-name { text-decoration: line-through; }
+{% endblock %}
+
+{% block paper %}
+<div class="center">
+    <div class="doc-title">PHIẾU BẾP</div>
+    {% if reprint_no %}<div class="reprint">IN LẠI (lần {{ reprint_no }})</div>{% endif %}
+</div>
+<div class="kt-table">{{ ticket.table_name|default:'Phiếu bếp' }}</div>
+<div class="meta">
+    <div class="row"><span>Phiếu:</span><span>#{{ ticket.id }} · {{ ticket.get_source_display }}</span></div>
+    <div class="row"><span>Giờ gửi:</span><span class="bold">{{ ticket.created_at|date:'H:i d/m/Y' }}</span></div>
+    {% if ticket.created_by %}<div class="row"><span>Nhân viên:</span><span>{{ ticket.created_by.username }}</span></div>{% endif %}
+    {% if ticket.order %}<div class="row"><span>Đơn:</span><span>{{ ticket.order.order_code }}</span></div>{% endif %}
+</div>
+<hr class="sep solid">
+{% for item in items %}
+<div class="kt-item{% if item.status == 'CANCELLED' %} cancelled{% endif %}">
+    <div class="kt-qty">{{ item.quantity }}×</div>
+    <div>
+        <div class="kt-name">{{ item.snapshot_product_name }}{% if item.snapshot_unit_name %} ({{ item.snapshot_unit_name }}){% endif %}</div>
+        {% if item.toppings_text %}<div>+ {{ item.toppings_text }}</div>{% endif %}
+        {% if item.note %}<div class="kt-note">* {{ item.note }}</div>{% endif %}
+        {% if item.status == 'CANCELLED' %}<div class="bold">ĐÃ HUỶ</div>{% endif %}
+    </div>
+</div>
+{% endfor %}
+<hr class="sep solid">
+<div class="center muted">Tổng {{ total_quantity }} món</div>
+{% endblock %}

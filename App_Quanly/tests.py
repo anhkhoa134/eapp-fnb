@@ -63,6 +63,81 @@ class QuanlyPermissionTests(TestCase):
         self.assertEqual(self.client.get(reverse('App_Quanly:orders')).status_code, 403)
         self.assertEqual(self.client.get(reverse('App_Quanly:qr_tables')).status_code, 403)
 
+    def test_manager_updates_profile_and_tenant_name(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.post(
+            reverse('App_Quanly:account'),
+            {'form_action': 'profile', 'first_name': ' Chủ Quán ', 'email': 'Owner@Mail.com', 'tenant_name': 'Quán Mới'},
+        )
+        self.assertRedirects(res, reverse('App_Quanly:account'))
+        self.manager.refresh_from_db()
+        self.tenant.refresh_from_db()
+        self.assertEqual(self.manager.first_name, 'Chủ Quán')
+        self.assertEqual(self.manager.email, 'owner@mail.com')
+        self.assertEqual(self.tenant.name, 'Quán Mới')
+
+    def test_manager_profile_requires_email(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.post(
+            reverse('App_Quanly:account'),
+            {'form_action': 'profile', 'first_name': 'A', 'email': '', 'tenant_name': 'Demo'},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('email', res.context['profile_form'].errors)
+
+    def test_staff_updates_own_profile_but_not_tenant_name(self):
+        self.client.login(username='staff_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:account'))
+        self.assertNotIn('name="tenant_name"', res.content.decode('utf-8'))
+        res = self.client.post(
+            reverse('App_Quanly:account'),
+            {'form_action': 'profile', 'first_name': 'Thu Ngân', 'email': '', 'tenant_name': 'Hack'},
+        )
+        self.assertRedirects(res, reverse('App_Quanly:account'))
+        self.staff.refresh_from_db()
+        self.tenant.refresh_from_db()
+        self.assertEqual(self.staff.first_name, 'Thu Ngân')
+        self.assertEqual(self.tenant.name, 'Demo')
+
+    def test_staff_changes_password_on_account_page(self):
+        self.client.login(username='staff_demo', password='123456')
+        res = self.client.post(
+            reverse('App_Quanly:account'),
+            {
+                'form_action': 'password_change',
+                'old_password': '123456',
+                'new_password1': 'Moi@12345',
+                'new_password2': 'Moi@12345',
+            },
+        )
+        self.assertRedirects(res, reverse('App_Quanly:account'))
+        self.staff.refresh_from_db()
+        self.assertTrue(self.staff.check_password('Moi@12345'))
+
+    def test_account_dropdown_links_to_account_page(self):
+        for username in ('manager_demo', 'staff_demo'):
+            self.client.login(username=username, password='123456')
+            html = self.client.get(reverse('App_Sales:pos')).content.decode('utf-8')
+            account_url = reverse('App_Quanly:account')
+            self.assertIn(f'href="{account_url}"', html)
+            self.assertIn(f'href="{account_url}#doi-mat-khau"', html)
+            self.assertNotIn('accountInfoModal', html)
+            self.client.logout()
+
+    def test_quanly_dropdown_order_history_link_by_role(self):
+        self.client.login(username='staff_demo', password='123456')
+        html = self.client.get(reverse('App_Quanly:account')).content.decode('utf-8')
+        self.assertIn(f'href="{reverse("App_Sales:orders_today")}"', html)
+        self.assertNotIn(f'href="{reverse("App_Quanly:orders")}"', html)
+        self.assertNotIn('#doi-mat-khau"', html)
+
+    def test_staff_sidebar_hides_manager_only_links(self):
+        self.client.login(username='staff_demo', password='123456')
+        html = self.client.get(reverse('App_Quanly:account')).content.decode('utf-8')
+        self.assertIn(f'href="{reverse("App_Quanly:account")}"', html)
+        for name in ('dashboard', 'orders', 'categories', 'products', 'staffs', 'feature_settings', 'audit_log'):
+            self.assertNotIn(f'href="{reverse(f"App_Quanly:{name}")}"', html)
+
     def test_manager_can_access_topping_crud_pages(self):
         self.client.login(username='manager_demo', password='123456')
         self.assertEqual(self.client.get(reverse('App_Quanly:toppings')).status_code, 200)
@@ -142,6 +217,8 @@ class QuanlyPermissionTests(TestCase):
             'show_topping_feature',
             'show_qr_order_feature',
             'show_kitchen_feature',
+            'show_shift_feature',
+            'show_recipe_feature',
         ):
             self.assertIn(f'name="{field}"', html)
         self.assertIn(f'href="{reverse("App_Quanly:feature_settings")}"', html)

@@ -1,0 +1,24 @@
+{% load number_format %}
+<table class="items">
+    <thead>
+        <tr>
+            <th>Món</th>
+            <th class="num">SL</th>
+            <th class="num">T.Tiền</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>
+                <div class="bold">{{ row.name }}{% if row.unit %} ({{ row.unit }}){% endif %}</div>
+                {% for top in row.toppings %}<div class="item-sub">+ {{ top }}</div>{% endfor %}
+                {% if row.note %}<div class="item-sub"><i>* {{ row.note }}</i></div>{% endif %}
+                <div class="item-sub muted">{{ row.unit_price|thousand_sep }}</div>
+            </td>
+            <td class="num">{{ row.quantity }}</td>
+            <td class="num">{{ row.line_total|thousand_sep }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

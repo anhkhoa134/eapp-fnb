@@ -21,16 +21,18 @@ def _capped(count, limit):
 
 
 def _generate_unique_public_slug(name):
-    base_slug = slugify(name) or 'cua-hang'
+    max_length = Tenant._meta.get_field('public_slug').max_length
+    base_slug = slugify(name)[:max_length].strip('-') or 'cua-hang'
     candidate = base_slug
     suffix = 2
     while candidate in RESERVED_PUBLIC_SLUGS or Tenant.objects.filter(public_slug=candidate).exists():
-        candidate = f'{base_slug}-{suffix}'
+        tail = f'-{suffix}'
+        candidate = f'{base_slug[:max_length - len(tail)].rstrip("-")}{tail}'
         suffix += 1
     return candidate
 
 
-def register_free_tenant(*, store_name, username, password):
+def register_free_tenant(*, store_name, username, password, email=''):
     """Đăng ký tự phục vụ: tạo doanh nghiệp (gói mặc định), 1 cửa hàng, 1 tài khoản quản lý và vài bàn."""
     store_name = store_name.strip()
     with transaction.atomic():
@@ -41,6 +43,7 @@ def register_free_tenant(*, store_name, username, password):
         store = Store.objects.create(tenant=tenant, name=store_name, is_active=True, is_default=True)
         manager_user = User.objects.create_user(
             username=username,
+            email=email,
             password=password,
             tenant=tenant,
             role=User.Role.MANAGER,

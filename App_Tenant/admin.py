@@ -105,6 +105,8 @@ class TenantAdmin(admin.ModelAdmin):
         'show_topping_feature',
         'show_qr_order_feature',
         'show_kitchen_feature',
+        'show_shift_feature',
+        'show_recipe_feature',
         'subscription_plan',
         'subscription_ends_on',
         'store_usage_display',
@@ -128,6 +130,8 @@ class TenantAdmin(admin.ModelAdmin):
                     'show_topping_feature',
                     'show_qr_order_feature',
                     'show_kitchen_feature',
+                    'show_shift_feature',
+                    'show_recipe_feature',
                 ),
                 'description': 'Điều khiển hiển thị các mục CRM/marketing trong sidebar quản lý và modal thanh toán POS.',
             },
@@ -224,7 +228,10 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
                 'description': 'Để trống = không giới hạn; 0 = không cho tạo.',
             },
         ),
-        ('Tính năng', {'fields': ('feature_customer', 'feature_promotion', 'feature_qr_order', 'feature_kitchen')}),
+        (
+            'Tính năng',
+            {'fields': ('feature_customer', 'feature_promotion', 'feature_qr_order', 'feature_kitchen', 'feature_shift', 'feature_recipe')},
+        ),
     )
 
     def has_module_permission(self, request):

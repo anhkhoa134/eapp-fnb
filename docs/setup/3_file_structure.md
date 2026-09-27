@@ -18,6 +18,8 @@ eapp-fnb/
 │   └── .env                            # Biến môi trường (không commit)
 │
 ├── App_Core/                           # Tiện ích dùng chung
+│   ├── models.py                       # AuditLog (nhật ký thao tác)
+│   ├── audit.py                        # log_action(), AuditContextMiddleware, ghi tự động thay đổi dữ liệu
 │   ├── views.py                        # PWA manifest / sw.js / offline, 404 redirect
 │   ├── middleware.py                   # NotFoundRedirectMiddleware
 │   ├── context_processors.py
@@ -39,29 +41,31 @@ eapp-fnb/
 │   ├── admin.py
 │   └── tests.py
 │
-├── App_Catalog/                        # Category, Product, ProductUnit, Topping, mapping theo store
+├── App_Catalog/                        # Category, Product, ProductUnit, Topping, mapping theo store, Ingredient, RecipeItem
 │   ├── models.py · services.py
+│   ├── recipes.py                      # Định mức nguyên liệu: lưu định mức, giá vốn, tiêu hao theo đơn bán
 │   ├── product_image_utils.py
 │   └── tests.py
 │
 ├── App_Sales/                          # POS, giỏ bàn, checkout, QR staff, bếp, khách hàng, khuyến mãi
-│   ├── models.py                       # Order, DiningTable, QROrder, TableCartItem, KitchenTicket, Customer, Promotion…
-│   ├── views.py · urls.py              # /, /orders/today/, /kitchen/
+│   ├── models.py                       # Order, DiningTable, QROrder, TableCartItem, KitchenTicket, Customer, Promotion, Shift, Refund…
+│   ├── views.py · urls.py              # /, /orders/today/, /kitchen/, /shifts/, trang in
 │   ├── api_urls.py                     # /api/pos/…
 │   ├── services.py                     # Giá theo store, hạng khách hàng, khuyến mãi, tính tổng đơn
 │   ├── kitchen.py                      # Nghiệp vụ phiếu bếp
+│   ├── shifts.py                       # Mở / chốt ca, tổng hợp số liệu ca
 │   ├── realtime.py                     # Push event qua channel layer
 │   ├── consumers.py · ws_urls.py       # WebSocket POS theo store
-│   └── tests.py · tests_kitchen.py · tests_ws.py
+│   └── tests.py · tests_kitchen.py · tests_ws.py · tests_ops.py (in, ca, hoàn tiền, nhật ký)
 │
 ├── App_Quanly/                         # Trang quản lý /quanly/
 │   ├── views.py · urls.py · forms.py   # Dashboard, CRUD, QR bàn, cấu hình tính năng
 │   ├── catalog_excel.py                # Import Excel danh mục / sản phẩm
 │   └── tests.py
 │
-├── App_Public/                         # Catalog public + gọi món QR của khách
+├── App_Public/                         # Menu online (đặt mang đi) + gọi món QR của khách
 │   ├── views.py · urls.py              # /<public_slug>/, /<public_slug>/qr/
-│   ├── api_urls.py                     # /api/public/…
+│   ├── api_urls.py                     # /api/public/… (qr/orders, takeaway/orders)
 │   ├── consumers.py · ws_urls.py       # WebSocket trạng thái đơn QR
 │   └── tests.py · tests_ws.py
 │
@@ -69,16 +73,20 @@ eapp-fnb/
 │   ├── offline.html                    # Trang PWA offline
 │   ├── App_Core/                       # base.html, _pwa_head.html, _pwa_register.html
 │   ├── App_Accounts/                   # login.html, password_change.html
-│   ├── App_Sales/                      # index.html (POS), orders_today.html, kitchen.html
+│   ├── App_Sales/                      # index.html (POS), orders_today.html, kitchen.html, shifts.html
+│   │   └── print/                      # Trang in khổ 80/58mm: _base, receipt, table_bill, kitchen_ticket, shift_report
 │   ├── App_Quanly/                     # _layout, _sidebar_nav, _list_pagination, dashboard, CRUD…
-│   ├── App_Public/                     # catalog.html, qr_ordering.html
+│   ├── App_Public/                     # _ordering_base.html + _ordering_app.html (giao diện gọi món dùng chung),
+│   │                                   # catalog.html (menu online / mang đi), qr_ordering.html (tại bàn)
 │   └── admin/app_core/                 # Template xác nhận phục hồi demo
 │
 ├── static/
 │   ├── images/logo/
 │   ├── pwa/icons/ · pwa/screenshots/
 │   ├── sounds/co-don-moi.mp3           # Âm báo đơn QR mới
-│   ├── css/ · js/
+│   ├── js/eapp_print.js                # In qua iframe ẩn (window.eappPrint, data-print-url)
+│   ├── js/eapp_dialog.js               # Hộp thoại dùng chung (eappDialog, data-confirm)
+│   ├── css/
 │
 ├── media/tenant_<id>/                  # File upload theo tenant (ảnh sản phẩm, QR thanh toán)
 ├── logs/recent-errors.log
@@ -135,8 +143,13 @@ docs/
     │   ├── 1_kitchen_display.md
     │   └── 2_feature_settings_and_plan_limits.md
     │
-    └── phase4/                             # Kế hoạch (chưa làm)
-        └── 0_overview.md
+    └── phase4/                             # Vận hành hằng ngày (đang làm)
+        ├── 0_overview.md
+        ├── 1_printing.md                   # In hoá đơn, tạm tính, phiếu bếp, báo cáo ca
+        ├── 2_shifts_and_refunds.md         # Ca làm việc, chốt ca, hoàn tiền
+        ├── 3_audit_log.md                  # Nhật ký thao tác
+        ├── 4_shared_dialog.md              # Hộp thoại dùng chung
+        └── 5_recipes.md                    # Định mức nguyên liệu, thành phẩm
 ```
 
 Quy ước:

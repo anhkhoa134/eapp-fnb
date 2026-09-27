@@ -1,5 +1,5 @@
 {% extends 'App_Core/base.html' %}
-{% load number_format %}
+{% load static number_format %}
 
 {% block title %}Đơn hàng trong ngày | eApp FnB{% endblock %}
 {% block body_class %}orders-today-page{% endblock %}
@@ -134,6 +134,11 @@
             <p class="sub">Ngày {{ today|date:'d/m/Y' }} - Theo dõi doanh thu theo cửa hàng được phân quyền.</p>
         </div>
         <div class="d-flex align-items-center gap-2">
+            {% if user.tenant.show_shift_feature %}
+            <a href="{% url 'App_Sales:shifts' %}" class="btn btn-outline-light fw-semibold px-3">
+                <i class="bi bi-hourglass-split me-1"></i>Ca làm việc
+            </a>
+            {% endif %}
             <a href="{% url 'App_Sales:pos' %}" class="btn btn-light fw-semibold px-3">
                 <i class="bi bi-arrow-left-circle me-1"></i>Quay lại POS
             </a>
@@ -199,6 +204,7 @@
                     <th>Thanh toán</th>
                     <th class="text-end">Tổng tiền</th>
                     <th>Thời gian</th>
+                    <th class="text-end">Thao tác</th>
                 </tr>
             </thead>
             <tbody>
@@ -223,12 +229,29 @@
                         <span class="payment-pill pay-card"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i>Thẻ/QR</span>
                         {% endif %}
                     </td>
-                    <td class="text-end fw-semibold">{{ order.total_amount|thousand_sep }} đ</td>
+                    <td class="text-end fw-semibold">
+                        {{ order.total_amount|thousand_sep }} đ
+                        {% if order.status == 'refunded' %}
+                        <div class="small text-danger fw-normal">Đã hoàn tiền</div>
+                        {% elif order.refunded_amount %}
+                        <div class="small text-danger fw-normal">-{{ order.refunded_amount|thousand_sep }} đ hoàn</div>
+                        {% endif %}
+                    </td>
                     <td>{{ order.created_at|date:'d/m/Y H:i' }}</td>
+                    <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-print-url="{% url 'App_Sales:order_receipt' order.id %}" title="In hoá đơn">
+                            <i class="bi bi-printer"></i> In
+                        </button>
+                        {% if user.is_manager and order.refundable_amount %}
+                        <a class="btn btn-sm btn-outline-warning" href="{% url 'App_Quanly:orders' %}?q={{ order.order_code|urlencode }}" title="Hoàn tiền trong Lịch sử đơn">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">Chưa có đơn hàng nào trong ngày.</td>
+                    <td colspan="8" class="text-center text-muted py-4">Chưa có đơn hàng nào trong ngày.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -236,4 +259,8 @@
     </div>
 </div>
 {% include 'App_Quanly/_list_pagination.html' with page_obj=orders_page query_string=orders_query_string %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/eapp_print.js' %}"></script>
 {% endblock %}

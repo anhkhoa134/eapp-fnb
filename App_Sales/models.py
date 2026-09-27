@@ -21,6 +21,7 @@ class Order(TimeStampedModel):
     class Status(models.TextChoices):
         COMPLETED = 'completed', 'Completed'
         CANCELLED = 'cancelled', 'Cancelled'
+        REFUNDED = 'refunded', 'Đã hoàn tiền'
 
     class SaleChannel(models.TextChoices):
         DINE_IN = 'dine_in', 'Tại quán'
@@ -73,6 +74,9 @@ class Order(TimeStampedModel):
     total_amount = models.DecimalField(max_digits=14, decimal_places=2)
     customer_paid = models.DecimalField(max_digits=14, decimal_places=2)
     change_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    table_name = models.CharField('Bàn', max_length=120, blank=True)
+    refunded_amount = models.DecimalField('Đã hoàn tiền', max_digits=14, decimal_places=2, default=0)
+    print_count = models.PositiveIntegerField('Số lần in hoá đơn', default=0)
 
     class Meta:
         indexes = [
@@ -87,6 +91,16 @@ class Order(TimeStampedModel):
         if not self.order_code:
             self.order_code = f'ORD-{uuid.uuid4().hex[:8].upper()}'
         super().save(*args, **kwargs)
+
+    @property
+    def refundable_amount(self) -> Decimal:
+        if self.status == self.Status.CANCELLED:
+            return Decimal('0')
+        return max(Decimal('0'), self.total_amount - self.refunded_amount)
+
+    @property
+    def net_amount(self) -> Decimal:
+        return self.total_amount - self.refunded_amount
 
     def __str__(self):
         return self.order_code
@@ -356,10 +370,39 @@ class QROrder(TimeStampedModel):
         REJECTED = 'REJECTED', 'Rejected'
         CANCELLED = 'CANCELLED', 'Cancelled'
 
+    class OrderType(models.TextChoices):
+        DINE_IN = 'DINE_IN', 'Tại bàn'
+        TAKEAWAY = 'TAKEAWAY', 'Mang đi'
+
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='qr_orders')
     store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='qr_orders')
-    table = models.ForeignKey(DiningTable, on_delete=models.CASCADE, related_name='qr_orders')
+    table = models.ForeignKey(
+        DiningTable,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='qr_orders',
+        help_text='Để trống với đơn mang đi đặt từ trang menu.',
+    )
+    order_type = models.CharField('Loại đơn', max_length=12, choices=OrderType.choices, default=OrderType.DINE_IN)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    customer_name = models.CharField('Tên khách', max_length=120, blank=True)
+    customer_phone = models.CharField('SĐT khách', max_length=20, blank=True)
+    access_key = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        editable=False,
+        help_text='Khoá để khách mang đi xem / sửa / huỷ đơn của mình.',
+    )
+    sale_order = models.OneToOneField(
+        Order,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qr_order',
+        help_text='Hoá đơn POS đã thu tiền cho đơn mang đi.',
+    )
     customer_note = models.CharField(max_length=255, blank=True)
     created_by_ip = models.GenericIPAddressField(null=True, blank=True)
     approved_by = models.ForeignKey(
@@ -387,12 +430,24 @@ class QROrder(TimeStampedModel):
         ordering = ['-created_at']
 
     def clean(self):
+        if self.order_type == self.OrderType.DINE_IN and not self.table_id:
+            raise ValidationError('Đơn tại bàn phải có bàn.')
         if self.table_id and self.store_id and self.table.store_id != self.store_id:
             raise ValidationError('Table phải thuộc store của đơn QR.')
         if self.table_id and self.tenant_id and self.table.tenant_id != self.tenant_id:
             raise ValidationError('Bàn phải cùng doanh nghiệp với đơn QR.')
         if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
             raise ValidationError('Cửa hàng phải cùng doanh nghiệp với đơn QR.')
+
+    @property
+    def is_takeaway(self) -> bool:
+        return self.order_type == self.OrderType.TAKEAWAY
+
+    @property
+    def display_label(self) -> str:
+        if self.is_takeaway:
+            return f'Mang đi · {self.customer_name}' if self.customer_name else 'Mang đi'
+        return self.table.name if self.table_id else ''
 
     def __str__(self):
         return f'QR-{self.id or "new"}-{self.status}'
@@ -602,6 +657,7 @@ class KitchenTicket(TimeStampedModel):
         related_name='kitchen_tickets',
     )
     completed_at = models.DateTimeField(null=True, blank=True)
+    print_count = models.PositiveIntegerField('Số lần in phiếu', default=0)
 
     class Meta:
         indexes = [
@@ -654,3 +710,97 @@ class KitchenTicketItem(TimeStampedModel):
 
     def __str__(self):
         return f'{self.snapshot_product_name} x{self.quantity} ({self.status})'
+
+
+class Refund(TimeStampedModel):
+    """Một lần hoàn tiền cho đơn bán (toàn bộ hoặc một phần)."""
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='refunds')
+    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='refunds')
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='refunds')
+    amount = models.DecimalField('Số tiền hoàn', max_digits=14, decimal_places=2)
+    method = models.CharField('Hình thức hoàn', max_length=20, choices=Order.PaymentMethod.choices)
+    reason = models.CharField('Lý do', max_length=255)
+    is_full = models.BooleanField('Hoàn toàn bộ', default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='refunds',
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'store', 'created_at']),
+        ]
+        ordering = ['-created_at', '-id']
+        verbose_name = 'Hoàn tiền'
+        verbose_name_plural = 'Hoàn tiền'
+
+    def __str__(self):
+        return f'{self.order.order_code} -{self.amount}'
+
+
+class Shift(TimeStampedModel):
+    """Ca làm việc theo cửa hàng: mở ca với tiền đầu ca, chốt ca đối soát tiền mặt."""
+
+    class Status(models.TextChoices):
+        OPEN = 'OPEN', 'Đang mở'
+        CLOSED = 'CLOSED', 'Đã chốt'
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='shifts')
+    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='shifts')
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='opened_shifts',
+    )
+    opened_at = models.DateTimeField('Mở ca lúc')
+    opening_cash = models.DecimalField('Tiền đầu ca', max_digits=14, decimal_places=2, default=0)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='closed_shifts',
+    )
+    closed_at = models.DateTimeField('Chốt ca lúc', null=True, blank=True)
+    # Số liệu chốt lại tại thời điểm đóng ca (không đổi dù đơn bị sửa/xoá sau này).
+    order_count = models.PositiveIntegerField('Số đơn', default=0)
+    gross_sales = models.DecimalField('Doanh thu', max_digits=14, decimal_places=2, default=0)
+    cash_sales = models.DecimalField('Thu tiền mặt', max_digits=14, decimal_places=2, default=0)
+    card_sales = models.DecimalField('Thu thẻ/QR', max_digits=14, decimal_places=2, default=0)
+    discount_total = models.DecimalField('Giảm giá', max_digits=14, decimal_places=2, default=0)
+    refund_total = models.DecimalField('Hoàn tiền', max_digits=14, decimal_places=2, default=0)
+    cash_refunds = models.DecimalField('Hoàn tiền mặt', max_digits=14, decimal_places=2, default=0)
+    expected_cash = models.DecimalField('Tiền mặt dự kiến', max_digits=14, decimal_places=2, null=True, blank=True)
+    counted_cash = models.DecimalField('Tiền mặt thực đếm', max_digits=14, decimal_places=2, null=True, blank=True)
+    cash_difference = models.DecimalField('Chênh lệch', max_digits=14, decimal_places=2, null=True, blank=True)
+    note = models.CharField('Ghi chú', max_length=500, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['store'],
+                condition=models.Q(status='OPEN'),
+                name='uq_open_shift_per_store',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'store', 'opened_at']),
+            models.Index(fields=['tenant', 'status']),
+        ]
+        ordering = ['-opened_at', '-id']
+        verbose_name = 'Ca làm việc'
+        verbose_name_plural = 'Ca làm việc'
+
+    @property
+    def is_open(self) -> bool:
+        return self.status == self.Status.OPEN
+
+    def __str__(self):
+        return f'Ca #{self.id or "new"} - {self.store.name}'

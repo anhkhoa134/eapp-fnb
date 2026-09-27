@@ -5,30 +5,22 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
 
-from App_Core.seed_initial_data_runner import run_seed_initial_data
+from App_Core.seed_initial_data_runner import reset_demo_tenant
 
 
 @never_cache
 def demo_seed_reset_confirm(request):
-    """Chỉ superuser. Phục hồi doanh nghiệp demo về bộ seed ban đầu (mật khẩu, catalog, ảnh, QR cửa hàng)."""
+    """Chỉ superuser. Xoá sạch doanh nghiệp demo và seed lại từ đầu."""
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path())
     if not request.user.is_superuser:
         raise PermissionDenied
 
     if request.method == 'POST':
-        default_password = getattr(settings, 'DEMO_SEED_DEFAULT_PASSWORD', '123456')
-        run_seed_initial_data(
-            tenant_slug='demo',
-            tenant_name='Demo FNB',
-            default_password=default_password,
-            reset_passwords=True,
-            seed_qr_pending=True,
-            skip_qr_pending=False,
-        )
+        reset_demo_tenant()
         messages.success(
             request,
-            'Đã phục hồi dữ liệu doanh nghiệp "demo": mật khẩu tài khoản seed, sản phẩm/danh mục, ảnh mẫu, QR thanh toán cửa hàng, đơn QR pending.',
+            'Đã xoá sạch và seed lại doanh nghiệp "demo": tài khoản, mật khẩu, cửa hàng, sản phẩm/danh mục, bàn, đơn hàng.',
         )
         return redirect('admin:index')
 

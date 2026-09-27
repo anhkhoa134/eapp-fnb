@@ -1,0 +1,54 @@
+{% extends 'App_Sales/print/_base.html' %}
+{% load number_format %}
+
+{% block title %}Chốt ca #{{ shift.id }}{% endblock %}
+
+{% block paper %}
+{% include 'App_Sales/print/_store_header.html' with store=shift.store %}
+<div class="center">
+    <div class="doc-title">{% if shift.is_open %}BÁO CÁO CA (ĐANG MỞ){% else %}BÁO CÁO CHỐT CA{% endif %}</div>
+</div>
+<hr class="sep">
+<div class="meta">
+    <div class="row"><span>Ca:</span><span class="bold">#{{ shift.id }}</span></div>
+    <div class="row"><span>Mở ca:</span><span>{{ shift.opened_at|date:'d/m/Y H:i' }}{% if shift.opened_by %} · {{ shift.opened_by.username }}{% endif %}</span></div>
+    {% if shift.closed_at %}
+    <div class="row"><span>Chốt ca:</span><span>{{ shift.closed_at|date:'d/m/Y H:i' }}{% if shift.closed_by %} · {{ shift.closed_by.username }}{% endif %}</span></div>
+    {% else %}
+    <div class="row"><span>Tính đến:</span><span>{{ summary.end|date:'d/m/Y H:i' }}</span></div>
+    {% endif %}
+</div>
+<hr class="sep">
+<div class="bold">DOANH THU</div>
+<div class="row"><span>Số đơn</span><span>{{ summary.order_count }}</span></div>
+<div class="row"><span>Doanh thu</span><span>{{ summary.gross_sales|thousand_sep }}</span></div>
+<div class="row item-sub"><span>Tiền mặt</span><span>{{ summary.cash_sales|thousand_sep }}</span></div>
+<div class="row item-sub"><span>Thẻ / QR</span><span>{{ summary.card_sales|thousand_sep }}</span></div>
+{% if summary.discount_total %}<div class="row"><span>Đã giảm giá</span><span>{{ summary.discount_total|thousand_sep }}</span></div>{% endif %}
+<div class="row"><span>Hoàn tiền</span><span>{% if summary.refund_total %}-{% endif %}{{ summary.refund_total|thousand_sep }}</span></div>
+<div class="row bold"><span>Doanh thu thuần</span><span>{{ summary.net_sales|thousand_sep }}</span></div>
+<hr class="sep">
+<div class="bold">TIỀN MẶT TRONG KÉT</div>
+<div class="row"><span>Tiền đầu ca</span><span>{{ shift.opening_cash|thousand_sep }}</span></div>
+<div class="row"><span>+ Thu tiền mặt</span><span>{{ summary.cash_sales|thousand_sep }}</span></div>
+<div class="row"><span>- Hoàn tiền mặt</span><span>{{ summary.cash_refunds|thousand_sep }}</span></div>
+<div class="row bold"><span>= Dự kiến</span><span>{{ summary.expected_cash|thousand_sep }}</span></div>
+{% if shift.counted_cash is not None %}
+<div class="row"><span>Thực đếm</span><span>{{ shift.counted_cash|thousand_sep }}</span></div>
+<div class="row total-row"><span>Chênh lệch</span><span>{% if shift.cash_difference > 0 %}+{% endif %}{{ shift.cash_difference|thousand_sep }}</span></div>
+{% endif %}
+{% if items %}
+<hr class="sep">
+<div class="bold">MÓN BÁN RA</div>
+{% for row in items %}
+<div class="row"><span>{{ row.quantity }} × {{ row.snapshot_product_name }}{% if row.snapshot_unit_name %} ({{ row.snapshot_unit_name }}){% endif %}</span><span>{{ row.amount|thousand_sep }}</span></div>
+{% endfor %}
+{% endif %}
+{% if shift.note %}
+<hr class="sep">
+<div><span class="bold">Ghi chú:</span> {{ shift.note|linebreaksbr }}</div>
+{% endif %}
+<hr class="sep">
+<div class="row" style="margin-top:3mm;"><span class="center" style="flex:1;">Thu ngân</span><span class="center" style="flex:1;">Quản lý</span></div>
+<div style="height:14mm;"></div>
+{% endblock %}

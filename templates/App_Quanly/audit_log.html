@@ -1,0 +1,160 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .audit-action {
+        font-size: 0.72rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.25rem 0.6rem;
+        white-space: nowrap;
+        background: rgba(100, 116, 139, 0.14);
+        color: #334155;
+    }
+    .audit-action.is-sensitive {
+        background: rgba(245, 158, 11, 0.2);
+        color: #b45309;
+    }
+    .audit-action[data-action="auth.login"] { background: #dcfce7; color: #166534; }
+    .audit-action[data-action="auth.logout"] { background: #e2e8f0; color: #475569; }
+    .audit-action[data-action="auth.login_failed"] { background: #ffe4e6; color: #9f1239; }
+    .audit-action[data-action="order.refund"] { background: #ffedd5; color: #9a3412; }
+    .audit-action[data-action="order.delete"] { background: #fee2e2; color: #991b1b; }
+    .audit-action[data-action="order.reprint"] { background: #ede9fe; color: #5b21b6; }
+    .audit-action[data-action="shift.open"] { background: #ccfbf1; color: #115e59; }
+    .audit-action[data-action="shift.close"] { background: #e0e7ff; color: #3730a3; }
+    .audit-action[data-action="cart.void"] { background: #fce7f3; color: #9d174d; }
+    .audit-action[data-action="table.move"] { background: #cffafe; color: #155e75; }
+    .audit-action[data-action="qr.reject"] { background: #fef3c7; color: #92400e; }
+    .audit-action[data-action="kitchen.reprint"] { background: #f3e8ff; color: #6b21a8; }
+    .audit-action[data-action="catalog.import"] { background: #e0f2fe; color: #075985; }
+    .audit-action[data-action="object.create"] { background: #ecfccb; color: #3f6212; }
+    .audit-action[data-action="object.update"] { background: #dbeafe; color: #1e40af; }
+    .audit-action[data-action="object.delete"] { background: #fef2f2; color: #b91c1c; }
+    .audit-changes {
+        font-size: 0.8rem;
+        margin: 0.35rem 0 0;
+        padding-left: 1rem;
+        color: #475569;
+    }
+    .audit-time { white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="admin-card-title">
+            <i class="bi bi-journal-text"></i>
+            Nhật ký thao tác
+        </h2>
+        <p class="small text-muted mb-3">
+            Ghi lại hoàn tiền, xoá đơn, huỷ món, in lại hoá đơn, mở/chốt ca, thay đổi món, giá, khuyến mãi, nhân viên,
+            cấu hình và đăng nhập. Nhật ký chỉ xem, không sửa hay xoá được.
+        </p>
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label small text-muted">Thao tác</label>
+                <select name="action" class="form-select">
+                    <option value="">Tất cả</option>
+                    {% for group in action_groups %}
+                    <optgroup label="{{ group.label }}">
+                        <option value="{{ group.key }}" {% if selected_action == group.key %}selected{% endif %}>Tất cả: {{ group.label }}</option>
+                        {% for value, label in group.actions %}
+                        <option value="{{ value }}" {% if selected_action == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted">Người thao tác</label>
+                <select name="user" class="form-select">
+                    <option value="">Tất cả</option>
+                    {% for name in usernames %}
+                    <option value="{{ name }}" {% if selected_user == name %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted">Cửa hàng</label>
+                <select name="store" class="form-select">
+                    <option value="">Tất cả</option>
+                    {% for store in stores %}
+                    <option value="{{ store.id }}" {% if selected_store == store.id|stringformat:'s' %}selected{% endif %}>{{ store.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted">Từ ngày</label>
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted">Đến ngày</label>
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+            </div>
+            <div class="col-12 col-md-5 col-lg-4">
+                <label class="form-label small text-muted">Tìm kiếm</label>
+                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Mã đơn, tên món, nội dung...">
+            </div>
+            <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Lọc</button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:audit_log' %}"><i class="bi bi-x-lg me-1"></i>Xóa bộ lọc</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Người thao tác</th>
+                        <th>Thao tác</th>
+                        <th>Cửa hàng</th>
+                        <th>Nội dung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in page_obj %}
+                    <tr>
+                        <td class="audit-time">
+                            <div>{{ log.created_at|date:'d/m/Y' }}</div>
+                            <div class="small text-muted">{{ log.created_at|date:'H:i:s' }}</div>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ log.username|default:'—' }}</div>
+                            {% if log.ip_address %}<div class="small text-muted">{{ log.ip_address }}</div>{% endif %}
+                        </td>
+                        <td>
+                            <span class="audit-action{% if log.action in sensitive_actions %} is-sensitive{% endif %}" data-action="{{ log.action }}">{{ log.get_action_display }}</span>
+                            {% if log.object_type %}<div class="small text-muted mt-1">{{ log.object_type }}</div>{% endif %}
+                        </td>
+                        <td>{{ log.store.name|default:'—' }}</td>
+                        <td>
+                            {{ log.message }}
+                            {% if log.extra.changes %}
+                            <ul class="audit-changes">
+                                {% for change in log.extra.changes %}
+                                <li><strong>{{ change.field }}</strong>: {% if change.old %}{{ change.old }} → {% endif %}{{ change.new }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">Chưa có nhật ký phù hợp bộ lọc.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% include 'App_Quanly/_list_pagination.html' with page_obj=page_obj query_string=query_string %}
+{% endblock %}
