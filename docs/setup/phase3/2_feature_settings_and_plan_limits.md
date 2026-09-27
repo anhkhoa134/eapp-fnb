@@ -1,0 +1,28 @@
+# 2) Cấu hình tính năng & giới hạn gói
+
+## Cờ tính năng (`Tenant.show_*_feature`)
+Manager bật/tắt tại `GET|POST /quanly/settings/features/` (form `TenantFeatureSettingsForm`). Superadmin cũng sửa được trong Django Admin.
+
+| Field | Mặc định | Khi tắt |
+|---|---|---|
+| `show_store_feature` | Tắt | Ẩn mục Cửa hàng, `/quanly/stores/` trả 403; chỉ tắt được khi còn tối đa 1 cửa hàng đang hoạt động |
+| `show_customer_feature` | Bật | Ẩn mục Khách hàng, POS không cho chọn khách khi thanh toán |
+| `show_promotion_feature` | Bật | Ẩn mục Khuyến mãi và phần chọn khuyến mãi ở POS |
+| `show_topping_feature` | Bật | Ẩn Topping trong Quản lý và POS |
+| `show_qr_order_feature` | Bật | Ẩn QR bàn / gọi món QR |
+| `show_kitchen_feature` | Tắt | `/kitchen/` trả 403, ẩn nút Báo bếp |
+
+Khi thêm tính năng tuỳ chọn mới: thêm field `show_<x>_feature` vào `Tenant`, thêm vào `TenantFeatureSettingsForm.FEATURE_META`, kiểm tra cờ trong view/API (403 khi tắt), ẩn menu trong `templates/App_Quanly/_sidebar_nav.html`.
+
+## Giới hạn gói (do superadmin đặt trong Django Admin)
+| Field | Mặc định gói mới | Ý nghĩa |
+|---|---|---|
+| `max_stores` | 1 | Số cửa hàng tối đa |
+| `max_dining_tables` | 12 | Tổng số bàn (QR/POS) |
+| `max_staff_users` | 2 | Số tài khoản nhân viên (không tính quản lý) |
+| `subscription_starts_on` | Ngày tạo | Ngày bắt đầu gói |
+| `subscription_ends_on` | +365 ngày | Ngày kết thúc gói (phải ≥ ngày bắt đầu) |
+
+- Giá trị `0` = không giới hạn.
+- Khi vượt giới hạn, trang tạo mới báo: *"Đã đạt giới hạn … Liên hệ quản trị viên nếu cần nâng gói."*
+- Manager xem mức sử dụng / giới hạn và thời hạn gói tại `/quanly/account/`.

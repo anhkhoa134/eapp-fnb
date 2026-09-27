@@ -1,4 +1,20 @@
-# Hướng Dẫn Deploy Production (VPS/Cloud)
+# 6) Môi trường Production & CI/CD
+
+## 0. Tổng quan môi trường
+
+| Hạng mục | Dev (local) | Production |
+|---|---|---|
+| `ENVIRONMENT` | `dev` | `prod` |
+| `DEBUG` | `true` | `False` |
+| Database | SQLite (khi `POSTGRES_DB` trống) | PostgreSQL 14+ (bắt buộc `POSTGRES_*`) |
+| HTTP server | `manage.py runserver` (ASGI/Daphne) | Gunicorn (WSGI) qua unix socket |
+| WebSocket | `runserver` (không `--noasgi`) | Daphne (ASGI) qua unix socket, Nginx proxy `/ws/` |
+| Channel layer | Redis local (`redis-server`) | Redis 7+ (systemd) |
+| Static | Django serve | `collectstatic` → Nginx `alias` |
+| HTTPS / cookie secure | Tắt | Bật (Let's Encrypt, `SECURE_SSL_REDIRECT`, HSTS) |
+| Log | `logs/recent-errors.log` | `logs/recent-errors.log` + journald (systemd) |
+
+Setup dev: `docs/setup/phase1/1_setup_and_run.md`. Chính sách bảo mật: `docs/setup/5_security_policy.md`.
 
 ## 1. Yêu cầu server
 - Ubuntu 22.04+ (hoặc Debian 12+)
@@ -260,3 +276,23 @@ sudo systemctl restart gunicorn-eapp-fnb
 sudo systemctl restart daphne-eapp-fnb
 sudo systemctl reload nginx
 ```
+
+## 13. CI/CD
+
+### 13.1 Hiện trạng
+- Chưa có pipeline CI/CD tự động (không có `.github/workflows/`).
+- Deploy thủ công theo mục 12 (SSH vào server, `git pull`, migrate, restart service).
+- Script nội bộ phía dev: `scripts/pipeline.txt` (reset project + clean cache + `git push`).
+
+### 13.2 Khung pipeline đề xuất
+| Stage | Trigger | Việc làm | Điều kiện qua |
+|---|---|---|---|
+| Lint / check | Push, PR vào `main` | `python manage.py check`, `makemigrations --check --dry-run` | Không lỗi, không thiếu migration |
+| Test | Push, PR vào `main` | `python manage.py test` (kèm Redis service cho test WS) | Toàn bộ test pass |
+| Build | Merge vào `main` | `pip install -r requirements.txt`, `collectstatic --noinput` | Không lỗi |
+| Deploy | Tag / merge `main` (thủ công duyệt) | Chạy quy trình mục 12 qua SSH | `check` pass, service `active` |
+| Smoke | Sau deploy | Mở `/accounts/login/`, test WS (mục 11) | HTTP 200, WS connected |
+
+### 13.3 Việc cần làm trước khi bật CI
+- ✅ `requirements.txt` đã pin đủ dependency (xem `docs/setup/2_tech_stack.md`).
+- Lưu secret (`SECRET_KEY`, `POSTGRES_PASSWORD`, SSH key) trong secret store của CI, không commit `.env`.

@@ -1,4 +1,4 @@
-# 7) QR public ordering và QR table admin
+# 1) QR public ordering và QR table admin
 
 ## Public QR ordering flow
 

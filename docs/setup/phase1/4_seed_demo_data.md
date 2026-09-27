@@ -1,4 +1,4 @@
-# 5) Seed dữ liệu demo
+# 4) Seed dữ liệu demo
 
 ## Hai luồng tạo dữ liệu mẫu
 - Luồng 1: `seed_initial_data` (full demo, idempotent, có thể chạy nhiều lần).

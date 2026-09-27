@@ -102,6 +102,7 @@ class TenantAdmin(admin.ModelAdmin):
         'name',
         'public_slug',
         'is_active',
+        'show_store_feature',
         'show_customer_feature',
         'show_promotion_feature',
         'show_topping_feature',
@@ -122,6 +123,7 @@ class TenantAdmin(admin.ModelAdmin):
             'Tính năng nâng cao',
             {
                 'fields': (
+                    'show_store_feature',
                     'show_customer_feature',
                     'show_promotion_feature',
                     'show_topping_feature',

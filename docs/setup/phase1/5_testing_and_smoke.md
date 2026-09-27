@@ -1,11 +1,11 @@
-# 6) Test và smoke checklist
+# 5) Test và smoke checklist
 
 ## Tài liệu kiểm thử chi tiết (QA)
 
 Hai file hướng dẫn tester theo từng click / thông báo:
 
-- **`docs/testing/trang_ban_hang.md`** — POS (`/`)
-- **`docs/testing/trang_quan_ly.md`** — Quản lý (`/quanly/`)
+- **`docs/setup/phase1/testing/trang_ban_hang.md`** — POS (`/`)
+- **`docs/setup/phase1/testing/trang_quan_ly.md`** — Quản lý (`/quanly/`)
 
 ## Automated
 

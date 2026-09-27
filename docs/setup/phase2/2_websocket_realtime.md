@@ -1,4 +1,4 @@
-# 8) WebSocket realtime QR
+# 2) WebSocket realtime QR
 
 ## Mục tiêu
 - POS nhận thay đổi đơn QR theo store theo thời gian thực.

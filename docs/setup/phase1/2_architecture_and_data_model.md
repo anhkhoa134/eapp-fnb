@@ -1,4 +1,4 @@
-# 3) Kiến trúc và data model
+# 2) Kiến trúc và data model
 
 ## Multi-tenant theo path
 - Tenant được định danh bằng `Tenant.public_slug`.

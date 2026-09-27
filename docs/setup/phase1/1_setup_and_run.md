@@ -1,4 +1,16 @@
-# 2) Setup và chạy local
+# 1) Setup và chạy local
+
+## Chạy nhanh (TL;DR)
+```bash
+cd /Users/anhkhoa/Downloads/Project_django/eapp-fnb
+source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+python manage.py migrate
+python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
+redis-server                                   # terminal khác, cần cho WebSocket
+python manage.py runserver 127.0.0.1:8000      # không dùng --noasgi
+```
+
+Route và API chi tiết: `docs/setup/phase1/3_routes_permissions_api.md`.
 
 ## Điều kiện
 - Python 3.10

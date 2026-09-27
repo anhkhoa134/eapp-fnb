@@ -152,6 +152,7 @@ def run_seed_initial_data(
         defaults={
             'name': tenant_name,
             'is_active': True,
+            'show_store_feature': True,
             'max_stores': 0,
             'max_dining_tables': 0,
             'max_staff_users': 0,

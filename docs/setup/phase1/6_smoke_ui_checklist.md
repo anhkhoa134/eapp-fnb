@@ -1,6 +1,6 @@
-# Smoke UI Checklist (POS + QR Public + Quản lý QR)
+# 6) Smoke UI Checklist (POS + QR Public + Quản lý QR)
 
-> **Hướng dẫn chi tiết (từng bước, nút, thông báo):** `docs/testing/trang_ban_hang.md` (POS) và `docs/testing/trang_quan_ly.md` (Quản lý). File này giữ vai trò tóm tắt nhanh.
+> **Hướng dẫn chi tiết (từng bước, nút, thông báo):** `docs/setup/phase1/testing/trang_ban_hang.md` (POS) và `docs/setup/phase1/testing/trang_quan_ly.md` (Quản lý). File này giữ vai trò tóm tắt nhanh.
 
 ## 1) Chuẩn bị
 

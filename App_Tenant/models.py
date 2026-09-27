@@ -41,6 +41,11 @@ class Tenant(TimeStampedModel):
     name = models.CharField(max_length=150)
     public_slug = models.SlugField(max_length=120, unique=True, validators=[validate_public_slug])
     is_active = models.BooleanField('Đang hoạt động', default=True)
+    show_store_feature = models.BooleanField(
+        'Quản lý nhiều cửa hàng',
+        default=False,
+        help_text='Tắt: doanh nghiệp chỉ dùng 1 cửa hàng mặc định. Bật để mở rộng nhiều cửa hàng (vẫn theo giới hạn gói).',
+    )
     show_customer_feature = models.BooleanField('Hiển thị Khách hàng', default=True)
     show_promotion_feature = models.BooleanField('Hiển thị Khuyến mãi', default=True)
     show_topping_feature = models.BooleanField('Hiển thị Topping / tuỳ chọn món', default=True)
@@ -114,6 +119,8 @@ class Tenant(TimeStampedModel):
         return User.objects.filter(tenant_id=self.pk, role=User.Role.STAFF).count()
 
     def can_create_store(self) -> bool:
+        if not self.show_store_feature:
+            return not self.stores.exists()
         if self.max_stores == 0:
             return True
         return self.stores.count() < self.max_stores
