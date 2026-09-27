@@ -37,6 +37,9 @@ class PosStoreConsumer(AsyncJsonWebsocketConsumer):
     async def qr_changed(self, event):
         await self.send_json(event.get('data', {}))
 
+    async def kitchen_changed(self, event):
+        await self.send_json(event.get('data', {}))
+
     @database_sync_to_async
     def _can_access_store(self, *, user_id, store_id):
         try:

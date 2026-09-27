@@ -1626,6 +1626,20 @@ def store_delete(request, pk):
     return redirect('App_Quanly:stores')
 
 
+@manager_required
+def feature_settings(request):
+    tenant_obj = Tenant.objects.get(pk=_tenant_or_404(request.user).pk)
+    form = TenantFeatureSettingsForm(request.POST or None, instance=tenant_obj)
+    if request.method == 'POST':
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Đã cập nhật cấu hình tính năng.')
+            return redirect('App_Quanly:feature_settings')
+        messages.error(request, 'Không thể cập nhật cấu hình tính năng. Vui lòng kiểm tra lại.')
+
+    return render(request, 'App_Quanly/feature_settings.html', {'form': form, 'tenant_obj': tenant_obj})
+
+
 @staff_or_manager_required
 def account_settings(request):
     user = request.user
@@ -1634,21 +1648,9 @@ def account_settings(request):
 
     role_label = 'Quản lý' if user.role == User.Role.MANAGER else 'Nhân viên'
     tenant_obj = Tenant.objects.get(pk=user.tenant_id)
-    can_manage_features = user.role == User.Role.MANAGER
 
-    if request.method == 'POST' and request.POST.get('form_action') == 'feature_settings':
-        if not can_manage_features:
-            return HttpResponse('Bạn không có quyền cập nhật cấu hình tính năng.', status=403)
-        feature_form = TenantFeatureSettingsForm(request.POST, instance=tenant_obj)
-        form = POSPasswordChangeForm(user)
-        if feature_form.is_valid():
-            feature_form.save()
-            messages.success(request, 'Đã cập nhật hiển thị tính năng nâng cao.')
-            return redirect('App_Quanly:account')
-        messages.error(request, 'Không thể cập nhật cấu hình tính năng. Vui lòng kiểm tra lại.')
-    elif request.method == 'POST':
+    if request.method == 'POST':
         form = POSPasswordChangeForm(user, request.POST)
-        feature_form = TenantFeatureSettingsForm(instance=tenant_obj)
         if form.is_valid():
             form.save()
             update_session_auth_hash(request, user)
@@ -1657,7 +1659,6 @@ def account_settings(request):
         messages.error(request, 'Không thể đổi mật khẩu. Vui lòng kiểm tra lại.')
     else:
         form = POSPasswordChangeForm(user)
-        feature_form = TenantFeatureSettingsForm(instance=tenant_obj)
 
     usage = {
         'stores_used': tenant_obj.stores.count(),
@@ -1675,8 +1676,6 @@ def account_settings(request):
         'App_Quanly/account.html',
         {
             'form': form,
-            'feature_form': feature_form,
-            'can_manage_features': can_manage_features,
             'role_label': role_label,
             'usage': usage,
             'today': timezone.now().date(),

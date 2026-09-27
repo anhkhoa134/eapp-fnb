@@ -10,6 +10,7 @@ urlpatterns = [
     path('stores/<int:pk>/edit/', views.store_edit, name='store_edit'),
     path('stores/<int:pk>/delete/', views.store_delete, name='store_delete'),
     path('account/', views.account_settings, name='account'),
+    path('settings/features/', views.feature_settings, name='feature_settings'),
     path('orders/', views.order_history, name='orders'),
     path('orders/<int:pk>/delete/', views.order_delete, name='order_delete'),
     path('customers/', views.customer_list_create, name='customers'),

@@ -133,3 +133,32 @@ class PosWebSocketTests(TestCase):
             await pos_ws.disconnect()
 
         async_to_sync(scenario)()
+
+    def test_pos_ws_receives_kitchen_changed_event(self):
+        from App_Sales.realtime import notify_kitchen_changed
+
+        cookie = self._session_cookie_for(self.staff_store_1)
+
+        async def scenario():
+            pos_ws = WebsocketCommunicator(
+                application,
+                f'/ws/pos/store/{self.store_1.id}/',
+                headers=[(b'cookie', f'sessionid={cookie}'.encode('utf-8'))],
+            )
+            connected, _ = await pos_ws.connect()
+            self.assertTrue(connected)
+
+            await sync_to_async(notify_kitchen_changed, thread_sensitive=True)(
+                store_id=self.store_1.id,
+                reason='done',
+                ticket_id=7,
+                message='Bàn WS 01: Trà x1 đã xong',
+            )
+            event = await pos_ws.receive_json_from(timeout=2)
+            self.assertEqual(event['type'], 'kitchen.changed')
+            self.assertEqual(event['reason'], 'done')
+            self.assertEqual(event['ticket_id'], 7)
+            self.assertEqual(event['message'], 'Bàn WS 01: Trà x1 đã xong')
+            await pos_ws.disconnect()
+
+        async_to_sync(scenario)()

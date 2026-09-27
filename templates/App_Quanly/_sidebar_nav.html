@@ -56,6 +56,11 @@
             <a class="admin-nav-link {% if '/quanly/staffs/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:staffs' %}" title="Nhân viên" data-quanly-tip="Nhân viên">
                 <i class="bi bi-people" aria-hidden="true"></i><span class="admin-nav-label">Nhân viên</span>
             </a>
+            {% if user.is_manager %}
+            <a class="admin-nav-link {% if '/quanly/settings/features/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:feature_settings' %}" title="Cấu hình tính năng" data-quanly-tip="Cấu hình tính năng">
+                <i class="bi bi-toggles" aria-hidden="true"></i><span class="admin-nav-label">Cấu hình tính năng</span>
+            </a>
+            {% endif %}
             <a class="admin-nav-link {% if '/quanly/account/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:account' %}" title="Tài khoản" data-quanly-tip="Tài khoản">
                 <i class="bi bi-person-circle" aria-hidden="true"></i><span class="admin-nav-label">Tài khoản</span>
             </a>
@@ -67,6 +72,12 @@
             {% if user.tenant %}
             <a class="admin-nav-link" href="{% url 'App_Public:tenant_catalog' user.tenant.public_slug %}" target="_blank" rel="noopener" title="Public catalog" data-quanly-tip="Public catalog">
                 <i class="bi bi-globe2" aria-hidden="true"></i><span class="admin-nav-label">Public catalog</span>
+                <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
+            </a>
+            {% endif %}
+            {% if user.tenant.show_kitchen_feature %}
+            <a class="admin-nav-link" href="{% url 'App_Sales:kitchen' %}" target="_blank" rel="noopener" title="Màn hình bếp" data-quanly-tip="Màn hình bếp">
+                <i class="bi bi-fire" aria-hidden="true"></i><span class="admin-nav-label">Màn hình bếp</span>
                 <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
             </a>
             {% endif %}

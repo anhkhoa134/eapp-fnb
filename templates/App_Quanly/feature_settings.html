@@ -1,0 +1,49 @@
+{% extends 'App_Quanly/_layout.html' %}
+
+{% block title %}Cấu hình tính năng | eApp FnB{% endblock %}
+
+{% block quanly_content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div class="crud-toolbar mb-3">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-toggles"></i>
+                Cấu hình tính năng
+            </h2>
+        </div>
+        <p class="text-muted small mb-3">
+            Bật hoặc tắt các tính năng nâng cao cho doanh nghiệp <strong>{{ tenant_obj.name }}</strong>.
+            Tính năng đang tắt sẽ được ẩn khỏi sidebar quản lý, POS và trang gọi món QR. Dữ liệu đã tạo vẫn được giữ lại khi tắt.
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="list-group mb-3">
+                {% for row in form.feature_rows %}
+                <label class="list-group-item d-flex gap-3 align-items-start py-3" for="{{ row.field.id_for_label }}">
+                    <i class="bi {{ row.icon }} fs-4 text-primary flex-shrink-0" aria-hidden="true"></i>
+                    <span class="flex-grow-1">
+                        <span class="d-block fw-semibold">{{ row.field.label }}</span>
+                        <span class="d-block small text-muted">{{ row.description }}</span>
+                        {% if row.field.errors %}
+                        <span class="invalid-feedback d-block">{{ row.field.errors|join:' ' }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="form-check form-switch m-0 flex-shrink-0">
+                        {{ row.field }}
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2 me-1"></i>Lưu cấu hình
+            </button>
+            {% if tenant_obj.show_kitchen_feature %}
+            <a class="btn btn-outline-danger ms-2" href="{% url 'App_Sales:kitchen' %}" target="_blank" rel="noopener">
+                <i class="bi bi-fire me-1"></i>Mở màn hình bếp
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

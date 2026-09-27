@@ -115,18 +115,40 @@ class QuanlyPermissionTests(TestCase):
     def test_manager_can_update_feature_visibility_settings(self):
         self.client.login(username='manager_demo', password='123456')
         res = self.client.post(
-            reverse('App_Quanly:account'),
+            reverse('App_Quanly:feature_settings'),
             {
-                'form_action': 'feature_settings',
                 'show_customer_feature': 'on',
+                'show_kitchen_feature': 'on',
             },
         )
-        self.assertEqual(res.status_code, 302)
+        self.assertRedirects(res, reverse('App_Quanly:feature_settings'))
         self.tenant.refresh_from_db()
         self.assertTrue(self.tenant.show_customer_feature)
         self.assertFalse(self.tenant.show_promotion_feature)
         self.assertFalse(self.tenant.show_topping_feature)
         self.assertFalse(self.tenant.show_qr_order_feature)
+        self.assertTrue(self.tenant.show_kitchen_feature)
+
+    def test_feature_settings_page_lists_all_advanced_features(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:feature_settings'))
+        self.assertEqual(res.status_code, 200)
+        html = res.content.decode('utf-8')
+        for field in (
+            'show_customer_feature',
+            'show_promotion_feature',
+            'show_topping_feature',
+            'show_qr_order_feature',
+            'show_kitchen_feature',
+        ):
+            self.assertIn(f'name="{field}"', html)
+        self.assertIn(f'href="{reverse("App_Quanly:feature_settings")}"', html)
+
+    def test_account_page_no_longer_contains_feature_form(self):
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:account'))
+        self.assertEqual(res.status_code, 200)
+        self.assertNotIn('name="show_customer_feature"', res.content.decode('utf-8'))
 
     def test_disabled_topping_and_qr_pages_return_forbidden(self):
         self.tenant.show_topping_feature = False
@@ -139,9 +161,8 @@ class QuanlyPermissionTests(TestCase):
     def test_staff_cannot_update_feature_visibility_settings(self):
         self.client.login(username='staff_demo', password='123456')
         res = self.client.post(
-            reverse('App_Quanly:account'),
+            reverse('App_Quanly:feature_settings'),
             {
-                'form_action': 'feature_settings',
                 'show_customer_feature': 'on',
             },
         )

@@ -468,6 +468,7 @@ class TableCartItem(TimeStampedModel):
     note = models.CharField(max_length=255, blank=True)
     source = models.CharField(max_length=12, choices=Source.choices, default=Source.STAFF)
     qr_order = models.ForeignKey(QROrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='cart_items')
+    kitchen_sent_quantity = models.PositiveIntegerField('Số lượng đã báo bếp', default=0)
 
     class Meta:
         indexes = [
@@ -566,3 +567,90 @@ class OrderItemTopping(TimeStampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class KitchenTicket(TimeStampedModel):
+    class Source(models.TextChoices):
+        TABLE = 'TABLE', 'Tại bàn'
+        QR = 'QR', 'Gọi món QR'
+        TAKEAWAY = 'TAKEAWAY', 'Mang về'
+
+    tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='kitchen_tickets')
+    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='kitchen_tickets')
+    table = models.ForeignKey(
+        DiningTable,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kitchen_tickets',
+    )
+    table_name = models.CharField('Tên bàn / nhãn phiếu', max_length=120, blank=True)
+    source = models.CharField(max_length=12, choices=Source.choices, default=Source.TABLE)
+    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name='kitchen_tickets')
+    qr_order = models.ForeignKey(
+        QROrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kitchen_tickets',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kitchen_tickets',
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'store', 'completed_at', 'created_at']),
+            models.Index(fields=['table', 'completed_at']),
+        ]
+        ordering = ['created_at', 'id']
+        verbose_name = 'Phiếu bếp'
+        verbose_name_plural = 'Phiếu bếp'
+
+    def __str__(self):
+        return f'KT-{self.id or "new"} {self.table_name}'
+
+
+class KitchenTicketItem(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Chờ làm'
+        PREPARING = 'PREPARING', 'Đang làm'
+        DONE = 'DONE', 'Đã xong'
+        CANCELLED = 'CANCELLED', 'Đã huỷ'
+
+    OPEN_STATUSES = (Status.PENDING, Status.PREPARING)
+
+    ticket = models.ForeignKey(KitchenTicket, on_delete=models.CASCADE, related_name='items')
+    table_cart_item = models.ForeignKey(
+        TableCartItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kitchen_items',
+    )
+    product = models.ForeignKey('App_Catalog.Product', on_delete=models.SET_NULL, null=True, blank=True)
+    snapshot_product_name = models.CharField(max_length=180)
+    snapshot_unit_name = models.CharField(max_length=120, blank=True)
+    toppings_text = models.CharField(max_length=500, blank=True)
+    quantity = models.PositiveIntegerField()
+    note = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    started_at = models.DateTimeField(null=True, blank=True)
+    done_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['ticket', 'status']),
+            models.Index(fields=['table_cart_item', 'status']),
+        ]
+        ordering = ['id']
+        verbose_name = 'Món trong phiếu bếp'
+        verbose_name_plural = 'Món trong phiếu bếp'
+
+    def __str__(self):
+        return f'{self.snapshot_product_name} x{self.quantity} ({self.status})'

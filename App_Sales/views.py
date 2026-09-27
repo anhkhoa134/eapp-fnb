@@ -3,7 +3,7 @@ from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
@@ -14,11 +14,14 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from App_Accounts.permissions import staff_or_manager_required
+from App_Sales import kitchen
 from App_Catalog.models import Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, parse_topping_ids, resolve_product_topping_links
 from App_Sales.models import (
     Customer,
     DiningTable,
+    KitchenTicket,
+    KitchenTicketItem,
     Order,
     OrderItem,
     OrderItemTopping,
@@ -117,6 +120,10 @@ def _serialize_table_cart_item(item: TableCartItem):
         'line_total': float(item.unit_price_snapshot * item.quantity),
         'toppings': _serialize_topping_rows(toppings),
         'topping_ids': [row.topping_id for row in toppings if row.topping_id],
+        'kitchen_sent_qty': item.kitchen_sent_quantity,
+        'kitchen_done_qty': sum(
+            row.quantity for row in item.kitchen_items.all() if row.status == KitchenTicketItem.Status.DONE
+        ),
     }
 
 
@@ -308,6 +315,7 @@ def _upsert_table_cart_item(
     note='',
     source=TableCartItem.Source.STAFF,
     qr_order=None,
+    kitchen_sent_quantity=0,
 ):
     note = (note or '').strip()[:255]
     quantity = int(quantity)
@@ -340,10 +348,13 @@ def _upsert_table_cart_item(
 
     if existing:
         existing.quantity += quantity
+        existing.kitchen_sent_quantity += kitchen_sent_quantity
         if qr_order and not existing.qr_order_id:
             existing.qr_order = qr_order
         existing.unit_price_snapshot = effective_unit_price
-        existing.save(update_fields=['quantity', 'qr_order', 'unit_price_snapshot', 'updated_at'])
+        existing.save(
+            update_fields=['quantity', 'kitchen_sent_quantity', 'qr_order', 'unit_price_snapshot', 'updated_at']
+        )
         return existing
 
     created = TableCartItem.objects.create(
@@ -359,6 +370,7 @@ def _upsert_table_cart_item(
         note=note,
         source=source,
         qr_order=qr_order,
+        kitchen_sent_quantity=kitchen_sent_quantity,
     )
     _replace_table_item_toppings(table_item=created, snapshot_rows=snapshot_toppings)
     return created
@@ -789,6 +801,27 @@ def api_checkout(request):
                 ]
             )
 
+        if kitchen.kitchen_enabled(user.tenant):
+            kitchen.create_kitchen_ticket(
+                tenant=user.tenant,
+                store=store,
+                source=KitchenTicket.Source.TAKEAWAY,
+                table_name=f'Mang về · {order.order_code}',
+                order=order,
+                created_by=user,
+                rows=[
+                    {
+                        'product_id': item['product'].id,
+                        'name': item['product'].name,
+                        'unit_name': item['unit'].name,
+                        'toppings_text': kitchen.toppings_text(row['name'] for row in item['snapshot_toppings']),
+                        'quantity': item['quantity'],
+                        'note': item['note'],
+                    }
+                    for item in prepared_items
+                ],
+            )
+
         points_earned = calculate_points_for_amount(total_amount) if customer else 0
         if customer:
             customer = recompute_customer_stats(customer)
@@ -895,7 +928,7 @@ def api_table_cart(request, table_id):
     items = list(
         TableCartItem.objects.filter(table=table)
         .select_related('product', 'unit')
-        .prefetch_related('toppings')
+        .prefetch_related('toppings', 'kitchen_items')
         .order_by('created_at', 'id')
     )
     summary = _table_cart_summary(table)
@@ -1115,7 +1148,7 @@ def api_table_cart_move_to(request, table_id):
                 for row in item.toppings.all().order_by('id')
             ]
             base_unit_price = get_effective_unit_price(unit=item.unit, store_id=to_table.store_id)
-            _upsert_table_cart_item(
+            target_item = _upsert_table_cart_item(
                 tenant=user.tenant,
                 store=to_table.store,
                 table=to_table,
@@ -1126,8 +1159,11 @@ def api_table_cart_move_to(request, table_id):
                 note=item.note,
                 source=item.source,
                 qr_order=item.qr_order if item.qr_order_id else None,
+                kitchen_sent_quantity=item.kitchen_sent_quantity,
             )
+            kitchen.move_kitchen_links(source_item=item, target_item=target_item)
 
+        kitchen.move_open_tickets_to_table(from_table=from_table, to_table=to_table)
         TableCartItem.objects.filter(table=from_table).delete()
 
     return JsonResponse(
@@ -1156,7 +1192,9 @@ def api_table_cart_item(request, table_id, item_id):
     )
 
     if request.method == 'DELETE':
-        item.delete()
+        with transaction.atomic():
+            kitchen.sync_kitchen_on_quantity_decrease(item, 0)
+            item.delete()
         return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
 
     payload = _parse_json_request(request)
@@ -1167,8 +1205,11 @@ def api_table_cart_item(request, table_id, item_id):
     quantity = payload.get('quantity')
     topping_ids = payload.get('topping_ids') if 'topping_ids' in payload else None
 
+    note_changed = False
     if note is not None:
-        item.note = str(note).strip()[:255]
+        new_note = str(note).strip()[:255]
+        note_changed = new_note != item.note
+        item.note = new_note
 
     if quantity is not None:
         try:
@@ -1177,11 +1218,17 @@ def api_table_cart_item(request, table_id, item_id):
             return _json_error('Số lượng không hợp lệ.', 400)
 
         if quantity <= 0:
-            item.delete()
+            with transaction.atomic():
+                kitchen.sync_kitchen_on_quantity_decrease(item, 0)
+                item.delete()
             return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
+        kitchen.sync_kitchen_on_quantity_decrease(item, quantity)
         item.quantity = quantity
 
-    update_fields = ['note', 'quantity', 'updated_at']
+    if note_changed:
+        kitchen.sync_kitchen_on_item_modified(item)
+
+    update_fields = ['note', 'quantity', 'kitchen_sent_quantity', 'updated_at']
     if topping_ids is not None:
         if not user.tenant.show_topping_feature:
             return _json_error('Tính năng topping đang tắt.', 400)
@@ -1197,10 +1244,13 @@ def api_table_cart_item(request, table_id, item_id):
         base_unit_price = get_effective_unit_price(unit=item.unit, store_id=table.store_id)
         item.unit_price_snapshot = base_unit_price + calc_toppings_total(topping_links)
         update_fields.append('unit_price_snapshot')
+        new_topping_rows = _snapshot_rows_from_product_toppings(topping_links)
+        if _topping_signature(new_topping_rows) != _table_item_topping_signature(item):
+            kitchen.sync_kitchen_on_item_modified(item)
         item.save(update_fields=update_fields)
         _replace_table_item_toppings(
             table_item=item,
-            snapshot_rows=_snapshot_rows_from_product_toppings(topping_links),
+            snapshot_rows=new_topping_rows,
         )
         item.refresh_from_db()
     else:
@@ -1321,6 +1371,10 @@ def api_table_checkout(request, table_id):
                 ]
             )
 
+        if kitchen.kitchen_enabled(user.tenant):
+            # Món đã thanh toán mà chưa báo bếp thì tự báo để bếp không bỏ sót.
+            kitchen.send_table_cart_to_kitchen(table=table, user=user, order=order)
+
         TableCartItem.objects.filter(table=table).delete()
 
         points_earned = calculate_points_for_amount(total_amount) if customer else 0
@@ -1440,6 +1494,8 @@ def api_qr_order_approve(request, order_id):
         if order.status == QROrder.Status.CANCELLED:
             return _json_error('Đơn đã bị khách hủy nên không thể duyệt.', 400)
 
+        use_kitchen = kitchen.kitchen_enabled(user.tenant)
+        kitchen_rows = []
         for qr_item in order.items.all():
             if not qr_item.unit_id or not qr_item.product_id:
                 continue
@@ -1448,7 +1504,7 @@ def api_qr_order_approve(request, order_id):
             for row in snapshot_toppings:
                 topping_total += row['price']
             base_unit_price = qr_item.unit_price_snapshot - topping_total
-            _upsert_table_cart_item(
+            cart_item = _upsert_table_cart_item(
                 tenant=order.tenant,
                 store=order.store,
                 table=order.table,
@@ -1459,6 +1515,30 @@ def api_qr_order_approve(request, order_id):
                 note=qr_item.note,
                 source=TableCartItem.Source.QR,
                 qr_order=order,
+                kitchen_sent_quantity=qr_item.quantity if use_kitchen else 0,
+            )
+            if use_kitchen:
+                kitchen_rows.append(
+                    {
+                        'table_cart_item': cart_item,
+                        'product_id': qr_item.product_id,
+                        'name': qr_item.snapshot_product_name,
+                        'unit_name': qr_item.snapshot_unit_name,
+                        'toppings_text': kitchen.toppings_text(row['name'] for row in snapshot_toppings),
+                        'quantity': qr_item.quantity,
+                        'note': qr_item.note,
+                    }
+                )
+
+        if use_kitchen:
+            kitchen.create_kitchen_ticket(
+                tenant=order.tenant,
+                store=order.store,
+                source=KitchenTicket.Source.QR,
+                table=order.table,
+                qr_order=order,
+                created_by=user,
+                rows=kitchen_rows,
             )
 
         order.status = QROrder.Status.APPROVED
@@ -1525,3 +1605,161 @@ def api_qr_order_reject(request, order_id):
         reason='rejected',
     )
     return JsonResponse({'detail': 'Đã từ chối đơn QR.', 'status': order.status})
+
+
+KITCHEN_DONE_TICKETS_LIMIT = 40
+
+
+def _kitchen_disabled_error():
+    return _json_error('Tính năng màn hình bếp đang tắt.', 403)
+
+
+@login_required
+@staff_or_manager_required
+def kitchen_page(request):
+    if not kitchen.kitchen_enabled(request.user.tenant):
+        raise PermissionDenied('Tính năng màn hình bếp đang tắt. Quản lý có thể bật ở Cấu hình tính năng.')
+    stores = list(get_user_accessible_stores(request.user))
+    default_store = get_accessible_store_or_default(request.user)
+    return render(
+        request,
+        'App_Sales/kitchen.html',
+        {
+            'stores': stores,
+            'default_store_id': default_store.id if default_store else None,
+        },
+    )
+
+
+@login_required
+@staff_or_manager_required
+@require_GET
+def api_kitchen_tickets(request):
+    user = request.user
+    if not kitchen.kitchen_enabled(user.tenant):
+        return _kitchen_disabled_error()
+
+    store = get_accessible_store_or_default(user, request.GET.get('store_id'))
+    if not store:
+        return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
+
+    base_qs = (
+        KitchenTicket.objects.filter(tenant=user.tenant, store=store)
+        .select_related('order', 'created_by')
+        .prefetch_related('items')
+    )
+    active_qs = base_qs.filter(completed_at__isnull=True).order_by('created_at', 'id')
+
+    scope = (request.GET.get('scope') or 'active').strip()
+    if scope == 'done':
+        tz = timezone.get_current_timezone()
+        start_dt = timezone.make_aware(datetime.combine(timezone.localdate(), time.min), tz)
+        tickets_qs = base_qs.filter(completed_at__gte=start_dt).order_by('-completed_at', '-id')[
+            :KITCHEN_DONE_TICKETS_LIMIT
+        ]
+    else:
+        scope = 'active'
+        tickets_qs = active_qs
+
+    return JsonResponse(
+        {
+            'store': {'id': store.id, 'name': store.name},
+            'scope': scope,
+            'active_count': active_qs.count(),
+            'tickets': [kitchen.serialize_kitchen_ticket(ticket) for ticket in tickets_qs],
+        }
+    )
+
+
+def _get_kitchen_ticket_for_user(user, ticket_id, *, lock=False):
+    qs = KitchenTicket.objects.filter(tenant=user.tenant)
+    if lock:
+        qs = qs.select_for_update()
+    ticket = get_object_or_404(qs, id=ticket_id)
+    if not get_user_accessible_stores(user).filter(id=ticket.store_id).exists():
+        return None
+    return ticket
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_kitchen_item_status(request, item_id):
+    user = request.user
+    if not kitchen.kitchen_enabled(user.tenant):
+        return _kitchen_disabled_error()
+
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+
+    status = str(payload.get('status') or '').strip().upper()
+    allowed = {
+        KitchenTicketItem.Status.PENDING,
+        KitchenTicketItem.Status.PREPARING,
+        KitchenTicketItem.Status.DONE,
+    }
+    if status not in allowed:
+        return _json_error('Trạng thái không hợp lệ.', 400)
+
+    with transaction.atomic():
+        kitchen_item = get_object_or_404(
+            KitchenTicketItem.objects.select_for_update().select_related('ticket'),
+            id=item_id,
+            ticket__tenant=user.tenant,
+        )
+        if not get_user_accessible_stores(user).filter(id=kitchen_item.ticket.store_id).exists():
+            return _json_error('Không có quyền cập nhật phiếu bếp của cửa hàng này.', 403)
+        if kitchen_item.status == KitchenTicketItem.Status.CANCELLED:
+            return _json_error('Món này đã bị huỷ.', 400)
+        kitchen.set_kitchen_item_status(kitchen_item, status)
+        ticket = KitchenTicket.objects.select_related('order', 'created_by').prefetch_related('items').get(
+            id=kitchen_item.ticket_id
+        )
+
+    return JsonResponse({'ticket': kitchen.serialize_kitchen_ticket(ticket)})
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_kitchen_ticket_complete(request, ticket_id):
+    user = request.user
+    if not kitchen.kitchen_enabled(user.tenant):
+        return _kitchen_disabled_error()
+
+    with transaction.atomic():
+        ticket = _get_kitchen_ticket_for_user(user, ticket_id, lock=True)
+        if not ticket:
+            return _json_error('Không có quyền cập nhật phiếu bếp của cửa hàng này.', 403)
+        kitchen.complete_kitchen_ticket(ticket)
+        ticket = KitchenTicket.objects.select_related('order', 'created_by').prefetch_related('items').get(id=ticket.id)
+
+    return JsonResponse({'ticket': kitchen.serialize_kitchen_ticket(ticket)})
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
+def api_table_kitchen_send(request, table_id):
+    user = request.user
+    if not kitchen.kitchen_enabled(user.tenant):
+        return _kitchen_disabled_error()
+
+    table = _get_accessible_table_or_403(user, table_id)
+    if not table:
+        return _json_error('Không có quyền truy cập bàn này.', 403)
+
+    with transaction.atomic():
+        ticket = kitchen.send_table_cart_to_kitchen(table=table, user=user)
+
+    if not ticket:
+        return JsonResponse({'detail': 'Không có món mới cần báo bếp.', 'ticket_id': None})
+    sent_qty = sum(row.quantity for row in ticket.items.all())
+    return JsonResponse(
+        {
+            'detail': f'Đã báo bếp {sent_qty} món cho {table.name}.',
+            'ticket_id': ticket.id,
+        },
+        status=201,
+    )

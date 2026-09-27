@@ -54,6 +54,35 @@ class ThousandSeparatedDecimalField(forms.DecimalField):
 
 
 class TenantFeatureSettingsForm(forms.ModelForm):
+    # field -> (icon bootstrap-icons, mô tả hiển thị ở trang Cấu hình tính năng)
+    FEATURE_META = {
+        'show_customer_feature': (
+            'bi-person-hearts',
+            'Quản lý khách hàng thân thiết, hạng thành viên và ưu đãi theo hạng. '
+            'Tắt sẽ ẩn mục Khách hàng và không cho chọn khách khi thanh toán ở POS.',
+        ),
+        'show_promotion_feature': (
+            'bi-tags',
+            'Tạo chương trình khuyến mãi và áp dụng khi thanh toán. '
+            'Tắt sẽ ẩn mục Khuyến mãi và phần chọn khuyến mãi ở POS.',
+        ),
+        'show_topping_feature': (
+            'bi-plus-circle',
+            'Cho phép món có topping / tuỳ chọn thêm (trân châu, thêm shot...). '
+            'Tắt sẽ ẩn mục Topping và không cho chọn topping ở POS, QR.',
+        ),
+        'show_qr_order_feature': (
+            'bi-qr-code-scan',
+            'Khách quét QR tại bàn để xem menu và tự gọi món, nhân viên duyệt đơn trên POS. '
+            'Tắt sẽ ẩn mục QR bàn và khoá trang gọi món QR.',
+        ),
+        'show_kitchen_feature': (
+            'bi-fire',
+            'Màn hình bếp hiển thị món cần làm theo thời gian thực. POS có nút "Báo bếp" cho giỏ bàn; '
+            'đơn QR được duyệt và đơn mang về đã thanh toán tự gửi xuống bếp. Bếp bấm "Xong" thì POS nhận thông báo.',
+        ),
+    }
+
     class Meta:
         model = Tenant
         fields = [
@@ -61,18 +90,26 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             'show_promotion_feature',
             'show_topping_feature',
             'show_qr_order_feature',
+            'show_kitchen_feature',
         ]
         labels = {
-            'show_customer_feature': 'Hiển thị Khách hàng',
-            'show_promotion_feature': 'Hiển thị Khuyến mãi',
-            'show_topping_feature': 'Hiển thị Topping / tuỳ chọn món',
-            'show_qr_order_feature': 'Hiển thị QR bàn / gọi món QR',
+            'show_customer_feature': 'Khách hàng thân thiết',
+            'show_promotion_feature': 'Khuyến mãi',
+            'show_topping_feature': 'Topping / tuỳ chọn món',
+            'show_qr_order_feature': 'QR bàn / gọi món QR',
+            'show_kitchen_feature': 'Màn hình bếp (báo bếp)',
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-check-input'
+            field.widget.attrs['role'] = 'switch'
+
+    def feature_rows(self):
+        for name in self.Meta.fields:
+            icon, description = self.FEATURE_META[name]
+            yield {'field': self[name], 'icon': icon, 'description': description}
 
 
 class CategoryForm(forms.ModelForm):

@@ -3,6 +3,7 @@
 ## Web routes
 - `GET /` → POS (staff/manager, login required).
 - `GET /orders/today/` → đơn hôm nay (staff/manager, login required).
+- `GET /kitchen/` → màn hình bếp (staff/manager, login required; 403 khi tenant tắt `show_kitchen_feature`).
 - `GET /quanly/*` → manager only.
 - `GET /accounts/login/` → login.
 - `POST /accounts/logout/` → logout.
@@ -35,6 +36,12 @@ Chi tiết: `docs/10_pwa.md`.
 - `GET qr/orders/?store_id=&status=pending|approved|rejected|cancelled`
 - `POST qr/orders/<order_id>/approve/`
 - `POST qr/orders/<order_id>/reject/`
+- `POST tables/<table_id>/kitchen/send/` → báo bếp phần số lượng chưa gửi của giỏ bàn (201 + `ticket_id`, hoặc 200 + `ticket_id: null` khi không có món mới)
+- `GET kitchen/tickets/?store_id=&scope=active|done` → phiếu bếp đang chờ / đã xong hôm nay
+- `POST kitchen/items/<item_id>/status/` (body: `{ "status": "PENDING|PREPARING|DONE" }`)
+- `POST kitchen/tickets/<ticket_id>/complete/` → xong cả phiếu
+
+Ghi chú màn hình bếp (chỉ khi tenant bật `show_kitchen_feature`): phiếu bếp (`KitchenTicket`) tạo khi bấm **Báo bếp** ở giỏ bàn, khi duyệt đơn QR, khi thanh toán mang về, và khi thanh toán bàn còn món chưa báo. `TableCartItem.kitchen_sent_quantity` giữ số đã báo; giảm số lượng / xoá / đổi ghi chú hoặc topping món đã báo sẽ huỷ phần bếp chưa làm xong.
 
 Ghi chú hành vi POS (frontend, `templates/App_Sales/index.html`): chọn bàn khi đang **mang về** có món → `POST .../cart/import-takeaway/` rồi `GET .../cart/`; **Đổi sang mang về** khi đang gắn bàn → `DELETE .../cart/items/<item_id>/` cho từng dòng rồi giữ giỏ trên client dạng mang về.
 
@@ -51,6 +58,7 @@ Ghi chú hành vi POS (frontend, `templates/App_Sales/index.html`): chọn bàn 
 ## WebSocket message schema
 - POS:
   - `{ "type": "qr.changed", "store_id": <id>, "order_id": <id>, "reason": "created|updated|approved|rejected|cancelled", "ts": "<iso>" }`
+  - `{ "type": "kitchen.changed", "store_id": <id>, "ticket_id": <id|null>, "reason": "created|status|done|cancelled|moved", "message": "...", "ts": "<iso>" }` (POS và `/kitchen/` dùng chung kênh này)
 - Public QR:
   - `{ "type": "qr.order.changed", "order_id": <id>, "status": "PENDING|APPROVED|REJECTED|CANCELLED", "reason": "...", "ts": "<iso>" }`
 
@@ -60,7 +68,8 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
 
 - `GET|POST /quanly/` — dashboard (`GET`: `store`, `period` = `7d` \| `30d` \| `this_month` \| `last_month` \| `this_year` \| `last_year`, hoặc `date_from` / `date_to` khi `period` trống)
 - `GET|POST /quanly/stores/` — CRUD cửa hàng (POST tạo; POST edit/delete theo URL riêng)
-- `GET|POST /quanly/account/` — cài đặt tài khoản quản lý
+- `GET|POST /quanly/account/` — thông tin tài khoản, đổi mật khẩu (staff/manager)
+- `GET|POST /quanly/settings/features/` — cấu hình tính năng nâng cao (khách hàng, khuyến mãi, topping, QR bàn, màn hình bếp)
 - `GET /quanly/orders/`, `POST /quanly/orders/<id>/delete/` — lịch sử đơn
 - `GET|POST /quanly/categories/`, `.../products/`, `.../toppings/`, ... — catalog CRUD (xem `App_Quanly/urls.py`)
 - `GET|POST /quanly/payment-qr/` — cấu hình QR thanh toán POS theo cửa hàng

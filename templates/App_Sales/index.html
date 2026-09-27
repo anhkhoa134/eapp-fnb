@@ -1162,6 +1162,13 @@
                                 <span class="account-icon-pill"><i class="fa-solid fa-receipt"></i></span>Đơn hàng trong ngày
                             </a>
                         </li>
+                        {% if user.tenant.show_kitchen_feature %}
+                        <li>
+                            <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:kitchen' %}" target="_blank" rel="noopener">
+                                <span class="account-icon-pill"><i class="fa-solid fa-fire-burner"></i></span>Màn hình bếp
+                            </a>
+                        </li>
+                        {% endif %}
                         <li>
                             <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); toggleFullscreen();">
                                 <span class="account-icon-pill"><i class="fa-solid fa-expand"></i></span>Fullscreen
@@ -1303,6 +1310,11 @@
                         <button class="btn btn-outline-warning btn-sm fw-bold px-3 d-none" onclick="openMoveTableModal()" id="btn-move-table">
                             <i class="fa-solid fa-right-left me-1"></i>Chuyển bàn
                         </button>
+                        {% if user.tenant.show_kitchen_feature %}
+                        <button class="btn btn-danger btn-sm fw-bold px-3 d-none" onclick="sendTableToKitchen()" id="btn-kitchen-send" title="Gửi các món chưa báo bếp">
+                            <i class="fa-solid fa-fire-burner me-1"></i>Báo bếp <span class="badge bg-light text-danger ms-1" id="kitchen-unsent-count">0</span>
+                        </button>
+                        {% endif %}
                         <button class="btn btn-outline-secondary btn-sm fw-bold px-3 d-none" onclick="selectTakeaway()" id="btn-takeaway">
                             <i class="fa-solid fa-bag-shopping me-1"></i>Đổi sang mang về
                         </button>
@@ -1779,6 +1791,7 @@
         const TENANT_SHOW_PROMOTION_FEATURE = {{ user.tenant.show_promotion_feature|yesno:"true,false" }};
         const TENANT_SHOW_TOPPING_FEATURE = {{ user.tenant.show_topping_feature|yesno:"true,false" }};
         const TENANT_SHOW_QR_ORDER_FEATURE = {{ user.tenant.show_qr_order_feature|yesno:"true,false" }};
+        const TENANT_SHOW_KITCHEN_FEATURE = {{ user.tenant.show_kitchen_feature|yesno:"true,false" }};
         const QR_FALLBACK_POLL_INTERVAL_MS = 15000;
         const QR_ALERT_COOLDOWN_MS = 2500;
         const QR_BELL_VOLUME = 0.5;
@@ -1811,6 +1824,8 @@
         let hasPromotionFeature = TENANT_SHOW_PROMOTION_FEATURE;
         let hasToppingFeature = TENANT_SHOW_TOPPING_FEATURE;
         let hasQrOrderFeature = TENANT_SHOW_QR_ORDER_FEATURE;
+        let hasKitchenFeature = TENANT_SHOW_KITCHEN_FEATURE;
+        const hasRealtimeFeature = () => hasQrOrderFeature || hasKitchenFeature;
         let currentDiscountAmount = 0;
         let currentDiscountSource = 'none';
         let currentTierDiscountAmount = 0;
@@ -1894,6 +1909,8 @@
             const isTakeaway = currentSelectedTableId === null;
             if (chooseBtn) chooseBtn.classList.toggle('d-none', !isTakeaway);
             if (moveBtn) moveBtn.classList.toggle('d-none', isTakeaway);
+            const kitchenBtn = document.getElementById('btn-kitchen-send');
+            if (kitchenBtn) kitchenBtn.classList.toggle('d-none', isTakeaway || !hasKitchenFeature);
             if (takeawayBtn) takeawayBtn.classList.toggle('d-none', isTakeaway);
             if (footerBtn) {
                 const show = (!isTakeaway) || (isTakeaway && lastTableContextId !== null);
@@ -2375,7 +2392,7 @@
                         <img src="${escapeHtml(item.img || 'https://placehold.co/200x200/png?text=Product')}" class="cart-item-img mt-1" alt="${escapeHtml(item.name)}">
                         <div class="flex-grow-1" style="min-width: 0; padding-right: 20px;">
                             <h6 class="mb-1 text-truncate" style="max-width: 90%;">${escapeHtml(item.name)} ${sourceHtml}</h6>
-                            <span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span>
+                            <span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span>${kitchenBadgeHtml(item)}
                             <div class="d-flex align-items-center">
                                 <small class="text-danger fw-bold me-2">${formatCurrency(item.price)}</small>
                                 <button class="btn btn-sm text-secondary p-0" onclick="openNoteModal('${item.cartId}')" title="Ghi chú"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -2405,6 +2422,7 @@
             }
 
             document.getElementById('cart-total-qty').textContent = totalQty;
+            syncKitchenSendButton();
             document.getElementById('cart-total-price').textContent = formatCurrency(cartSubtotalAmount);
             document.getElementById('mobile-qty').textContent = totalQty;
             document.getElementById('mobile-total').textContent = formatCurrency(cartSubtotalAmount);
@@ -2611,7 +2629,7 @@
         };
 
         const schedulePosQrSocketReconnect = () => {
-            if (!hasQrOrderFeature) return;
+            if (!hasRealtimeFeature()) return;
             if (!currentStoreId || posQrSocketReconnectTimer) return;
             startFallbackPolling();
             posQrSocketReconnectTimer = setTimeout(() => {
@@ -2619,6 +2637,22 @@
                 connectPosQrSocket();
             }, posQrReconnectDelayMs);
             posQrReconnectDelayMs = Math.min(posQrReconnectDelayMs * 2, POS_WS_RECONNECT_MAX_MS);
+        };
+
+        const handleKitchenSocketMessage = async (payload) => {
+            if (!hasKitchenFeature) return;
+            if (Number(payload.store_id) !== Number(currentStoreId)) return;
+            if (payload.reason === 'done' && payload.message) {
+                showToast(`Bếp: ${payload.message}`, 'success');
+                if (qrSoundEnabled) playQrBellSound();
+            }
+            if (currentSelectedTableId !== null && ['done', 'status', 'cancelled', 'moved'].includes(payload.reason)) {
+                try {
+                    await loadTableCart(currentSelectedTableId);
+                } catch (error) {
+                    console.warn('Reload table cart after kitchen change failed:', error);
+                }
+            }
         };
 
         const handlePosQrSocketMessage = async (event) => {
@@ -2629,6 +2663,10 @@
                 return;
             }
 
+            if (payload && payload.type === 'kitchen.changed') {
+                handleKitchenSocketMessage(payload);
+                return;
+            }
             if (!payload || payload.type !== 'qr.changed') return;
             if (Number(payload.store_id) !== Number(currentStoreId)) return;
 
@@ -2654,7 +2692,7 @@
         };
 
         const connectPosQrSocket = () => {
-            if (!hasQrOrderFeature) return;
+            if (!hasRealtimeFeature()) return;
             if (!currentStoreId) return;
             if (!('WebSocket' in window)) {
                 startFallbackPolling();
@@ -2716,9 +2754,54 @@
                     price: Number(top.price || 0),
                 })),
                 toppingIds: (item.topping_ids || []).map((topId) => Number(topId)),
+                kitchenSentQty: Number(item.kitchen_sent_qty || 0),
+                kitchenDoneQty: Number(item.kitchen_done_qty || 0),
                 img: findProductImage(item.product_id),
             }));
             renderCart();
+        };
+
+        const kitchenBadgeHtml = (item) => {
+            if (!hasKitchenFeature || currentSelectedTableId === null || !item.tableItemId) return '';
+            const unsent = Math.max(item.qty - (item.kitchenSentQty || 0), 0);
+            if (unsent > 0) {
+                return `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1" title="Chưa báo bếp">Chưa báo bếp ${unsent}</span>`;
+            }
+            if ((item.kitchenDoneQty || 0) >= item.qty) {
+                return '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1">Bếp xong</span>';
+            }
+            if (item.kitchenDoneQty > 0) {
+                return `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">Bếp xong ${item.kitchenDoneQty}/${item.qty}</span>`;
+            }
+            return '<span class="badge bg-secondary-subtle text-secondary border ms-1">Đã báo bếp</span>';
+        };
+
+        const syncKitchenSendButton = () => {
+            const btn = document.getElementById('btn-kitchen-send');
+            if (!btn) return;
+            const unsent = currentSelectedTableId === null
+                ? 0
+                : cart.reduce((sum, item) => sum + Math.max(item.qty - (item.kitchenSentQty || 0), 0), 0);
+            const countEl = document.getElementById('kitchen-unsent-count');
+            if (countEl) countEl.textContent = unsent;
+            btn.disabled = unsent <= 0;
+        };
+
+        const sendTableToKitchen = async () => {
+            if (!hasKitchenFeature || currentSelectedTableId === null) return;
+            const btn = document.getElementById('btn-kitchen-send');
+            if (btn) btn.disabled = true;
+            try {
+                const data = await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/kitchen/send/`, {
+                    method: 'POST',
+                    body: '{}',
+                });
+                showToast(data.detail || 'Đã báo bếp.', data.ticket_id ? 'success' : 'secondary');
+                await loadTableCart(currentSelectedTableId);
+            } catch (error) {
+                showToast(error.message, 'danger');
+                syncKitchenSendButton();
+            }
         };
 
         const buildTakeawayCartId = ({ productId, unitId, toppingIds }) => {
@@ -3979,7 +4062,7 @@
                 }
                 await selectTakeaway();
                 syncOrderContextUi();
-                if (hasQrOrderFeature) connectPosQrSocket();
+                if (hasRealtimeFeature()) connectPosQrSocket();
             } catch (error) {
                 showToast(error.message || 'Không tải được dữ liệu ban đầu.', 'danger');
             }
@@ -4114,7 +4197,7 @@
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 refreshQrAndTables();
-                if (hasQrOrderFeature && window.WebSocket && (!posQrSocket || posQrSocket.readyState === WebSocket.CLOSED)) {
+                if (hasRealtimeFeature() && window.WebSocket && (!posQrSocket || posQrSocket.readyState === WebSocket.CLOSED)) {
                     connectPosQrSocket();
                 }
             }
@@ -4138,6 +4221,7 @@
         window.selectTable = selectTable;
         window.selectTakeaway = selectTakeaway;
         window.openMoveTableModal = openMoveTableModal;
+        window.sendTableToKitchen = sendTableToKitchen;
         window.confirmMoveTable = confirmMoveTable;
         window.returnToLastTable = returnToLastTable;
         window.handleFooterLeftAction = handleFooterLeftAction;

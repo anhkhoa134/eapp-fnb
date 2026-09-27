@@ -1,0 +1,523 @@
+{% extends 'App_Core/base.html' %}
+{% load static %}
+
+{% block title %}Màn hình bếp | eApp FnB{% endblock %}
+{% block body_class %}kitchen-page{% endblock %}
+{% block container_class %}container-fluid py-3 px-3 px-xl-4{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kitchen-page {
+        background: linear-gradient(150deg, #f8fafc 0%, #eef2ff 100%);
+        min-height: 100vh;
+    }
+    .kitchen-toolbar {
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+    .kitchen-title {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .kitchen-conn {
+        font-size: 0.75rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.25rem 0.6rem;
+        background: rgba(148, 163, 184, 0.18);
+        color: #475569;
+    }
+    .kitchen-conn.live {
+        background: rgba(16, 185, 129, 0.15);
+        color: #047857;
+    }
+    .kitchen-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+        gap: 1rem;
+        align-items: start;
+    }
+    .ticket-card {
+        border-radius: 14px;
+        background: #ffffff;
+        border: 2px solid #e2e8f0;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+    }
+    .ticket-card.age-warn { border-color: #f59e0b; }
+    .ticket-card.age-late { border-color: #ef4444; }
+    .ticket-head {
+        padding: 0.7rem 0.9rem;
+        background: #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    .ticket-card.age-warn .ticket-head { background: #fef3c7; }
+    .ticket-card.age-late .ticket-head { background: #fee2e2; }
+    .ticket-table {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .ticket-meta {
+        font-size: 0.78rem;
+        color: #64748b;
+    }
+    .ticket-elapsed {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #334155;
+        white-space: nowrap;
+    }
+    .ticket-card.age-warn .ticket-elapsed { color: #b45309; }
+    .ticket-card.age-late .ticket-elapsed { color: #b91c1c; }
+    .ticket-item {
+        display: flex;
+        gap: 0.6rem;
+        align-items: flex-start;
+        padding: 0.6rem 0.9rem;
+        border-top: 1px solid #f1f5f9;
+    }
+    .ticket-item .qty {
+        font-size: 1.2rem;
+        font-weight: 800;
+        min-width: 2.4rem;
+        color: #0f172a;
+    }
+    .ticket-item .name {
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .ticket-item .sub {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    .ticket-item .note {
+        font-size: 0.8rem;
+        background: #fef9c3;
+        color: #854d0e;
+        border-radius: 6px;
+        padding: 0.1rem 0.4rem;
+        display: inline-block;
+        margin-top: 0.2rem;
+    }
+    .ticket-item.is-preparing { background: #eff6ff; }
+    .ticket-item.is-done { background: #f0fdf4; }
+    .ticket-item.is-done .name,
+    .ticket-item.is-done .qty { color: #15803d; }
+    .ticket-item.is-cancelled { opacity: 0.55; }
+    .ticket-item.is-cancelled .name,
+    .ticket-item.is-cancelled .qty { text-decoration: line-through; }
+    .ticket-item .actions .btn {
+        min-width: 84px;
+        font-weight: 700;
+    }
+    .status-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.15rem 0.5rem;
+        display: inline-block;
+    }
+    .status-pill.PENDING { background: #e2e8f0; color: #334155; }
+    .status-pill.PREPARING { background: #dbeafe; color: #1d4ed8; }
+    .status-pill.DONE { background: #dcfce7; color: #15803d; }
+    .status-pill.CANCELLED { background: #fee2e2; color: #b91c1c; }
+    .source-pill {
+        font-size: 0.7rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 0.12rem 0.5rem;
+        background: #e0e7ff;
+        color: #4338ca;
+    }
+    .source-pill.QR { background: #fef3c7; color: #b45309; }
+    .source-pill.TAKEAWAY { background: #ccfbf1; color: #0f766e; }
+    .ticket-foot {
+        padding: 0.6rem 0.9rem;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+    .kitchen-scope .btn {
+        color: #334155;
+        border-color: #cbd5e1;
+        background: #ffffff;
+    }
+    .kitchen-scope .btn-check:checked + .btn {
+        color: #ffffff;
+        border-color: #0f172a;
+        background: #0f172a;
+    }
+    .kitchen-empty {
+        border-radius: 16px;
+        border: 2px dashed #cbd5e1;
+        padding: 3rem 1rem;
+        text-align: center;
+        color: #64748b;
+        background: rgba(255, 255, 255, 0.6);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="kitchen-toolbar p-3 mb-3 d-flex flex-wrap align-items-center gap-2">
+    <div class="me-auto d-flex align-items-center gap-2">
+        <span class="kitchen-title"><i class="bi bi-fire text-danger me-1"></i>Màn hình bếp</span>
+        <span class="kitchen-conn" id="kitchenConn">Đang kết nối…</span>
+    </div>
+    {% if stores|length > 1 %}
+    <select class="form-select form-select-sm w-auto" id="kitchenStore" aria-label="Cửa hàng">
+        {% for store in stores %}
+        <option value="{{ store.id }}" {% if store.id == default_store_id %}selected{% endif %}>{{ store.name }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    <div class="btn-group btn-group-sm kitchen-scope" role="group" aria-label="Lọc phiếu">
+        <input type="radio" class="btn-check" name="kitchenScope" id="scopeActive" value="active" checked>
+        <label class="btn fw-bold" for="scopeActive">Đang chờ <span class="badge text-bg-danger ms-1" id="activeCount">0</span></label>
+        <input type="radio" class="btn-check" name="kitchenScope" id="scopeDone" value="done">
+        <label class="btn fw-bold" for="scopeDone">Đã xong hôm nay</label>
+    </div>
+    <div class="form-check form-switch m-0 ms-1">
+        <input class="form-check-input" type="checkbox" role="switch" id="kitchenSound">
+        <label class="form-check-label small fw-semibold" for="kitchenSound">Chuông</label>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="kitchenFullscreen" title="Toàn màn hình">
+        <i class="bi bi-arrows-fullscreen"></i>
+    </button>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Sales:pos' %}" title="Về POS">
+        <i class="bi bi-arrow-left-circle me-1"></i>POS
+    </a>
+</div>
+
+<div id="kitchenBoard" class="kitchen-grid"></div>
+<div id="kitchenEmpty" class="kitchen-empty d-none">
+    <i class="bi bi-cup-hot fs-1 d-block mb-2"></i>
+    <div class="fw-semibold" id="kitchenEmptyText">Chưa có món nào cần làm.</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const API_TICKETS_URL = "{% url 'App_Sales_API:kitchen_tickets' %}";
+    const API_ITEM_STATUS_BASE = '/api/pos/kitchen/items/';
+    const API_TICKET_BASE = '/api/pos/kitchen/tickets/';
+    const NEW_TICKET_CLIP_URL = "{% static 'sounds/co-don-moi.mp3' %}";
+    const SOUND_STORAGE_KEY = 'eapp_kitchen_sound_enabled';
+    const POLL_INTERVAL_MS = 15000;
+    const WARN_MINUTES = 10;
+    const LATE_MINUTES = 20;
+    const WS_RECONNECT_BASE_MS = 1000;
+    const WS_RECONNECT_MAX_MS = 20000;
+
+    const storeSelect = document.getElementById('kitchenStore');
+    let storeId = parseInt(storeSelect?.value || '{{ default_store_id|default:0 }}', 10) || null;
+    let scope = 'active';
+    let tickets = [];
+    let socket = null;
+    let reconnectTimer = null;
+    let reconnectDelay = WS_RECONNECT_BASE_MS;
+    let pollTimer = null;
+    let loadSeq = 0;
+    let soundEnabled = true;
+    let audio = null;
+
+    const escapeHtml = (text) => String(text ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+    const getCsrfToken = () => document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+
+    const fetchJson = async (url, options = {}) => {
+        const opts = { ...options };
+        if (String(opts.method || 'GET').toUpperCase() !== 'GET') {
+            opts.headers = { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken(), ...(opts.headers || {}) };
+        }
+        const response = await fetch(url, opts);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || 'Yêu cầu thất bại');
+        return data;
+    };
+
+    const readSoundPref = () => {
+        try {
+            const raw = window.localStorage.getItem(SOUND_STORAGE_KEY);
+            return raw === null ? true : raw === '1';
+        } catch (error) {
+            return true;
+        }
+    };
+    const writeSoundPref = (value) => {
+        try {
+            window.localStorage.setItem(SOUND_STORAGE_KEY, value ? '1' : '0');
+        } catch (error) {
+            /* bỏ qua: trình duyệt chặn storage */
+        }
+    };
+    const playNewTicketSound = () => {
+        if (!soundEnabled) return;
+        try {
+            if (!audio) audio = new Audio(NEW_TICKET_CLIP_URL);
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+        } catch (error) {
+            /* bỏ qua: trình duyệt chưa cho phát âm thanh */
+        }
+    };
+
+    const setConn = (live) => {
+        const el = document.getElementById('kitchenConn');
+        el.classList.toggle('live', live);
+        el.textContent = live ? 'Realtime' : 'Tự làm mới 15s';
+    };
+
+    const minutesSince = (iso) => {
+        if (!iso) return 0;
+        return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+    };
+    const formatClock = (iso) => {
+        if (!iso) return '';
+        return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const itemActionsHtml = (item) => {
+        if (item.status === 'CANCELLED') return '';
+        if (item.status === 'PENDING') {
+            return `<button type="button" class="btn btn-sm btn-primary" data-item-id="${item.id}" data-status="PREPARING">Bắt đầu</button>`;
+        }
+        if (item.status === 'PREPARING') {
+            return `<button type="button" class="btn btn-sm btn-success" data-item-id="${item.id}" data-status="DONE">Xong</button>`;
+        }
+        return `<button type="button" class="btn btn-sm btn-outline-secondary" data-item-id="${item.id}" data-status="PREPARING">Hoàn tác</button>`;
+    };
+
+    const ticketHtml = (ticket) => {
+        const isOpen = !ticket.completed_at;
+        const age = minutesSince(ticket.created_at);
+        let ageClass = '';
+        if (isOpen && age >= LATE_MINUTES) ageClass = 'age-late';
+        else if (isOpen && age >= WARN_MINUTES) ageClass = 'age-warn';
+        const hasOpenItems = ticket.items.some((item) => item.status === 'PENDING' || item.status === 'PREPARING');
+        const metaParts = [`Gửi lúc ${formatClock(ticket.created_at)}`];
+        if (ticket.created_by) metaParts.push(ticket.created_by);
+        if (!isOpen) metaParts.push(`Xong lúc ${formatClock(ticket.completed_at)}`);
+
+        const itemsHtml = ticket.items.map((item) => `
+            <div class="ticket-item is-${item.status.toLowerCase()}">
+                <div class="qty">${item.quantity}×</div>
+                <div class="flex-grow-1" style="min-width:0;">
+                    <div class="name">${escapeHtml(item.name)}${item.unit ? ` <span class="sub">(${escapeHtml(item.unit)})</span>` : ''}</div>
+                    ${item.toppings ? `<div class="sub"><i class="bi bi-plus-circle me-1"></i>${escapeHtml(item.toppings)}</div>` : ''}
+                    ${item.note ? `<div class="note"><i class="bi bi-chat-left-text me-1"></i>${escapeHtml(item.note)}</div>` : ''}
+                    <div class="mt-1"><span class="status-pill ${item.status}">${escapeHtml(item.status_label)}</span></div>
+                </div>
+                <div class="actions">${itemActionsHtml(item)}</div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="ticket-card ${ageClass}">
+                <div class="ticket-head">
+                    <div style="min-width:0;">
+                        <div class="ticket-table text-truncate">${escapeHtml(ticket.table_name || 'Phiếu bếp')}</div>
+                        <div class="ticket-meta mt-1">
+                            <span class="source-pill ${ticket.source}">${escapeHtml(ticket.source_label)}</span>
+                            <span class="ms-1">${escapeHtml(metaParts.join(' · '))}</span>
+                        </div>
+                    </div>
+                    ${isOpen ? `<div class="ticket-elapsed" title="Thời gian chờ"><i class="bi bi-stopwatch me-1"></i>${age}'</div>` : ''}
+                </div>
+                ${itemsHtml}
+                ${hasOpenItems ? `
+                <div class="ticket-foot">
+                    <button type="button" class="btn btn-success w-100 fw-bold" data-complete-ticket="${ticket.id}">
+                        <i class="bi bi-check2-all me-1"></i>Xong cả phiếu
+                    </button>
+                </div>` : ''}
+            </div>
+        `;
+    };
+
+    const render = () => {
+        const board = document.getElementById('kitchenBoard');
+        const empty = document.getElementById('kitchenEmpty');
+        board.innerHTML = tickets.map(ticketHtml).join('');
+        empty.classList.toggle('d-none', tickets.length > 0);
+        document.getElementById('kitchenEmptyText').textContent = scope === 'active'
+            ? 'Chưa có món nào cần làm.'
+            : 'Hôm nay chưa có phiếu nào hoàn tất.';
+    };
+
+    const loadTickets = async ({ notifyNew = false } = {}) => {
+        if (!storeId) return;
+        const seq = ++loadSeq;
+        const params = new URLSearchParams({ store_id: storeId, scope });
+        try {
+            const data = await fetchJson(`${API_TICKETS_URL}?${params.toString()}`);
+            if (seq !== loadSeq) return;
+            const knownIds = new Set(tickets.map((ticket) => ticket.id));
+            const nextTickets = data.tickets || [];
+            if (notifyNew && scope === 'active' && nextTickets.some((ticket) => !knownIds.has(ticket.id))) {
+                playNewTicketSound();
+            }
+            tickets = nextTickets;
+            document.getElementById('activeCount').textContent = data.active_count || 0;
+            render();
+        } catch (error) {
+            console.warn('Kitchen load failed:', error);
+        }
+    };
+
+    const startPolling = () => {
+        if (pollTimer) return;
+        pollTimer = setInterval(() => loadTickets({ notifyNew: true }), POLL_INTERVAL_MS);
+    };
+    const stopPolling = () => {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+    };
+
+    const closeSocket = () => {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        if (!socket) return;
+        const current = socket;
+        socket = null;
+        current.onopen = current.onmessage = current.onerror = current.onclose = null;
+        try { current.close(); } catch (error) { /* đã đóng */ }
+    };
+
+    const scheduleReconnect = () => {
+        setConn(false);
+        startPolling();
+        if (reconnectTimer) return;
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connectSocket();
+        }, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, WS_RECONNECT_MAX_MS);
+    };
+
+    const connectSocket = () => {
+        if (!storeId) return;
+        if (!('WebSocket' in window)) {
+            setConn(false);
+            startPolling();
+            return;
+        }
+        closeSocket();
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const current = new WebSocket(`${protocol}//${window.location.host}/ws/pos/store/${storeId}/`);
+        socket = current;
+        current.onopen = () => {
+            reconnectDelay = WS_RECONNECT_BASE_MS;
+            setConn(true);
+            stopPolling();
+            loadTickets();
+        };
+        current.onmessage = (event) => {
+            let payload = null;
+            try { payload = JSON.parse(event.data || '{}'); } catch (error) { return; }
+            if (!payload || payload.type !== 'kitchen.changed') return;
+            if (Number(payload.store_id) !== Number(storeId)) return;
+            loadTickets({ notifyNew: payload.reason === 'created' });
+        };
+        current.onerror = () => {
+            try { current.close(); } catch (error) { /* đã đóng */ }
+        };
+        current.onclose = () => {
+            if (socket === current) socket = null;
+            scheduleReconnect();
+        };
+    };
+
+    document.getElementById('kitchenBoard').addEventListener('click', async (event) => {
+        const statusBtn = event.target.closest('[data-item-id]');
+        const completeBtn = event.target.closest('[data-complete-ticket]');
+        const btn = statusBtn || completeBtn;
+        if (!btn) return;
+        btn.disabled = true;
+        try {
+            if (statusBtn) {
+                await fetchJson(`${API_ITEM_STATUS_BASE}${statusBtn.dataset.itemId}/status/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ status: statusBtn.dataset.status }),
+                });
+            } else {
+                await fetchJson(`${API_TICKET_BASE}${completeBtn.dataset.completeTicket}/complete/`, {
+                    method: 'POST',
+                    body: '{}',
+                });
+            }
+            await loadTickets();
+        } catch (error) {
+            btn.disabled = false;
+            window.alert(error.message);
+        }
+    });
+
+    document.querySelectorAll('input[name="kitchenScope"]').forEach((input) => {
+        input.addEventListener('change', () => {
+            scope = input.value;
+            tickets = [];
+            render();
+            loadTickets();
+        });
+    });
+
+    storeSelect?.addEventListener('change', () => {
+        storeId = parseInt(storeSelect.value || '0', 10) || null;
+        tickets = [];
+        render();
+        reconnectDelay = WS_RECONNECT_BASE_MS;
+        stopPolling();
+        connectSocket();
+        loadTickets();
+    });
+
+    const soundToggle = document.getElementById('kitchenSound');
+    soundEnabled = readSoundPref();
+    soundToggle.checked = soundEnabled;
+    soundToggle.addEventListener('change', () => {
+        soundEnabled = soundToggle.checked;
+        writeSoundPref(soundEnabled);
+        if (soundEnabled) playNewTicketSound();
+    });
+
+    document.getElementById('kitchenFullscreen').addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen?.();
+        else document.documentElement.requestFullscreen?.();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        loadTickets();
+        if (!socket || socket.readyState === WebSocket.CLOSED) connectSocket();
+    });
+    window.addEventListener('beforeunload', () => {
+        closeSocket();
+        stopPolling();
+    });
+
+    // Cập nhật số phút chờ trên từng phiếu.
+    setInterval(() => {
+        if (scope === 'active' && tickets.length) render();
+    }, 30000);
+
+    render();
+    loadTickets();
+    connectSocket();
+})();
+</script>
+{% endblock %}

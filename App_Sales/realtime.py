@@ -75,3 +75,21 @@ def notify_public_qr_order_changed(*, order_id, status, reason):
 def notify_qr_order_changed(*, store_id, order_id, status, reason):
     notify_pos_qr_changed(store_id=store_id, order_id=order_id, reason=reason)
     notify_public_qr_order_changed(order_id=order_id, status=status, reason=reason)
+
+
+def notify_kitchen_changed(*, store_id, reason, ticket_id=None, message=''):
+    payload = {
+        'type': 'kitchen.changed',
+        'store_id': int(store_id),
+        'ticket_id': int(ticket_id) if ticket_id else None,
+        'reason': str(reason),
+        'message': str(message or ''),
+        'ts': timezone.now().isoformat(),
+    }
+    _safe_group_send(
+        pos_store_group_name(store_id),
+        {
+            'type': 'kitchen.changed',
+            'data': payload,
+        },
+    )

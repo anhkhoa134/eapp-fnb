@@ -15,6 +15,7 @@ RESERVED_PUBLIC_SLUGS = {
     'accounts',
     'api',
     'quanly',
+    'kitchen',
     'static',
     'media',
     'favicon.ico',
@@ -44,6 +45,7 @@ class Tenant(TimeStampedModel):
     show_promotion_feature = models.BooleanField('Hiển thị Khuyến mãi', default=True)
     show_topping_feature = models.BooleanField('Hiển thị Topping / tuỳ chọn món', default=True)
     show_qr_order_feature = models.BooleanField('Hiển thị QR bàn / gọi món QR', default=True)
+    show_kitchen_feature = models.BooleanField('Màn hình bếp (báo bếp)', default=False)
     max_stores = models.PositiveIntegerField(
         'Giới hạn cửa hàng',
         default=1,
