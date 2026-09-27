@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import io
 import re
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 from django.db import transaction
+from django.db.models import Max
 
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
 from App_Tenant.models import Store, Tenant
@@ -104,20 +105,6 @@ def parse_decimal_cell(value: Any) -> Decimal:
     return Decimal(s)
 
 
-def parse_int_cell(value: Any, default: int = 0) -> int:
-    if value is None or (isinstance(value, str) and not str(value).strip()):
-        return default
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    s = str(value).strip()
-    try:
-        return int(Decimal(s))
-    except (InvalidOperation, ValueError):
-        return int(float(s))
-
-
 def resolve_store_ids(tenant: Tenant, raw: Any, stores: list[Store]) -> set[int]:
     all_ids = {s.id for s in stores}
     if raw is None:
@@ -203,6 +190,9 @@ def build_template_workbook():
         'hoat_dong: 1 = bật, 0 = tắt (mặc định bật nếu để trống).',
         'Khóa: Danh mục theo ten_danh_muc; Sản phẩm theo (ten_danh_muc + ten_san_pham), ten_danh_muc có thể để trống nếu tên sản phẩm là duy nhất trong tenant.',
         'Đơn vị / gán topping: có thể tham chiếu sản phẩm sẽ được tạo trong cùng file (sheet San_pham).',
+        'Thứ tự hiển thị: dòng mới được xếp cuối theo thứ tự trong file; mục đã có giữ nguyên vị trí. '
+        'Đổi thứ tự bằng kéo thả trên trang Quản lý.',
+        'Ảnh sản phẩm: upload trên trang Sản phẩm (file không nhận URL ảnh).',
         'Đơn vị: (ten_danh_muc, ten_san_pham, ten_don_vi). Topping: ten_topping. Gán topping: (ten_san_pham, ten_topping) + ten_danh_muc khi cần.',
         '',
         'Các sheet dữ liệu có thêm vài dòng mẫu để tham khảo định dạng; có thể xóa hoặc sửa trước khi import.',
@@ -213,10 +203,10 @@ def build_template_workbook():
 
     sheet_column_widths: dict[str, list[float]] = {
         SHEET_DANH_MUC: [20, 48, 11, 30],
-        SHEET_SAN_PHAM: [16, 24, 42, 36, 11, 30],
-        SHEET_DON_VI: [16, 24, 14, 12, 9, 11],
-        SHEET_TOPPING: [22, 10, 11],
-        SHEET_SAN_PHAM_TOPPING: [16, 24, 20, 12, 9, 11],
+        SHEET_SAN_PHAM: [16, 24, 42, 11, 30],
+        SHEET_DON_VI: [16, 24, 14, 12, 11],
+        SHEET_TOPPING: [22, 11],
+        SHEET_SAN_PHAM_TOPPING: [16, 24, 20, 12, 11],
     }
 
     sheets_spec: list[tuple[str, list[str], list[list[Any]]]] = [
@@ -230,36 +220,36 @@ def build_template_workbook():
         ),
         (
             SHEET_SAN_PHAM,
-            ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
+            ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'hoat_dong', 'cua_hang'],
             [
-                ['Đồ uống', 'Trà đá chanh', 'Trà đá với chanh tươi', '', 1, '*'],
-                ['Đồ uống', 'Cà phê sữa', 'Pha phin truyền thống', '', 1, '*'],
-                ['Món mặn', 'Cơm tấm sườn', 'Sườn nướng, bì, chả', '', 1, '*'],
+                ['Đồ uống', 'Trà đá chanh', 'Trà đá với chanh tươi', 1, '*'],
+                ['Đồ uống', 'Cà phê sữa', 'Pha phin truyền thống', 1, '*'],
+                ['Món mặn', 'Cơm tấm sườn', 'Sườn nướng, bì, chả', 1, '*'],
             ],
         ),
         (
             SHEET_DON_VI,
-            ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'thu_tu', 'hoat_dong'],
+            ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'hoat_dong'],
             [
-                ['Đồ uống', 'Trà đá chanh', 'Ly', 15000, 0, 1],
-                ['Đồ uống', 'Cà phê sữa', 'Ly', 25000, 0, 1],
-                ['Món mặn', 'Cơm tấm sườn', 'Phần', 55000, 0, 1],
+                ['Đồ uống', 'Trà đá chanh', 'Ly', 15000, 1],
+                ['Đồ uống', 'Cà phê sữa', 'Ly', 25000, 1],
+                ['Món mặn', 'Cơm tấm sườn', 'Phần', 55000, 1],
             ],
         ),
         (
             SHEET_TOPPING,
-            ['ten_topping', 'thu_tu', 'hoat_dong'],
+            ['ten_topping', 'hoat_dong'],
             [
-                ['Thêm đá', 0, 1],
-                ['Thêm sữa', 1, 1],
+                ['Thêm đá', 1],
+                ['Thêm sữa', 1],
             ],
         ),
         (
             SHEET_SAN_PHAM_TOPPING,
-            ['ten_danh_muc', 'ten_san_pham', 'ten_topping', 'gia_them', 'thu_tu', 'hoat_dong'],
+            ['ten_danh_muc', 'ten_san_pham', 'ten_topping', 'gia_them', 'hoat_dong'],
             [
-                ['Đồ uống', 'Trà đá chanh', 'Thêm đá', 0, 0, 1],
-                ['Đồ uống', 'Cà phê sữa', 'Thêm sữa', 5000, 0, 1],
+                ['Đồ uống', 'Trà đá chanh', 'Thêm đá', 0, 1],
+                ['Đồ uống', 'Cà phê sữa', 'Thêm sữa', 5000, 1],
             ],
         ),
     ]
@@ -279,6 +269,12 @@ def template_workbook_bytes() -> bytes:
     wb = build_template_workbook()
     wb.save(buf)
     return buf.getvalue()
+
+
+def next_display_order(queryset) -> int:
+    """display_order cho bản ghi mới: xếp cuối nhóm."""
+    current = queryset.aggregate(value=Max('display_order'))['value']
+    return (current or 0) + 1
 
 
 def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
@@ -500,8 +496,6 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 prod_name = str(d.get('ten_san_pham')).strip()
                 store_ids = resolve_store_ids(tenant, d.get('cua_hang'), stores)
                 long_d = str(d.get('mo_ta') or '')
-                raw_img = d.get('url_hinh')
-                img = str(raw_img).strip()[:200] if raw_img is not None and str(raw_img).strip() else ''
                 active = parse_bool_cell(d.get('hoat_dong'), default=True)
 
                 if cat_name:
@@ -523,7 +517,6 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                     if cat_name:
                         pr.category = cat
                     pr.description = long_d
-                    pr.image_url = img
                     pr.is_active = active
                     pr.save()
                     stats['products_updated'] += 1
@@ -533,7 +526,6 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         category=cat,
                         name=prod_name,
                         description=long_d,
-                        image_url=img,
                         is_active=active,
                     )
                     pr.save()
@@ -563,14 +555,12 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 )
                 prod_by_key[key] = pr
                 price = parse_decimal_cell(d.get('gia'))
-                order = parse_int_cell(d.get('thu_tu'), 0)
                 active = parse_bool_cell(d.get('hoat_dong'), default=True)
                 unit = ProductUnit.objects.filter(product=pr, name=unit_name).first()
                 if unit:
                     unit.price = price
-                    unit.display_order = order
                     unit.is_active = active
-                    unit.save(update_fields=['price', 'display_order', 'is_active', 'updated_at'])
+                    unit.save(update_fields=['price', 'is_active', 'updated_at'])
                     stats['units_updated'] += 1
                 else:
                     ProductUnit.objects.create(
@@ -578,7 +568,7 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         name=unit_name,
                         price=price,
                         sku='',
-                        display_order=order,
+                        display_order=next_display_order(ProductUnit.objects.filter(product=pr)),
                         is_active=active,
                     )
                     stats['units_created'] += 1
@@ -587,16 +577,19 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
 
             for _, d in rows_tp:
                 name = str(d.get('ten_topping')).strip()
-                order = parse_int_cell(d.get('thu_tu'), 0)
                 active = parse_bool_cell(d.get('hoat_dong'), default=True)
                 if name in top_by_name:
                     t = top_by_name[name]
-                    t.display_order = order
                     t.is_active = active
-                    t.save(update_fields=['display_order', 'is_active', 'updated_at'])
+                    t.save(update_fields=['is_active', 'updated_at'])
                     stats['toppings_updated'] += 1
                 else:
-                    t = Topping(tenant=tenant, name=name, display_order=order, is_active=active)
+                    t = Topping(
+                        tenant=tenant,
+                        name=name,
+                        display_order=next_display_order(Topping.objects.filter(tenant=tenant)),
+                        is_active=active,
+                    )
                     t.save()
                     top_by_name[name] = t
                     stats['toppings_created'] += 1
@@ -619,12 +612,11 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                     raise RuntimeError(f'Lỗi nội bộ: không resolve được sản phẩm ({cat_name!r}, {prod_name!r})')
                 topping = top_by_name[top_name]
                 price = parse_decimal_cell(d.get('gia_them'))
-                order = parse_int_cell(d.get('thu_tu'), 0)
                 active = parse_bool_cell(d.get('hoat_dong'), default=True)
                 m = ProductTopping.objects.filter(product=pr, topping=topping).first()
                 if m:
                     m.price = price
-                    m.display_order = order
+                    m.display_order = topping.display_order
                     m.is_active = active
                     m.save(update_fields=['price', 'display_order', 'is_active', 'updated_at'])
                     stats['mappings_updated'] += 1
@@ -633,7 +625,7 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         product=pr,
                         topping=topping,
                         price=price,
-                        display_order=order,
+                        display_order=topping.display_order,
                         is_active=active,
                     )
                     stats['mappings_created'] += 1

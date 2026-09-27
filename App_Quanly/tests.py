@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -135,6 +136,7 @@ class QuanlyPermissionTests(TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.content.decode('utf-8')
         for field in (
+            'show_store_feature',
             'show_customer_feature',
             'show_promotion_feature',
             'show_topping_feature',
@@ -528,6 +530,47 @@ class QuanlyPermissionTests(TestCase):
         self.staff.refresh_from_db()
         self.assertTrue(self.staff.check_password('Reset@1234'))
 
+    def test_store_feature_off_by_default_hides_store_pages(self):
+        self.assertFalse(self.tenant.show_store_feature)
+        self.client.login(username='manager_demo', password='123456')
+        html = self.client.get(reverse('App_Quanly:account')).content.decode('utf-8')
+        self.assertNotIn(f'href="{reverse("App_Quanly:stores")}"', html)
+        self.assertEqual(self.client.get(reverse('App_Quanly:stores')).status_code, 403)
+        res = self.client.post(reverse('App_Quanly:stores'), {'name': 'Chi nhánh 2', 'is_active': 'on'})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(Store.objects.filter(tenant=self.tenant).count(), 1)
+        self.tenant.refresh_from_db()
+        self.assertFalse(self.tenant.can_create_store())
+
+    def test_store_feature_enabled_shows_store_pages(self):
+        self.tenant.show_store_feature = True
+        self.tenant.save(update_fields=['show_store_feature', 'updated_at'])
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.get(reverse('App_Quanly:stores'))
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(f'href="{reverse("App_Quanly:stores")}"', res.content.decode('utf-8'))
+
+    def test_cannot_disable_store_feature_with_multiple_active_stores(self):
+        self.tenant.show_store_feature = True
+        self.tenant.save(update_fields=['show_store_feature', 'updated_at'])
+        Store.objects.create(tenant=self.tenant, name='Chi nhánh 2', is_active=True)
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.post(reverse('App_Quanly:feature_settings'), {'show_customer_feature': 'on'})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('Không thể tắt vì đang có 2 cửa hàng hoạt động', res.content.decode('utf-8'))
+        self.tenant.refresh_from_db()
+        self.assertTrue(self.tenant.show_store_feature)
+
+    def test_can_disable_store_feature_when_other_stores_inactive(self):
+        self.tenant.show_store_feature = True
+        self.tenant.save(update_fields=['show_store_feature', 'updated_at'])
+        Store.objects.create(tenant=self.tenant, name='Chi nhánh 2', is_active=False)
+        self.client.login(username='manager_demo', password='123456')
+        res = self.client.post(reverse('App_Quanly:feature_settings'), {'show_customer_feature': 'on'})
+        self.assertRedirects(res, reverse('App_Quanly:feature_settings'))
+        self.tenant.refresh_from_db()
+        self.assertFalse(self.tenant.show_store_feature)
+
 
 class QuanlyOrderHistoryTests(TestCase):
     def setUp(self):
@@ -731,12 +774,53 @@ class QuanlyToppingUnifiedFormTests(TestCase):
             data={
                 'form_type': 'topping',
                 'topping-name': 'Thêm kem',
-                'topping-display_order': '1',
                 'topping-is_active': 'on',
             },
         )
         self.assertEqual(res.status_code, 302)
-        self.assertTrue(Topping.objects.filter(tenant=self.tenant, name='Thêm kem').exists())
+        created = Topping.objects.get(tenant=self.tenant, name='Thêm kem')
+        # Topping mới nằm cuối danh sách.
+        self.assertGreater(created.display_order, self.topping.display_order)
+
+    def test_reorder_toppings_updates_order_and_product_links(self):
+        self.client.login(username='manager_top', password='123456')
+        t2 = Topping.objects.create(tenant=self.tenant, name='Trân châu', display_order=2)
+        t3 = Topping.objects.create(tenant=self.tenant, name='Thạch', display_order=3)
+        link = ProductTopping.objects.create(product=self.product, topping=t3, price=0, display_order=3)
+        res = self.client.post(
+            reverse('App_Quanly:reorder', kwargs={'kind': 'toppings'}),
+            data=json.dumps({'ids': [t3.id, self.topping.id, t2.id]}),
+            content_type='application/json',
+        )
+        self.assertEqual(res.status_code, 200)
+        ordered = list(Topping.objects.filter(tenant=self.tenant).order_by('display_order').values_list('id', flat=True))
+        self.assertEqual(ordered, [t3.id, self.topping.id, t2.id])
+        link.refresh_from_db()
+        self.assertEqual(link.display_order, 1)
+
+    def test_reorder_rejects_other_tenant_ids(self):
+        self.client.login(username='manager_top', password='123456')
+        other_tenant = Tenant.objects.create(name='Other', public_slug='other-top')
+        foreign = Topping.objects.create(tenant=other_tenant, name='Ngoại')
+        res = self.client.post(
+            reverse('App_Quanly:reorder', kwargs={'kind': 'toppings'}),
+            data=json.dumps({'ids': [self.topping.id, foreign.id]}),
+            content_type='application/json',
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_reorder_units_partial_page_keeps_other_positions(self):
+        self.client.login(username='manager_top', password='123456')
+        u1 = ProductUnit.objects.create(product=self.product, name='S', price=10000, display_order=1)
+        u2 = ProductUnit.objects.create(product=self.product, name='M', price=20000, display_order=2)
+        u3 = ProductUnit.objects.create(product=self.product, name='L', price=30000, display_order=3)
+        res = self.client.post(
+            reverse('App_Quanly:reorder', kwargs={'kind': 'units'}),
+            data=json.dumps({'ids': [u3.id, u2.id]}),
+            content_type='application/json',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(list(self.product.units.values_list('id', flat=True)), [u1.id, u3.id, u2.id])
 
     def test_create_mapping_form_type_mapping_success(self):
         self.client.login(username='manager_top', password='123456')
@@ -747,7 +831,6 @@ class QuanlyToppingUnifiedFormTests(TestCase):
                 'mapping-product': str(self.product.id),
                 'mapping-topping': str(self.topping.id),
                 'mapping-price': '7000',
-                'mapping-display_order': '0',
                 'mapping-is_active': 'on',
             },
         )
@@ -801,13 +884,13 @@ class QuanlyQrTableCrudTests(TestCase):
                 'store': str(self.store_2.id),
                 'code': 'b-02',
                 'name': 'Bàn B-02',
-                'display_order': 2,
                 'is_active': 'on',
             },
         )
         self.assertEqual(post_res.status_code, 302)
         created = DiningTable.objects.get(tenant=self.tenant, store=self.store_2, code='B-02')
         self.assertEqual(created.name, 'Bàn B-02')
+        self.assertEqual(created.display_order, 1)
 
     def test_qr_table_edit(self):
         self.client.login(username='manager_qr_table', password='123456')
@@ -817,7 +900,6 @@ class QuanlyQrTableCrudTests(TestCase):
                 'store': str(self.store_1.id),
                 'code': 'a-09',
                 'name': 'Bàn VIP 09',
-                'display_order': 9,
                 'is_active': 'on',
             },
         )
@@ -825,7 +907,22 @@ class QuanlyQrTableCrudTests(TestCase):
         self.table.refresh_from_db()
         self.assertEqual(self.table.code, 'A-09')
         self.assertEqual(self.table.name, 'Bàn VIP 09')
-        self.assertEqual(self.table.display_order, 9)
+        self.assertEqual(self.table.display_order, 1)
+
+    def test_reorder_tables_per_store(self):
+        self.client.login(username='manager_qr_table', password='123456')
+        a2 = DiningTable.objects.create(tenant=self.tenant, store=self.store_1, code='A-02', name='A2', display_order=2)
+        b1 = DiningTable.objects.create(tenant=self.tenant, store=self.store_2, code='B-01', name='B1', display_order=1)
+        res = self.client.post(
+            reverse('App_Quanly:reorder', kwargs={'kind': 'tables'}),
+            data=json.dumps({'ids': [a2.id, self.table.id, b1.id]}),
+            content_type='application/json',
+        )
+        self.assertEqual(res.status_code, 200)
+        self.table.refresh_from_db()
+        a2.refresh_from_db()
+        b1.refresh_from_db()
+        self.assertEqual((a2.display_order, self.table.display_order, b1.display_order), (1, 2, 1))
 
     def test_qr_table_reset_token(self):
         self.client.login(username='manager_qr_table', password='123456')
@@ -900,13 +997,13 @@ class CatalogExcelImportTests(TestCase):
             ),
             (
                 'San_pham',
-                ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'url_hinh', 'hoat_dong', 'cua_hang'],
-                [['Nước', 'Trà đá', '', '', 1, '*']],
+                ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'hoat_dong', 'cua_hang'],
+                [['Nước', 'Trà đá', '', 1, '*']],
             ),
             (
                 'Don_vi',
-                ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'thu_tu', 'hoat_dong'],
-                [['Nước', 'Trà đá', 'Ly', '10000', 0, 1]],
+                ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'hoat_dong'],
+                [['Nước', 'Trà đá', 'Ly', '10000', 1], ['Nước', 'Trà đá', 'Chai', '15000', 1]],
             ),
         ]
         for title, headers, rows in specs:
@@ -969,6 +1066,9 @@ class CatalogExcelImportTests(TestCase):
         self.assertEqual(p.category_id, cat.id)
         u = ProductUnit.objects.get(product=p, name='Ly')
         self.assertEqual(u.price, Decimal('10000'))
+        # Không còn cột thu_tu: đơn vị mới xếp theo thứ tự dòng trong file.
+        self.assertEqual(list(p.units.values_list('name', flat=True)), ['Ly', 'Chai'])
+        self.assertEqual(p.image_url, '')
 
     def test_import_duplicate_category_rows_rejected(self):
         from openpyxl import Workbook
@@ -996,3 +1096,75 @@ class CatalogExcelImportTests(TestCase):
         )
         self.assertEqual(res.status_code, 302)
         self.assertFalse(Category.objects.filter(tenant=self.tenant, name='Trùng').exists())
+
+
+class QuanlyProductImageUploadTests(TestCase):
+    def setUp(self):
+        import tempfile
+
+        self._media_dir = tempfile.TemporaryDirectory()
+        self._media_override = self.settings(MEDIA_ROOT=self._media_dir.name)
+        self._media_override.enable()
+        self.tenant = Tenant.objects.create(name='Tenant Img', public_slug='tenant-img')
+        self.store = Store.objects.create(tenant=self.tenant, name='Store Img', is_default=True)
+        self.manager = User.objects.create_user(
+            username='manager_img',
+            password='123456',
+            tenant=self.tenant,
+            role=User.Role.MANAGER,
+        )
+        UserStoreAccess.objects.create(user=self.manager, store=self.store, is_default=True)
+        self.client.login(username='manager_img', password='123456')
+
+    def tearDown(self):
+        self._media_override.disable()
+        self._media_dir.cleanup()
+
+    @staticmethod
+    def _image_upload(fmt='PNG', size=(2000, 1000), name='anh.png', mode='RGB'):
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new(mode, size, (200, 100, 50) if mode == 'RGB' else (200, 100, 50, 128)).save(buf, format=fmt)
+        return SimpleUploadedFile(name, buf.getvalue(), content_type=f'image/{fmt.lower()}')
+
+    def _assert_webp(self, fieldfile, max_side):
+        from PIL import Image
+
+        self.assertTrue(fieldfile.name.endswith('.webp'))
+        self.assertIn(f'tenant_{self.tenant.id}/products/', fieldfile.name)
+        with fieldfile.open('rb') as fh, Image.open(fh) as im:
+            self.assertEqual(im.format, 'WEBP')
+            self.assertLessEqual(max(im.size), max_side)
+
+    def test_create_product_with_upload_converts_to_webp(self):
+        res = self.client.post(
+            reverse('App_Quanly:products'),
+            data={'name': 'Trà đào', 'is_active': 'on', 'image_upload': self._image_upload()},
+        )
+        self.assertEqual(res.status_code, 302)
+        product = Product.objects.get(tenant=self.tenant, name='Trà đào')
+        self._assert_webp(product.image_file, 1400)
+        self._assert_webp(product.image_thumbnail, 420)
+        self.assertEqual(product.catalog_image_url, product.image_thumbnail.url)
+
+    def test_edit_product_replaces_upload_and_keeps_image_url(self):
+        product = Product.objects.create(tenant=self.tenant, name='Cà phê', image_url='https://example.com/a.png')
+        self.client.post(
+            reverse('App_Quanly:product_edit', kwargs={'pk': product.id}),
+            data={'name': 'Cà phê', 'is_active': 'on', 'image_upload': self._image_upload('JPEG', name='a.jpg')},
+        )
+        product.refresh_from_db()
+        old_name = product.image_file.name
+        self._assert_webp(product.image_file, 1400)
+        # Form không còn field image_url nhưng không được xoá URL cũ.
+        self.assertEqual(product.image_url, 'https://example.com/a.png')
+
+        self.client.post(
+            reverse('App_Quanly:product_edit', kwargs={'pk': product.id}),
+            data={'name': 'Cà phê', 'is_active': 'on', 'image_upload': self._image_upload(mode='RGBA', name='b.png')},
+        )
+        product.refresh_from_db()
+        self.assertNotEqual(product.image_file.name, old_name)
+        self._assert_webp(product.image_file, 1400)
+        self.assertFalse(product.image_file.storage.exists(old_name))

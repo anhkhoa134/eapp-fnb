@@ -38,19 +38,19 @@
             <table class="table table-sm align-middle">
                 <thead>
                     <tr>
+                        <th title="Kéo để sắp xếp thứ tự"><span class="visually-hidden">Sắp xếp</span></th>
                         <th>Tên topping</th>
                         <th>Giá</th>
-                        <th>Thứ tự</th>
                         <th class="text-center">Trạng thái</th>
                         <th class="text-end">Thao tác</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody data-sortable-url="{% url 'App_Quanly:reorder' 'toppings' %}">
                     {% for topping in toppings_page %}
-                    <tr>
+                    <tr data-sort-id="{{ topping.id }}">
+                        <td class="js-drag-handle" title="Kéo để sắp xếp"><i class="bi bi-grip-vertical" aria-hidden="true"></i></td>
                         <td class="fw-semibold">{{ topping.name }}</td>
                         <td>{{ topping.price|thousand_sep }} đ</td>
-                        <td>{{ topping.display_order }}</td>
                         <td class="text-center">
                             {% include 'App_Quanly/_status_icon.html' with active=topping.is_active %}
                         </td>
@@ -63,7 +63,6 @@
                                 data-action="{% url 'App_Quanly:topping_edit' topping.id %}"
                                 data-topping-name="{{ topping.name|escape }}"
                                 data-topping-price="{{ topping.price|stringformat:'s' }}"
-                                data-topping-display-order="{{ topping.display_order }}"
                                 data-topping-active="{% if topping.is_active %}1{% else %}0{% endif %}"
                                 data-topping-product-ids="{% for link in topping.product_links.all %}{{ link.product_id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                                     data-delete-action="{% url 'App_Quanly:topping_delete' topping.id %}"
@@ -111,11 +110,6 @@
                             <div class="form-text">Số nguyên (đ), có thể gõ kèm dấu phân cách phần nghìn.</div>
                             {{ topping_form.price.errors }}
                         </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="{{ topping_form.display_order.id_for_label }}">Thứ tự</label>
-                            {{ topping_form.display_order }}
-                            {{ topping_form.display_order.errors }}
-                        </div>
                         <div class="switch-card">
                             <div class="form-check m-0">
                                 {{ topping_form.is_active }}
@@ -161,10 +155,6 @@
                             <label class="form-label fw-semibold" for="edit-topping-price">Giá</label>
                             <input class="form-control js-price-vnd" id="edit-topping-price" name="price" type="text" inputmode="numeric" autocomplete="off" placeholder="VD: 7000" required>
                             <div class="form-text">Số nguyên (đ).</div>
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="edit-topping-display-order">Thứ tự</label>
-                            <input class="form-control" id="edit-topping-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0" required>
                         </div>
                         <div class="switch-card">
                             <div class="form-check m-0">
@@ -222,12 +212,12 @@
 
 {% block extra_js %}
 {% include 'App_Quanly/_price_vnd_input_script.html' %}
+{% include 'App_Quanly/_sortable_script.html' %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const editToppingForm = document.getElementById('editToppingForm');
         const editToppingName = document.getElementById('edit-topping-name');
         const editToppingPrice = document.getElementById('edit-topping-price');
-        const editToppingDisplayOrder = document.getElementById('edit-topping-display-order');
         const editToppingActive = document.getElementById('edit-topping-active');
         const editToppingProducts = document.querySelectorAll('.js-edit-topping-product');
         const deleteToppingForm = document.getElementById('deleteToppingForm');
@@ -240,7 +230,6 @@
                 if (typeof window.quanlyFormatPriceVndInput === 'function') {
                     window.quanlyFormatPriceVndInput(editToppingPrice);
                 }
-                if (editToppingDisplayOrder) editToppingDisplayOrder.value = button.dataset.toppingDisplayOrder || '0';
                 if (editToppingActive) editToppingActive.checked = button.dataset.toppingActive === '1';
 
                 const raw = (button.dataset.toppingProductIds || '').trim();

@@ -44,7 +44,6 @@
                         data-product-name="{{ product.name|escape }}"
                         data-product-category="{{ product.category_id|default:'' }}"
                         data-product-description="{{ product.description|default:''|escape }}"
-                        data-product-image-url="{{ product.image_url|default:''|escape }}"
                         data-product-preview-image="{{ product.catalog_image_url|default:''|escape }}"
                         data-product-has-upload="{% if product.image_file or product.image_thumbnail %}1{% else %}0{% endif %}"
                         data-product-active="{% if product.is_active %}1{% else %}0{% endif %}"
@@ -63,21 +62,21 @@
                 <table class="table table-sm align-middle mb-0">
                     <thead>
                         <tr>
+                            <th title="Kéo để sắp xếp thứ tự"><span class="visually-hidden">Sắp xếp</span></th>
                             <th>Đơn vị</th>
                             <th>Giá</th>
                             <th>SKU</th>
-                            <th>Thứ tự</th>
                             <th class="text-center">Trạng thái</th>
                             <th class="text-end">Thao tác</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-sortable-url="{% url 'App_Quanly:reorder' 'units' %}">
                         {% for unit in product.units.all %}
-                        <tr>
+                        <tr data-sort-id="{{ unit.id }}">
+                            <td class="js-drag-handle" title="Kéo để sắp xếp"><i class="bi bi-grip-vertical" aria-hidden="true"></i></td>
                             <td>{{ unit.name }}</td>
                             <td>{{ unit.price|thousand_sep }} đ</td>
                             <td>{{ unit.sku|default:'-' }}</td>
-                            <td>{{ unit.display_order }}</td>
                             <td class="text-center">
                                 {% include 'App_Quanly/_status_icon.html' with active=unit.is_active %}
                             </td>
@@ -91,7 +90,6 @@
                                     data-unit-name="{{ unit.name|escape }}"
                                     data-unit-price="{{ unit.price|stringformat:'s' }}"
                                     data-unit-sku="{{ unit.sku|default:''|escape }}"
-                                    data-unit-display-order="{{ unit.display_order }}"
                                     data-unit-active="{% if unit.is_active %}1{% else %}0{% endif %}"
                                     data-product-name="{{ product.name|escape }}"
                                         data-delete-action="{% url 'App_Quanly:unit_delete' unit.id %}"
@@ -148,15 +146,10 @@
                             {{ form.description.errors }}
                         </div>
                         <div class="full">
-                            <label class="form-label fw-semibold" for="{{ form.image_url.id_for_label }}">Image URL</label>
-                            {{ form.image_url }}
-                            {{ form.image_url.errors }}
-                            <div class="form-text">Hoặc tải ảnh từ máy (WebP + thumbnail tự động).</div>
-                        </div>
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="{{ form.image_upload.id_for_label }}">Ảnh từ máy</label>
+                            <label class="form-label fw-semibold" for="{{ form.image_upload.id_for_label }}">Ảnh sản phẩm</label>
                             {{ form.image_upload }}
                             {{ form.image_upload.errors }}
+                            <div class="form-text">JPG, PNG hoặc WebP, tối đa 5 MB. Ảnh tự chuyển sang WebP kèm thumbnail.</div>
                         </div>
                         <div class="full">
                             <div class="form-section-title">Bán tại cửa hàng</div>
@@ -215,25 +208,21 @@
                             <label class="form-label fw-semibold" for="edit-product-description">Mô tả</label>
                             <textarea class="form-control" id="edit-product-description" name="description" rows="2" placeholder="VD: Mô tả ngắn về hương vị, thành phần, ghi chú bán hàng..."></textarea>
                         </div>
-                        <div class="full">
-                            <label class="form-label fw-semibold" for="edit-product-image-url">Image URL</label>
-                            <input class="form-control" id="edit-product-image-url" name="image_url" type="url" placeholder="https://...">
-                            <div class="form-text">Hoặc tải ảnh mới từ máy (WebP + thumbnail).</div>
-                        </div>
                         <div class="full" id="edit-product-upload-preview-wrap">
                             <div class="small text-muted mb-1">Ảnh hiện tại (xem nhanh)</div>
                             <img src="" alt="" id="edit-product-upload-preview-img" class="img-fluid rounded border d-none" style="max-height: 140px;">
                         </div>
                         <div class="full">
-                            <label class="form-label fw-semibold" for="edit-product-image-upload">Ảnh từ máy</label>
+                            <label class="form-label fw-semibold" for="edit-product-image-upload">Ảnh sản phẩm</label>
                             <input class="form-control" id="edit-product-image-upload" name="image_upload" type="file" accept="image/*">
+                            <div class="form-text">Chọn ảnh mới để thay ảnh hiện tại (tự chuyển sang WebP kèm thumbnail).</div>
                         </div>
                         <div class="full switch-card d-none" id="edit-product-remove-upload-wrap">
                             <div class="form-check m-0">
                                 <input class="form-check-input" type="checkbox" name="remove_uploaded_images" id="edit-remove-uploaded-images" value="1">
                                 <label class="form-check-label fw-semibold" for="edit-remove-uploaded-images">Xóa ảnh đã upload</label>
                             </div>
-                            <div class="form-text">Gỡ file ảnh trên server (mỗi doanh nghiệp có thư mục riêng). Có thể dùng Image URL thay thế.</div>
+                            <div class="form-text">Gỡ file ảnh trên server (mỗi doanh nghiệp có thư mục riêng).</div>
                         </div>
                         <div class="full">
                             <div class="form-section-title">Bán tại cửa hàng</div>
@@ -312,10 +301,6 @@
                             <label class="form-label fw-semibold" for="add-unit-sku">SKU</label>
                             <input class="form-control" id="add-unit-sku" name="sku" maxlength="120" placeholder="VD: CF-SUA-M">
                         </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="add-unit-display-order">Thứ tự hiển thị</label>
-                            <input class="form-control" id="add-unit-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0">
-                        </div>
                         <div class="full switch-card">
                             <div class="form-check m-0">
                                 <input class="form-check-input" id="add-unit-active" name="is_active" type="checkbox" checked>
@@ -357,10 +342,6 @@
                         <div>
                             <label class="form-label fw-semibold" for="edit-unit-sku">SKU</label>
                             <input class="form-control" id="edit-unit-sku" name="sku" maxlength="120" placeholder="VD: CF-SUA-M">
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="edit-unit-display-order">Thứ tự hiển thị</label>
-                            <input class="form-control" id="edit-unit-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0">
                         </div>
                         <div class="full switch-card">
                             <div class="form-check m-0">
@@ -406,13 +387,13 @@
 
 {% block extra_js %}
 {% include 'App_Quanly/_price_vnd_input_script.html' %}
+{% include 'App_Quanly/_sortable_script.html' %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const editProductForm = document.getElementById('editProductForm');
         const editProductName = document.getElementById('edit-product-name');
         const editProductCategory = document.getElementById('edit-product-category');
         const editProductDescription = document.getElementById('edit-product-description');
-        const editProductImageUrl = document.getElementById('edit-product-image-url');
         const editProductImageUpload = document.getElementById('edit-product-image-upload');
         const editProductRemoveUploadWrap = document.getElementById('edit-product-remove-upload-wrap');
         const editRemoveUploadedImages = document.getElementById('edit-remove-uploaded-images');
@@ -432,7 +413,6 @@
                 if (editProductName) editProductName.value = button.dataset.productName || '';
                 if (editProductCategory) editProductCategory.value = button.dataset.productCategory || '';
                 if (editProductDescription) editProductDescription.value = button.dataset.productDescription || '';
-                if (editProductImageUrl) editProductImageUrl.value = button.dataset.productImageUrl || '';
                 if (editProductImageUpload) editProductImageUpload.value = '';
                 if (editRemoveUploadedImages) editRemoveUploadedImages.checked = false;
                 const hasUpload = button.dataset.productHasUpload === '1';
@@ -472,7 +452,6 @@
         const editUnitName = document.getElementById('edit-unit-name');
         const editUnitPrice = document.getElementById('edit-unit-price');
         const editUnitSku = document.getElementById('edit-unit-sku');
-        const editUnitDisplayOrder = document.getElementById('edit-unit-display-order');
         const editUnitActive = document.getElementById('edit-unit-active');
         const deleteUnitForm = document.getElementById('deleteUnitForm');
         const deleteUnitName = document.getElementById('deleteUnitName');
@@ -487,7 +466,6 @@
                     window.quanlyFormatPriceVndInput(editUnitPrice);
                 }
                 if (editUnitSku) editUnitSku.value = button.dataset.unitSku || '';
-                if (editUnitDisplayOrder) editUnitDisplayOrder.value = button.dataset.unitDisplayOrder || '0';
                 if (editUnitActive) editUnitActive.checked = button.dataset.unitActive === '1';
                 if (deleteUnitForm) deleteUnitForm.action = button.dataset.deleteAction || '';
                 if (deleteUnitName) deleteUnitName.textContent = button.dataset.deleteName || '';

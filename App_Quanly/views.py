@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, time, timedelta
 from io import BytesIO
 from decimal import Decimal
@@ -11,7 +12,7 @@ from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce, TruncDate
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -26,7 +27,12 @@ from App_Accounts.models import User
 from App_Accounts.forms import POSPasswordChangeForm
 from App_Accounts.permissions import manager_required, staff_or_manager_required
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
-from App_Quanly.catalog_excel import MAX_UPLOAD_BYTES, import_catalog_from_upload, template_workbook_bytes
+from App_Quanly.catalog_excel import (
+    MAX_UPLOAD_BYTES,
+    import_catalog_from_upload,
+    next_display_order,
+    template_workbook_bytes,
+)
 from App_Quanly.forms import (
     CategoryForm,
     CustomerForm,
@@ -190,6 +196,24 @@ def _sync_topping_product_links(*, topping: Topping, selected_products):
             changed_fields.append('price')
         if changed_fields:
             row.save(update_fields=changed_fields + ['updated_at'])
+
+
+def _reorder_rows(rows, moved_ids):
+    """
+    `rows` là toàn bộ bản ghi trong nhóm, theo thứ tự hiện tại. `moved_ids` là thứ tự mới của các bản ghi
+    vừa kéo thả (thường là một trang danh sách): chúng lấp lại đúng các vị trí cũ của mình, phần còn lại giữ nguyên.
+    Đánh số lại display_order = 1..N và trả về các bản ghi có thay đổi.
+    """
+    moved_set = set(moved_ids)
+    by_id = {row.id: row for row in rows}
+    moved_rows = iter([by_id[row_id] for row_id in moved_ids])
+    changed = []
+    for index, row in enumerate(rows, start=1):
+        target = next(moved_rows) if row.id in moved_set else row
+        if target.display_order != index:
+            target.display_order = index
+            changed.append(target)
+    return changed
 
 
 def _sync_promotion_store_links(promotion: Promotion, selected_store_ids):
@@ -979,6 +1003,7 @@ def unit_add(request, product_pk):
     if form.is_valid():
         unit = form.save(commit=False)
         unit.product = product
+        unit.display_order = next_display_order(product.units.all())
         unit.save()
         messages.success(request, 'Đã thêm đơn vị sản phẩm.')
     else:
@@ -1034,6 +1059,7 @@ def topping_list_create(request):
             if topping_form.is_valid():
                 topping = topping_form.save(commit=False)
                 topping.tenant = tenant
+                topping.display_order = next_display_order(Topping.objects.filter(tenant=tenant))
                 topping.save()
                 selected_products = list(topping_form.cleaned_data.get('product_ids') or [])
                 _sync_topping_product_links(topping=topping, selected_products=selected_products)
@@ -1044,7 +1070,9 @@ def topping_list_create(request):
         elif form_type == 'mapping':
             mapping_form = ProductToppingForm(request.POST, prefix='mapping', tenant=tenant)
             if mapping_form.is_valid():
-                mapping_form.save()
+                mapping = mapping_form.save(commit=False)
+                mapping.display_order = mapping.topping.display_order
+                mapping.save()
                 messages.success(request, 'Đã gán topping cho sản phẩm.')
                 return redirect('App_Quanly:toppings')
             messages.error(request, 'Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.')
@@ -1135,6 +1163,64 @@ def product_topping_delete(request, pk):
 
 
 @manager_required
+@require_POST
+def reorder(request, kind):
+    """Lưu thứ tự sau khi kéo thả. Body JSON: {"ids": [...]} theo thứ tự mới."""
+    tenant = _tenant_or_404(request.user)
+    try:
+        payload = json.loads(request.body or b'{}')
+        ids = [int(value) for value in payload.get('ids') or []]
+    except (ValueError, TypeError, AttributeError):
+        return JsonResponse({'ok': False, 'error': 'Dữ liệu không hợp lệ.'}, status=400)
+    if not ids or len(ids) != len(set(ids)):
+        return JsonResponse({'ok': False, 'error': 'Danh sách sắp xếp không hợp lệ.'}, status=400)
+
+    invalid = JsonResponse({'ok': False, 'error': 'Có mục không thuộc danh sách này.'}, status=400)
+    if kind == 'units':
+        model = ProductUnit
+        product_ids = set(
+            ProductUnit.objects.filter(pk__in=ids, product__tenant=tenant).values_list('product_id', flat=True)
+        )
+        if len(product_ids) != 1 or ProductUnit.objects.filter(pk__in=ids, product__tenant=tenant).count() != len(ids):
+            return invalid
+        groups = [(ProductUnit.objects.filter(product_id=product_ids.pop()).order_by('display_order', 'id'), ids)]
+    elif kind == 'toppings':
+        if not tenant.show_topping_feature:
+            return JsonResponse({'ok': False, 'error': 'Tính năng topping đang tắt.'}, status=403)
+        model = Topping
+        if Topping.objects.filter(pk__in=ids, tenant=tenant).count() != len(ids):
+            return invalid
+        groups = [(Topping.objects.filter(tenant=tenant).order_by('display_order', 'name', 'id'), ids)]
+    elif kind == 'tables':
+        if not tenant.show_qr_order_feature:
+            return JsonResponse({'ok': False, 'error': 'Tính năng gọi món QR đang tắt.'}, status=403)
+        model = DiningTable
+        store_by_table = dict(DiningTable.objects.filter(pk__in=ids, tenant=tenant).values_list('id', 'store_id'))
+        if len(store_by_table) != len(ids):
+            return invalid
+        ids_by_store = {}
+        for table_id in ids:
+            ids_by_store.setdefault(store_by_table[table_id], []).append(table_id)
+        groups = [
+            (DiningTable.objects.filter(store_id=store_id).order_by('display_order', 'id'), store_ids)
+            for store_id, store_ids in ids_by_store.items()
+        ]
+    else:
+        raise Http404
+
+    with transaction.atomic():
+        for queryset, moved_ids in groups:
+            rows = list(queryset.select_for_update().only('id', 'display_order'))
+            changed = _reorder_rows(rows, moved_ids)
+            model.objects.bulk_update(changed, ['display_order'])
+            if model is Topping:
+                # Gán topping-sản phẩm dùng chung thứ tự của topping (xem _sync_topping_product_links).
+                for topping in changed:
+                    ProductTopping.objects.filter(topping_id=topping.id).update(display_order=topping.display_order)
+    return JsonResponse({'ok': True})
+
+
+@manager_required
 def payment_qr_settings(request):
     tenant = _tenant_or_404(request.user)
     stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
@@ -1222,6 +1308,7 @@ def qr_table_list_create(request):
             else:
                 table = form.save(commit=False)
                 table.tenant = tenant_limits
+                table.display_order = next_display_order(DiningTable.objects.filter(store=table.store))
                 table.save()
                 messages.success(request, f'Đã tạo bàn "{table.name}".')
                 return redirect('App_Quanly:qr_tables')
@@ -1262,7 +1349,10 @@ def qr_table_edit(request, pk):
         return redirect('App_Quanly:qr_tables')
     form = DiningTableForm(request.POST, instance=table, tenant=tenant)
     if form.is_valid():
-        table = form.save()
+        table = form.save(commit=False)
+        if 'store' in form.changed_data:
+            table.display_order = next_display_order(DiningTable.objects.filter(store=table.store).exclude(pk=table.pk))
+        table.save()
         messages.success(request, f'Đã cập nhật bàn "{table.name}".')
     else:
         messages.error(request, 'Không thể cập nhật bàn QR, vui lòng kiểm tra dữ liệu.')
@@ -1551,6 +1641,8 @@ def _save_store_and_sync_default(*, tenant, store, is_default: bool):
 @manager_required
 def store_list_create(request):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_store_feature:
+        return _feature_disabled_response('Tính năng quản lý nhiều cửa hàng đang tắt.')
     stores_qs = Store.objects.filter(tenant=tenant).order_by('name')
     page_obj = Paginator(stores_qs, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
     list_query_string = _list_query_without_keys(request, 'page')
@@ -1594,6 +1686,8 @@ def store_list_create(request):
 @manager_required
 def store_edit(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_store_feature:
+        return _feature_disabled_response('Tính năng quản lý nhiều cửa hàng đang tắt.')
     store = get_object_or_404(Store, pk=pk, tenant=tenant)
     if request.method != 'POST':
         return redirect('App_Quanly:stores')
@@ -1612,6 +1706,8 @@ def store_edit(request, pk):
 @require_POST
 def store_delete(request, pk):
     tenant = _tenant_or_404(request.user)
+    if not tenant.show_store_feature:
+        return _feature_disabled_response('Tính năng quản lý nhiều cửa hàng đang tắt.')
     store = get_object_or_404(Store, pk=pk, tenant=tenant)
     name = store.name
     try:

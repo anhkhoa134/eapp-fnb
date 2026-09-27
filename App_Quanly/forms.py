@@ -56,6 +56,11 @@ class ThousandSeparatedDecimalField(forms.DecimalField):
 class TenantFeatureSettingsForm(forms.ModelForm):
     # field -> (icon bootstrap-icons, mô tả hiển thị ở trang Cấu hình tính năng)
     FEATURE_META = {
+        'show_store_feature': (
+            'bi-shop',
+            'Mặc định doanh nghiệp chỉ dùng 1 cửa hàng. Bật để thêm và quản lý nhiều cửa hàng (chi nhánh). '
+            'Tắt sẽ ẩn mục Cửa hàng; chỉ tắt được khi còn tối đa 1 cửa hàng đang hoạt động.',
+        ),
         'show_customer_feature': (
             'bi-person-hearts',
             'Quản lý khách hàng thân thiết, hạng thành viên và ưu đãi theo hạng. '
@@ -86,6 +91,7 @@ class TenantFeatureSettingsForm(forms.ModelForm):
     class Meta:
         model = Tenant
         fields = [
+            'show_store_feature',
             'show_customer_feature',
             'show_promotion_feature',
             'show_topping_feature',
@@ -93,6 +99,7 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             'show_kitchen_feature',
         ]
         labels = {
+            'show_store_feature': 'Cửa hàng (nhiều chi nhánh)',
             'show_customer_feature': 'Khách hàng thân thiết',
             'show_promotion_feature': 'Khuyến mãi',
             'show_topping_feature': 'Topping / tuỳ chọn món',
@@ -106,9 +113,24 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             field.widget.attrs['class'] = 'form-check-input'
             field.widget.attrs['role'] = 'switch'
 
+    def clean_show_store_feature(self):
+        enabled = self.cleaned_data.get('show_store_feature')
+        if not enabled and self.instance.pk:
+            active_count = self.instance.stores.filter(is_active=True).count()
+            if active_count > 1:
+                raise ValidationError(
+                    f'Không thể tắt vì đang có {active_count} cửa hàng hoạt động. '
+                    'Vui lòng ngưng hoạt động các cửa hàng khác, chỉ giữ lại 1 cửa hàng.'
+                )
+        return enabled
+
     def feature_rows(self):
         for name in self.Meta.fields:
             icon, description = self.FEATURE_META[name]
+            if name == 'show_store_feature' and self.instance.pk:
+                max_stores = self.instance.max_stores
+                limit_text = 'không giới hạn' if max_stores == 0 else f'tối đa {max_stores}'
+                description = f'{description} Gói hiện tại: {limit_text} cửa hàng.'
             yield {'field': self[name], 'icon': icon, 'description': description}
 
 
@@ -175,11 +197,10 @@ class ProductForm(forms.ModelForm):
 
     class Meta:
         model = Product
-        fields = ['name', 'category', 'description', 'image_url', 'is_active']
+        fields = ['name', 'category', 'description', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Cà phê sữa'}),
             'description': forms.Textarea(attrs={'placeholder': 'Mô tả ngắn về món'}),
-            'image_url': forms.URLInput(attrs={'placeholder': 'https://...'}),
         }
 
     def __init__(self, *args, tenant=None, **kwargs):
@@ -249,12 +270,11 @@ class ProductForm(forms.ModelForm):
 class ProductUnitForm(forms.ModelForm):
     class Meta:
         model = ProductUnit
-        fields = ['name', 'price', 'sku', 'display_order', 'is_active']
+        fields = ['name', 'price', 'sku', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Ly M'}),
             'price': forms.TextInput(attrs={'placeholder': 'VD: 35000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
             'sku': forms.TextInput(attrs={'placeholder': 'VD: CF-SUA-M'}),
-            'display_order': forms.NumberInput(attrs={'placeholder': 'VD: 0'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -280,11 +300,10 @@ class ToppingForm(forms.ModelForm):
 
     class Meta:
         model = Topping
-        fields = ['name', 'price', 'display_order', 'is_active']
+        fields = ['name', 'price', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Trân châu'}),
             'price': forms.TextInput(attrs={'placeholder': 'VD: 7000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
-            'display_order': forms.NumberInput(attrs={'placeholder': 'VD: 0'}),
         }
 
     def __init__(self, *args, tenant=None, **kwargs):
@@ -315,10 +334,9 @@ class ToppingForm(forms.ModelForm):
 class ProductToppingForm(forms.ModelForm):
     class Meta:
         model = ProductTopping
-        fields = ['product', 'topping', 'price', 'display_order', 'is_active']
+        fields = ['product', 'topping', 'price', 'is_active']
         widgets = {
             'price': forms.TextInput(attrs={'placeholder': 'VD: 7000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
-            'display_order': forms.NumberInput(attrs={'placeholder': 'VD: 0'}),
         }
 
     def __init__(self, *args, tenant=None, **kwargs):
@@ -684,7 +702,7 @@ class StorePaymentForm(forms.ModelForm):
 class DiningTableForm(forms.ModelForm):
     class Meta:
         model = DiningTable
-        fields = ['store', 'code', 'name', 'display_order', 'is_active']
+        fields = ['store', 'code', 'name', 'is_active']
         widgets = {
             'code': forms.TextInput(attrs={'placeholder': 'VD: A-01'}),
             'name': forms.TextInput(attrs={'placeholder': 'VD: Bàn 01'}),

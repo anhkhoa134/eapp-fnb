@@ -1,0 +1,64 @@
+{% comment %}
+Kéo thả sắp xếp thứ tự hiển thị (thay cho ô nhập "Thứ tự").
+Dùng: <tbody data-sortable-url="{% url 'App_Quanly:reorder' 'toppings' %}"> với mỗi dòng có data-sort-id
+và một phần tử .js-drag-handle. Thêm data-sortable-group-by="storeId" để chỉ cho kéo trong cùng nhóm
+(so khớp data-store-id của các dòng).
+{% endcomment %}
+<style>
+    .js-drag-handle {
+        cursor: grab;
+        touch-action: none;
+        color: var(--bs-secondary-color);
+        width: 2rem;
+    }
+    .js-drag-handle:active { cursor: grabbing; }
+    .sortable-ghost { opacity: 0.45; background: var(--bs-primary-bg-subtle); }
+    .sortable-chosen { background: var(--bs-tertiary-bg); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!window.Sortable) return;
+        const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        const toast = (message, tone) => {
+            if (typeof window.showQuanlyToast === 'function') window.showQuanlyToast(message, tone);
+        };
+
+        document.querySelectorAll('[data-sortable-url]').forEach((list) => {
+            const groupBy = list.dataset.sortableGroupBy || '';
+            Sortable.create(list, {
+                handle: '.js-drag-handle',
+                draggable: '[data-sort-id]',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                onMove: (evt) => {
+                    if (!groupBy) return true;
+                    return evt.related.dataset[groupBy] === evt.dragged.dataset[groupBy];
+                },
+                onEnd: async (evt) => {
+                    if (evt.oldIndex === evt.newIndex) return;
+                    const ids = Array.from(list.querySelectorAll('[data-sort-id]')).map((row) => row.dataset.sortId);
+                    try {
+                        const res = await fetch(list.dataset.sortableUrl, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfInput ? csrfInput.value : '',
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                            body: JSON.stringify({ ids }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || !data.ok) throw new Error(data.error || 'Không lưu được thứ tự.');
+                        toast('Đã lưu thứ tự.', 'success');
+                    } catch (err) {
+                        toast(`${err.message} Đang tải lại trang...`, 'error');
+                        setTimeout(() => window.location.reload(), 1500);
+                    }
+                },
+            });
+        });
+    });
+</script>

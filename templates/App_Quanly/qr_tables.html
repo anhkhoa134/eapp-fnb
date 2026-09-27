@@ -36,6 +36,7 @@
             <table class="table table-sm align-middle">
                 <thead>
                     <tr>
+                        <th title="Kéo để sắp xếp thứ tự"><span class="visually-hidden">Sắp xếp</span></th>
                         <th>Bàn</th>
                         <th>Cửa hàng</th>
                         <th class="text-center">Trạng thái</th>
@@ -43,9 +44,10 @@
                         <th class="text-end">Thao tác</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody data-sortable-url="{% url 'App_Quanly:reorder' 'tables' %}" data-sortable-group-by="storeId">
                     {% for row in page_obj %}
-                    <tr>
+                    <tr data-sort-id="{{ row.table.id }}" data-store-id="{{ row.table.store_id }}">
+                        <td class="js-drag-handle" title="Kéo để sắp xếp (trong cùng cửa hàng)"><i class="bi bi-grip-vertical" aria-hidden="true"></i></td>
                         <td>
                             <div class="fw-semibold">{{ row.table.name }}</div>
                             <div class="small text-muted">Mã: {{ row.table.code }}</div>
@@ -54,7 +56,6 @@
                         <td>{{ row.table.store.name }}</td>
                         <td class="text-center">
                             {% include 'App_Quanly/_status_icon.html' with active=row.table.is_active %}
-                            <div class="small text-muted mt-1">Thứ tự: {{ row.table.display_order }}</div>
                         </td>
                         <td>
                             <div class="input-group input-group-sm">
@@ -74,7 +75,6 @@
                                 data-action="{% url 'App_Quanly:qr_table_edit' row.table.id %}"
                                 data-table-name="{{ row.table.name|escape }}"
                                 data-table-code="{{ row.table.code|escape }}"
-                                data-table-display-order="{{ row.table.display_order }}"
                                 data-table-store-id="{{ row.table.store_id }}"
                                     data-table-active="{% if row.table.is_active %}1{% else %}0{% endif %}"
                                     data-delete-action="{% url 'App_Quanly:qr_table_delete' row.table.id %}"
@@ -98,7 +98,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted">Chưa có bàn QR.</td>
+                        <td colspan="6" class="text-center text-muted">Chưa có bàn QR.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -134,11 +134,6 @@
                             <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên bàn</label>
                             {{ form.name }}
                             {{ form.name.errors }}
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="{{ form.display_order.id_for_label }}">Thứ tự</label>
-                            {{ form.display_order }}
-                            {{ form.display_order.errors }}
                         </div>
                         <div class="switch-card">
                             <div class="form-check m-0 mt-4">
@@ -184,10 +179,6 @@
                         <div>
                             <label class="form-label fw-semibold" for="edit-table-name">Tên bàn</label>
                             <input class="form-control" id="edit-table-name" name="name" maxlength="120" placeholder="VD: Bàn 01" required>
-                        </div>
-                        <div>
-                            <label class="form-label fw-semibold" for="edit-table-display-order">Thứ tự</label>
-                            <input class="form-control" id="edit-table-display-order" name="display_order" type="number" min="0" value="0" placeholder="VD: 0" required>
                         </div>
                         <div class="switch-card">
                             <div class="form-check m-0 mt-4">
@@ -254,6 +245,7 @@
 
 {% block extra_js %}
 {{ block.super }}
+{% include 'App_Quanly/_sortable_script.html' %}
 <script>
     const copyQrLink = async (value) => {
         try {
@@ -274,7 +266,6 @@
             const editTableStore = document.getElementById('edit-table-store');
             const editTableCode = document.getElementById('edit-table-code');
             const editTableName = document.getElementById('edit-table-name');
-            const editTableDisplayOrder = document.getElementById('edit-table-display-order');
             const editTableActive = document.getElementById('edit-table-active');
             const deleteTableForm = document.getElementById('deleteTableForm');
             const deleteTableName = document.getElementById('deleteTableName');
@@ -285,7 +276,6 @@
                     if (editTableStore) editTableStore.value = button.dataset.tableStoreId || '';
                     if (editTableCode) editTableCode.value = button.dataset.tableCode || '';
                     if (editTableName) editTableName.value = button.dataset.tableName || '';
-                    if (editTableDisplayOrder) editTableDisplayOrder.value = button.dataset.tableDisplayOrder || '0';
                     if (editTableActive) editTableActive.checked = button.dataset.tableActive === '1';
                     if (deleteTableForm) deleteTableForm.action = button.dataset.deleteAction || '';
                     if (deleteTableName) deleteTableName.textContent = button.dataset.deleteName || '';
