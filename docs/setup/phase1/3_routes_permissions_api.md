@@ -91,7 +91,8 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
   - `profile` — cập nhật họ tên (`first_name`), email (`AccountProfileForm`). Manager bắt buộc email (dùng cho Quên mật khẩu) và sửa thêm `tenant_name` (tên doanh nghiệp); staff gửi `tenant_name` bị bỏ qua.
   - `password_change` — đổi mật khẩu (`POSPasswordChangeForm`), giữ phiên hiện tại.
   - Manager thấy thêm bảng *Các gói cước & nâng cấp*. Anchor `#doi-mat-khau` trỏ tới thẻ đổi mật khẩu.
-  - Menu avatar (`base.html` và POS): *Thông tin tài khoản* → trang này; `base.html` có *Lịch sử đơn* (manager → `/quanly/orders/`, staff → `/orders/today/`), POS có *Đổi mật khẩu* → `#doi-mat-khau`.
+  - Menu avatar (`base.html` và POS): *Thông tin tài khoản* → trang này (đổi mật khẩu ở thẻ `#doi-mat-khau` trên trang, menu không còn mục riêng); `base.html` có *Lịch sử đơn* (manager → `/quanly/orders/`, staff → `/orders/today/`).
+  - Menu avatar POS chia nhóm bằng gạch ngang: cửa hàng / giao diện / thông báo / in ấn → lối tắt (*Đơn hàng trong ngày*, *Ca làm việc*, *Màn hình bếp*, *Fullscreen*) → *Trang quản lý* (manager) + *Thông tin tài khoản* → *Đăng xuất*. Menu tự cuộn dọc khi cao hơn màn hình.
   - Sidebar (`_sidebar_nav.html`) với staff chỉ hiện *Tài khoản* và liên kết nhanh; các mục manager-only bị ẩn. *Ca làm việc* nằm trong nhóm con dưới *Cấu hình tính năng* (manager, khi bật); staff vào ca làm việc từ menu tài khoản POS.
   - `/accounts/password/change/` vẫn còn nhưng không còn menu nào trỏ tới.
 - `GET|POST /quanly/settings/features/` — cấu hình tính năng nâng cao (cửa hàng nhiều chi nhánh, khách hàng, khuyến mãi, topping, QR bàn, màn hình bếp, ca làm việc, định mức NVL). `POST form_action=tax` + `tax_percent` lưu mức thuế (0–30%).

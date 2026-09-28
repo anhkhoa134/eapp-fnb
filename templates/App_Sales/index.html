@@ -1352,6 +1352,8 @@
                                 <span class="account-icon-pill"><i class="fa-solid fa-expand"></i></span>Fullscreen
                             </a>
                         </li>
+                        {% if user.is_manager or user.tenant_id %}
+                        <li><hr class="dropdown-divider"></li>
                         {% if user.is_manager %}
                         <li>
                             <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:dashboard' %}">
@@ -1360,17 +1362,12 @@
                         </li>
                         {% endif %}
                         {% if user.tenant_id %}
-                        <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:account' %}">
                                 <span class="account-icon-pill"><i class="fa-solid fa-id-card"></i></span>Thông tin tài khoản
                             </a>
                         </li>
-                        <li>
-                            <a class="dropdown-item account-action mx-2" href="{% url 'App_Quanly:account' %}#doi-mat-khau">
-                                <span class="account-icon-pill"><i class="fa-solid fa-key"></i></span>Đổi mật khẩu
-                            </a>
-                        </li>
+                        {% endif %}
                         {% endif %}
                         <li><hr class="dropdown-divider"></li>
                         <li class="pb-2">

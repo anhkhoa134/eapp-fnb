@@ -129,7 +129,8 @@ class QuanlyPermissionTests(TestCase):
             html = self.client.get(reverse('App_Sales:pos')).content.decode('utf-8')
             account_url = reverse('App_Quanly:account')
             self.assertIn(f'href="{account_url}"', html)
-            self.assertIn(f'href="{account_url}#doi-mat-khau"', html)
+            # Đổi mật khẩu nằm trên trang Tài khoản, menu POS không còn mục riêng.
+            self.assertNotIn(f'href="{account_url}#doi-mat-khau"', html)
             self.assertNotIn('accountInfoModal', html)
             self.client.logout()
 
