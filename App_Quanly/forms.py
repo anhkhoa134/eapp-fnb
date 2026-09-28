@@ -869,7 +869,8 @@ class StaffCreateForm(forms.Form):
     username = forms.CharField(
         label='Tên đăng nhập',
         max_length=150,
-        widget=forms.TextInput(attrs={'placeholder': 'VD: demo_thu_ngan'}),
+        # Ô này chỉ là phần sau tiền tố "<mã doanh nghiệp>_"; template hiển thị tiền tố cố định bên cạnh.
+        widget=forms.TextInput(attrs={'placeholder': 'thu_ngan', 'autocomplete': 'off'}),
     )
     password1 = forms.CharField(
         label='Mật khẩu',
@@ -900,25 +901,23 @@ class StaffCreateForm(forms.Form):
             stores = Store.objects.none()
         self.fields['store_ids'].queryset = stores
         self.fields['default_store'].queryset = stores
-        if tenant:
-            pfx = f'{tenant.public_slug}_'
-            self.fields['username'].help_text = (
-                f'Bắt đầu bằng tiền tố mã doanh nghiệp "{pfx}" — ví dụ: {pfx}thu_ngan, {pfx}nhan_vien_1.'
-            )
+        self.username_prefix = f'{tenant.public_slug}_' if tenant else ''
+        self.fields['username'].widget.attrs['maxlength'] = 150 - len(self.username_prefix)
         _apply_bootstrap_classes(self)
 
     def clean_username(self):
         username = (self.cleaned_data.get('username') or '').strip()
+        prefix = self.username_prefix
+        # Người dùng có thể dán cả tên đầy đủ có sẵn tiền tố.
+        if prefix and username.startswith(prefix):
+            username = username[len(prefix):]
         if not username:
             raise forms.ValidationError('Vui lòng nhập tên đăng nhập.')
-        tenant = self.tenant
-        if tenant:
-            prefix = f'{tenant.public_slug}_'
-            if not username.startswith(prefix):
-                raise forms.ValidationError(
-                    f'Tên đăng nhập phải bắt đầu bằng tiền tố "{prefix}" (theo mã doanh nghiệp hiện tại).'
-                )
-        if User.objects.filter(username=username).exists():
+        username = f'{prefix}{username}'
+        if len(username) > 150:
+            raise forms.ValidationError('Tên đăng nhập quá dài.')
+        User.username_validator(username)
+        if User.objects.filter(username__iexact=username).exists():
             raise forms.ValidationError('Tên đăng nhập đã tồn tại.')
         return username
 

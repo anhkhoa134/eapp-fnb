@@ -521,31 +521,31 @@ class QuanlyPermissionTests(TestCase):
         self.assertEqual(res.status_code, 302)
         self.assertFalse(User.objects.filter(pk=pk).exists())
 
-    def test_staff_create_form_requires_tenant_username_prefix(self):
-        form_bad = StaffCreateForm(
-            data={
-                'username': 'no_prefix_user',
-                'password1': 'Test@123456',
-                'password2': 'Test@123456',
-                'store_ids': [str(self.store.id)],
-                'default_store': str(self.store.id),
-            },
-            tenant=self.tenant,
-        )
-        self.assertFalse(form_bad.is_valid())
-        self.assertIn('username', form_bad.errors)
+    def test_staff_create_form_prepends_tenant_username_prefix(self):
+        def build(username):
+            return StaffCreateForm(
+                data={
+                    'username': username,
+                    'password1': 'Test@123456',
+                    'password2': 'Test@123456',
+                    'store_ids': [str(self.store.id)],
+                    'default_store': str(self.store.id),
+                },
+                tenant=self.tenant,
+            )
 
-        form_ok = StaffCreateForm(
-            data={
-                'username': 'demo_new_staff',
-                'password1': 'Test@123456',
-                'password2': 'Test@123456',
-                'store_ids': [str(self.store.id)],
-                'default_store': str(self.store.id),
-            },
-            tenant=self.tenant,
-        )
-        self.assertTrue(form_ok.is_valid(), form_ok.errors)
+        prefix = f'{self.tenant.public_slug}_'
+        form = build('new_staff')
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['username'], f'{prefix}new_staff')
+
+        # Dán cả tên đầy đủ thì không bị lặp tiền tố.
+        form = build(f'{prefix}new_staff')
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['username'], f'{prefix}new_staff')
+
+        self.assertIn('username', build(prefix).errors)
+        self.assertIn('username', build('bad user').errors)
 
     def test_staff_cannot_post_staff_edit_or_delete(self):
         self.client.login(username='staff_demo', password='123456')

@@ -1,5 +1,23 @@
 {% extends 'App_Quanly/_layout.html' %}
 
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .staff-username-group .input-group-text {
+        border-radius: 12px 0 0 12px;
+        border-color: rgba(148, 163, 184, 0.45);
+        background: #f1f5f9;
+        color: #0f172a;
+        font-weight: 600;
+        user-select: none;
+    }
+    .staff-username-group .form-control {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+</style>
+{% endblock %}
+
 {% block quanly_content %}
 <div class="card border-0 shadow-sm">
     <div class="card-body">
@@ -100,9 +118,17 @@
                     <div class="crud-form-grid">
                         <div>
                             <label class="form-label fw-semibold" for="{{ form.username.id_for_label }}">Tên đăng nhập</label>
+                            {% if form.username_prefix %}
+                            <div class="input-group staff-username-group{% if form.username.errors %} has-validation{% endif %}">
+                                <span class="input-group-text">{{ form.username_prefix }}</span>
+                                {{ form.username }}
+                            </div>
+                            <p class="form-text small text-muted mb-0">
+                                Tên đăng nhập của nhân viên:
+                                <strong class="text-dark">{{ form.username_prefix }}<span id="staffUsernamePreview">thu_ngan</span></strong>
+                            </p>
+                            {% else %}
                             {{ form.username }}
-                            {% if form.username.help_text %}
-                            <p class="form-text small text-muted mb-0">{{ form.username.help_text }}</p>
                             {% endif %}
                             {{ form.username.errors }}
                         </div>
@@ -283,6 +309,20 @@
                 if (deleteStaffUsername) deleteStaffUsername.textContent = button.dataset.username || '';
             });
         });
+
+        const staffUsernameInput = document.getElementById('{{ form.username.id_for_label }}');
+        const staffUsernamePreview = document.getElementById('staffUsernamePreview');
+        if (staffUsernameInput && staffUsernamePreview) {
+            const prefix = '{{ form.username_prefix|escapejs }}';
+            const updateStaffUsernamePreview = () => {
+                let value = staffUsernameInput.value.trim();
+                // Dán cả tên đầy đủ thì server bỏ tiền tố trùng, xem trước cũng làm vậy.
+                if (prefix && value.startsWith(prefix)) value = value.slice(prefix.length);
+                staffUsernamePreview.textContent = value || staffUsernameInput.placeholder;
+            };
+            staffUsernameInput.addEventListener('input', updateStaffUsernamePreview);
+            updateStaffUsernamePreview();
+        }
 
         {% if open_create_modal %}
         const createModalEl = document.getElementById('createStaffModal');
