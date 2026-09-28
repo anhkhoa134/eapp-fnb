@@ -10,7 +10,7 @@ cd /Users/anhkhoa/Downloads/Project_django/eapp-fnb
 source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
 python manage.py migrate
 python manage.py seed_initial_data --tenant-slug demo --tenant-name "Demo FNB" --seed-qr-pending
-python manage.py runserver 127.0.0.1:8000
+python manage.py runserver 127.0.0.1:8002
 ```
 
 Lưu ý:
@@ -22,9 +22,9 @@ Lưu ý:
 - Manager: `demo_quanly / 123456`
 
 ### 1.3 URL
-- POS: `http://127.0.0.1:8000/`
-- Quản lý QR bàn: `http://127.0.0.1:8000/quanly/qr-tables/`
-- Public QR: `http://127.0.0.1:8000/demo/qr/?table_code=<CODE>&token=<TOKEN>`
+- POS: `http://127.0.0.1:8002/`
+- Quản lý QR bàn: `http://127.0.0.1:8002/quanly/qr-tables/`
+- Public QR: `http://127.0.0.1:8002/demo/qr/?table_code=<CODE>&token=<TOKEN>`
 
 ---
 
@@ -56,7 +56,7 @@ Lưu ý:
 6. Nếu WS mất kết nối, verify fallback polling 15s vẫn cập nhật.
 
 ## D2. Menu online — đặt mang đi
-1. Mở `http://127.0.0.1:8000/demo/` → thêm món, nhập tên + SĐT → **Đặt món mang đi**.
+1. Mở `http://127.0.0.1:8002/demo/` → thêm món, nhập tên + SĐT → **Đặt món mang đi**.
 2. POS tab Đơn QR: đơn có icon túi, tên + SĐT → **Duyệt**.
 3. Verify trang khách tự chuyển sang *Quán đã nhận đơn*; `/kitchen/` có phiếu *Mang đi · <tên>* (nếu bật bếp).
 4. POS mục *Mang đi · chờ khách tới lấy* → **Thu tiền** → thanh toán.

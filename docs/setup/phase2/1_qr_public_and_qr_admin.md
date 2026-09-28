@@ -18,7 +18,9 @@
 ### Giao diện (làm lại 27/09/2026)
 Dùng chung khung với menu online mang đi: `templates/App_Public/_ordering_base.html` + `_ordering_app.html`, `qr_ordering.html` chỉ đặt `mode = "dine_in"`. Mô tả đầy đủ (hiệu ứng lấy theo POS, khung chọn món, thẻ theo dõi đơn): `4_online_takeaway_ordering.md` mục *Giao diện khách*.
 
-Lỗi mở trang (thiếu / sai token, tính năng tắt) hiện một thẻ thông báo kèm nút **Xem thực đơn của quán** dẫn về menu online.
+Lỗi mở trang (thiếu / sai token, tính năng tắt, gói của quán đã hết hạn) hiện một thẻ thông báo kèm nút **Xem thực đơn của quán** dẫn về menu online. API tạo / sửa đơn cũng trả 403 trong các trường hợp này (`Tenant.is_ordering_open()`); khách vẫn huỷ được đơn đang chờ.
+
+Giới hạn đầu vào: tối đa 100 dòng món, mỗi dòng 1–999 (400 khi vượt). Chưa có rate limit cho QR tại bàn (BL-003).
 
 ### POS realtime liên quan
 - POS mở socket theo `store_id` để nhận signal đơn QR mới.

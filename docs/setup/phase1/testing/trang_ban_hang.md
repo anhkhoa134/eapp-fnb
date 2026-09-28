@@ -1,6 +1,6 @@
 # Kiểm thử — Trang bán hàng (POS)
 
-**URL:** `http://127.0.0.1:8000/`  
+**URL:** `http://127.0.0.1:8002/`  
 **Điều kiện:** Đăng nhập tài khoản **nhân viên** hoặc **quản lý** (có quyền POS).
 
 Ghi chú cột **Kết quả / Thông báo**: ghi lại toast, `alert`, nội dung lỗi trên màn hình, hoặc hành vi thực tế (ví dụ giỏ trống, modal đóng).
@@ -101,7 +101,7 @@ Ghi chú cột **Kết quả / Thông báo**: ghi lại toast, `alert`, nội du
 
 ## 7. (Liên quan) Tạo đơn QR từ phía khách để test mục 6
 
-**URL mẫu:** `http://127.0.0.1:8000/<public_slug>/qr/?table_code=<CODE>&token=<TOKEN>`  
+**URL mẫu:** `http://127.0.0.1:8002/<public_slug>/qr/?table_code=<CODE>&token=<TOKEN>`  
 Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
@@ -113,7 +113,7 @@ Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 
 ## 8. Trang phụ: Đơn trong ngày
 
-**URL:** `http://127.0.0.1:8000/orders/today/`  
+**URL:** `http://127.0.0.1:8002/orders/today/`  
 **Query:** `?store_id=` (lọc cửa hàng), `?page=` (phân trang **bảng** đơn — 20 đơn/trang).
 
 | Bước | Thao tác | Kiểm tra |

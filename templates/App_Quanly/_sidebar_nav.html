@@ -4,7 +4,7 @@
         <div class="admin-tenant-card mb-3">
             <div class="d-flex align-items-center gap-2">
                 <div class="admin-tenant-logo-wrap">
-                    <img class="admin-tenant-logo" src="{% static 'images/logo/eapp.png' %}" alt="eApp FnB">
+                    <img class="admin-tenant-logo" src="{% static 'images/logo/eapp.webp' %}" alt="eApp FnB">
                 </div>
                 <div class="admin-tenant-text min-w-0">
                     <div class="fw-bold">eApp FnB</div>
@@ -37,19 +37,19 @@
                 <i class="bi bi-toggles" aria-hidden="true"></i><span class="admin-nav-label">Cấu hình tính năng</span>
             </a>
             {% with t=user.tenant %}
-            {% if t.show_store_feature or t.show_customer_feature or t.show_promotion_feature or t.show_topping_feature or t.show_qr_order_feature or t.show_shift_feature or t.recipe_feature_enabled %}
+            {% if t.show_store_feature or t.customer_feature_enabled or t.promotion_feature_enabled or t.show_topping_feature or t.show_qr_order_feature or t.show_shift_feature or t.recipe_feature_enabled %}
             <div class="d-flex flex-column gap-1 admin-nav-subgroup">
                 {% if t.show_store_feature %}
                 <a class="admin-nav-link {% if '/quanly/stores/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:stores' %}" title="Cửa hàng" data-quanly-tip="Cửa hàng">
                     <i class="bi bi-shop" aria-hidden="true"></i><span class="admin-nav-label">Cửa hàng</span>
                 </a>
                 {% endif %}
-                {% if t.show_customer_feature %}
+                {% if t.customer_feature_enabled %}
                 <a class="admin-nav-link {% if '/quanly/customers/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:customers' %}" title="Khách hàng" data-quanly-tip="Khách hàng">
                     <i class="bi bi-person-hearts" aria-hidden="true"></i><span class="admin-nav-label">Khách hàng</span>
                 </a>
                 {% endif %}
-                {% if t.show_promotion_feature %}
+                {% if t.promotion_feature_enabled %}
                 <a class="admin-nav-link {% if '/quanly/promotions/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:promotions' %}" title="Khuyến mãi" data-quanly-tip="Khuyến mãi">
                     <i class="bi bi-tags" aria-hidden="true"></i><span class="admin-nav-label">Khuyến mãi</span>
                 </a>

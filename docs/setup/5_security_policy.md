@@ -11,8 +11,9 @@ Nguyên tắc: **mọi query dữ liệu nghiệp vụ phải lọc theo tenant 
 | POS API chỉ thao tác trên store user có quyền (`UserStoreAccess`) | ✅ |
 | WebSocket POS: yêu cầu login + quyền `store_id` | ✅ |
 | Public QR API / WebSocket: bắt buộc `table_code` + `token` hợp lệ, order thuộc đúng bàn | ✅ |
-| Reserved slug không được dùng làm `public_slug` (`admin`, `accounts`, `api`, `quanly`, `static`, `media`, `favicon.ico`) | ✅ |
+| Reserved slug không được dùng làm `public_slug` (`RESERVED_PUBLIC_SLUGS`: `admin`, `accounts`, `api`, `quanly`, `kitchen`, `shifts`, `orders`, `tables`, `static`, `media`, `offline`, `favicon.ico`) | ✅ |
 | Media upload tách thư mục theo tenant (`media/tenant_<id>/`) | ✅ |
+| Cờ tính năng tuỳ chọn được **chặn ở server** (403 / 400), không chỉ ẩn menu; tính năng bán theo gói kiểm tra cả gói (`Tenant.feature_enabled()`, `customer_feature_enabled`, `promotion_feature_enabled`, `recipe_feature_enabled`) | ✅ (từ 28/09/2026) |
 
 Checklist khi thêm view/API mới:
 - [ ] Lọc queryset theo `tenant` (và `store` nếu có) — không dùng `Model.objects.get(pk=...)` trần.
@@ -28,7 +29,9 @@ Checklist khi thêm view/API mới:
 | Logout chỉ chấp nhận POST (`GET` → 405) | ✅ |
 | Password validators mặc định Django (độ dài, phổ biến, toàn số, giống thông tin user) | ✅ |
 | Đường dẫn admin ẩn qua `REAL_ADMIN_PATH` | ✅ |
-| Giới hạn số lần đăng nhập sai / chống brute-force | ⚠️ chưa có |
+| Tài khoản thuộc doanh nghiệp (quản lý, nhân viên) **không** có `is_staff` → không đăng nhập được Django Admin; chỉ superadmin vào admin | ✅ (migration `App_Accounts/0007`) |
+| Giới hạn số lần đăng nhập sai / chống brute-force: khoá username + IP sau `LOGIN_FAILURE_LIMIT` (5) lần trong `LOGIN_LOCKOUT_MINUTES` (15) phút, chặn IP sau `LOGIN_IP_FAILURE_LIMIT` (30) lần; áp dụng cả trang admin (BL-002) | ✅ |
+| Giới hạn đăng ký (`SIGNUP_LIMIT_PER_IP`) và Quên mật khẩu (`PASSWORD_RESET_LIMIT_PER_IP`) theo IP | ✅ |
 | Tài khoản bootstrap/seed dùng mật khẩu mặc định `123456` — bắt buộc đổi trước khi bàn giao tenant thật | ⚠️ quy trình thủ công |
 
 ## 3. Token QR bàn
@@ -37,7 +40,24 @@ Checklist khi thêm view/API mới:
 | `qr_token` sinh bằng `secrets.token_urlsafe(24)` | ✅ |
 | Manager reset token khi lộ, in lại QR | ✅ |
 | Đơn QR ở trạng thái terminal (`APPROVED/REJECTED/CANCELLED`) không cho sửa/huỷ/duyệt lại | ✅ |
-| Rate limit API public tạo đơn QR | ⚠️ chưa có |
+| Gói hết hạn / tắt QR: trang QR, tạo đơn và sửa đơn (tại bàn + mang đi) trả 403 (`Tenant.is_ordering_open()`); khách vẫn huỷ được đơn đang chờ | ✅ |
+| Giới hạn đầu vào mỗi đơn (POS + public): tối đa `MAX_ORDER_LINES` = 100 dòng, `MAX_ITEM_QUANTITY` = 999 / món; body JSON phải là object (`App_Sales/services.py`) | ✅ |
+| Rate limit API public: đặt mang đi 10 đơn / 30 phút / IP / tenant | ✅ |
+| Rate limit API public QR tại bàn | ⚠️ chưa có (BL-003) |
+
+## 3b. Toàn vẹn thanh toán
+| Quy tắc | Trạng thái |
+|---|---|
+| Thuế do **server** tính theo `Tenant.tax_percent` (cấu hình ở *Cấu hình tính năng*); `tax_rate` client gửi lên bị bỏ qua | ✅ |
+| Chống tạo đơn trùng: POS gửi `client_request_id` cho mỗi lần thanh toán, server trả lại đơn cũ nếu nhận lại cùng mã (unique `tenant + client_request_id`); nút thanh toán khoá khi đang gửi | ✅ |
+| Thanh toán bàn khoá dòng bàn (`select_for_update`) → hai máy cùng thanh toán một bàn chỉ tạo 1 đơn | ✅ |
+| Tiền khách đưa trong khoảng `0 … MAX_MONEY_AMOUNT` | ✅ |
+
+## 3c. Chống XSS phía trình duyệt
+- Template Django tự escape; lỗ hổng chỉ còn ở JS dựng HTML bằng chuỗi (`innerHTML`, template literal).
+- Mọi dữ liệu từ server chèn vào HTML phải qua hàm escape **đủ 5 ký tự** `& < > " '` — kể cả khi chèn vào thuộc tính (`alt`, `aria-label`, `src`, `data-*`). Không dùng mẹo `div.textContent → innerHTML` vì không escape dấu nháy.
+- Hàm dùng chung: `escapeHtml` (POS `App_Sales/index.html`, bếp `App_Sales/kitchen.html`), `esc` (trang khách `App_Public/_ordering_app.html`).
+- Lý do nghiêm trọng: ai cũng tự đăng ký được doanh nghiệp, và trang menu public chạy **cùng origin** với POS / Quản lý / Admin; tên món chứa mã độc có thể chiếm phiên người khác mở trang.
 
 ## 4. Cấu hình HTTP / cookie
 Áp dụng mọi môi trường:
@@ -46,6 +66,7 @@ Checklist khi thêm view/API mới:
 |---|---|
 | `SECURE_CONTENT_TYPE_NOSNIFF` | `True` |
 | `SESSION_COOKIE_HTTPONLY` / `CSRF_COOKIE_HTTPONLY` | `True` |
+| `SESSION_COOKIE_NAME` / `CSRF_COOKIE_NAME` | `eappfnb_sessionid` / `eappfnb_csrftoken` (riêng project; cookie không phân biệt cổng) |
 | `SECURE_REFERRER_POLICY` | `same-origin` |
 | `X_FRAME_OPTIONS` | `DENY` |
 | CSRF middleware | Bật |
@@ -61,6 +82,8 @@ Chỉ khi `ENVIRONMENT=prod`:
 | `SECURE_HSTS_SECONDS` | `31536000` + `INCLUDE_SUBDOMAINS` + `PRELOAD` |
 | `SECURE_PROXY_SSL_HEADER` | `X-Forwarded-Proto` (sau Nginx) |
 | `CSRF_TRUSTED_ORIGINS` | Đặt theo domain HTTPS |
+
+WebSocket bọc `AllowedHostsOriginValidator` (`Project/asgi.py`): chỉ nhận kết nối có header `Origin` thuộc `ALLOWED_HOSTS` (chống cross-site WebSocket hijacking). Vì vậy production **không được** đặt `ALLOWED_HOSTS=*` (file `.env` dev hiện để `*` nên ở dev không chặn origin).
 
 ## 5. Quản lý secret & cấu hình
 - Secret đặt trong `Project/.env`, **không commit** (đã có trong `.gitignore`).
@@ -85,11 +108,12 @@ Chỉ khi `ENVIRONMENT=prod`:
 - [ ] `python manage.py check --deploy` không còn cảnh báo nghiêm trọng.
 - [ ] Không có mật khẩu mặc định trên tenant thật.
 - [ ] `REAL_ADMIN_PATH` khác `admin`.
+- [ ] `ALLOWED_HOSTS` liệt kê domain cụ thể, **không** dùng `*` (WebSocket kiểm tra Origin theo danh sách này).
 - [ ] HTTPS + HSTS hoạt động, WebSocket qua `wss://`.
 - [ ] Test phân quyền / cô lập tenant pass.
 
 ## 9. Việc cần làm (backlog bảo mật)
-1. Chống brute-force đăng nhập (ví dụ `django-axes` hoặc rate limit ở Nginx cho `/accounts/login/`).
+1. ~~Chống brute-force đăng nhập~~ — xong (BL-002).
 2. Rate limit `/api/public/` (Nginx `limit_req` hoặc middleware). Đã có cho `POST /api/public/takeaway/orders/` (10 đơn / 30 phút / IP / tenant); API QR tại bàn chưa có (BL-003).
-3. Bắt buộc đổi mật khẩu lần đầu với tài khoản bootstrap.
-4. Bổ sung Content-Security-Policy (hiện tải Bootstrap/ECharts/Font Awesome từ CDN).
+3. Bắt buộc đổi mật khẩu lần đầu với tài khoản bootstrap (BL-004).
+4. Bổ sung Content-Security-Policy (hiện tải Bootstrap/ECharts/Font Awesome từ CDN) — lớp chặn thứ hai cho XSS (BL-007).

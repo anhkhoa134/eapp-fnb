@@ -25,14 +25,18 @@ Chi tiết: `docs/setup/phase2/3_pwa.md`.
 ## Security notes
 - `GET /accounts/logout/` ⇒ 405.
 - Public QR APIs bắt buộc `table_code + token` hợp lệ; đơn mang đi dùng `access_key` riêng của từng đơn.
+- Tạo / sửa đơn QR và mang đi trả 403 khi tắt QR hoặc gói hết hạn (`Tenant.is_ordering_open()`); huỷ đơn đang chờ vẫn được.
 - Tạo đơn mang đi giới hạn 10 đơn / 30 phút / IP / tenant (429 khi vượt).
+- Mọi API nhận danh sách món (POS + public): tối đa 100 dòng, số lượng 1–999 mỗi dòng; body JSON phải là object — sai trả 400.
 - POS APIs chỉ thao tác trên store user được cấp quyền.
-- POS WebSocket cần login + có quyền store.
+- POS WebSocket cần login + có quyền store; mọi WebSocket kiểm tra header `Origin` thuộc `ALLOWED_HOSTS`.
 - Public WebSocket cần `table_code + token` hợp lệ và order thuộc đúng bàn, hoặc `access_key` đúng của đơn mang đi.
 
 ## POS API (`/api/pos/`)
 - `GET products/?store_id=&q=&category=`
-- `POST checkout/` — mang về; tuỳ chọn `qr_order_id` khi thu tiền đơn mang đi khách đặt online (đơn phải `TAKEAWAY` + `APPROVED` + chưa thu; không tạo phiếu bếp lần hai)
+- `GET|POST customers/` — 403 khi tính năng Khách hàng tắt / ngoài gói.
+- `GET promotions/?store_id=&subtotal=` — 403 khi tính năng Khuyến mãi tắt / ngoài gói.
+- `POST checkout/` — mang về. Body: `store_id`, `items[]`, `payment_method` (`cash|card`), `customer_paid`, `customer_id`, `promotion_id`, `client_request_id`, tuỳ chọn `qr_order_id` khi thu tiền đơn mang đi khách đặt online (đơn phải `TAKEAWAY` + `APPROVED` + chưa thu). Đơn online đã báo bếp lúc duyệt: không báo lại, chỉ báo bếp **phần món thu ngân thêm** (so theo đơn vị + topping + ghi chú).
 - `GET tables/?store_id=`
 - `GET tables/<table_id>/cart/`
 - `POST tables/<table_id>/cart/items/`
@@ -40,8 +44,10 @@ Chi tiết: `docs/setup/phase2/3_pwa.md`.
 - `DELETE tables/<table_id>/cart/items/<item_id>/`
 - `POST tables/<table_id>/cart/import-takeaway/`
 - `POST tables/<table_id>/cart/move-to/` (body: `{ "to_table_id": <id> }`)
-- `POST tables/<table_id>/checkout/`
-- Response của `checkout/` và `tables/<id>/checkout/` có thêm `kitchen_ticket_id` (phiếu bếp vừa tạo, hoặc `null`) để POS tự in phiếu bếp.
+- `POST tables/<table_id>/checkout/` — body như `checkout/` (trừ `store_id`, `items`, `qr_order_id`). Khoá dòng bàn khi thanh toán: request thứ hai cho cùng bàn nhận 400 *Bàn này chưa có món…*.
+- Response của `checkout/` và `tables/<id>/checkout/`: `order_id`, `order_code`, `subtotal`, `discount_amount`, `discount_source`, `tier_discount_*`, `tax_rate`, `tax_amount`, `total_amount`, `customer_paid`, `change_amount`, `points_earned`, `customer_tier`, `kitchen_ticket_id` (phiếu bếp vừa tạo để POS tự in, hoặc `null`), `replayed`.
+- **Chống đơn trùng:** POS sinh `client_request_id` (8–64 ký tự `A-Z a-z 0-9 _ -`) mỗi lần mở modal thanh toán. Gửi lại cùng mã → `200` + đơn đã tạo, `replayed: true` (không tạo đơn mới). Thiếu mã vẫn chạy như cũ.
+- **Thuế:** không nhận `tax_rate` từ client; server tính theo `Tenant.tax_percent` (xem Payment rule).
 - `GET shifts/current/?store_id=` → `{ "store_id", "shift": null | { "id", "opened_at", "opened_by", "opening_cash" } }` (403 khi tắt `show_shift_feature`)
 - `GET qr/orders/?store_id=&status=pending|approved|rejected|cancelled|awaiting_payment` (`awaiting_payment` = đơn mang đi đã duyệt, chưa thu tiền; mỗi dòng có `order_type`, `customer_name`, `customer_phone`)
 - `POST qr/orders/<order_id>/approve/` — đơn tại bàn: merge vào giỏ bàn; đơn mang đi: chỉ báo bếp. Response có `order_type`
@@ -88,7 +94,9 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
   - Menu avatar (`base.html` và POS): *Thông tin tài khoản* → trang này; `base.html` có *Lịch sử đơn* (manager → `/quanly/orders/`, staff → `/orders/today/`), POS có *Đổi mật khẩu* → `#doi-mat-khau`.
   - Sidebar (`_sidebar_nav.html`) với staff chỉ hiện *Tài khoản* và liên kết nhanh; các mục manager-only bị ẩn. *Ca làm việc* nằm trong nhóm con dưới *Cấu hình tính năng* (manager, khi bật); staff vào ca làm việc từ menu tài khoản POS.
   - `/accounts/password/change/` vẫn còn nhưng không còn menu nào trỏ tới.
-- `GET|POST /quanly/settings/features/` — cấu hình tính năng nâng cao (cửa hàng nhiều chi nhánh, khách hàng, khuyến mãi, topping, QR bàn, màn hình bếp, ca làm việc)
+- `GET|POST /quanly/settings/features/` — cấu hình tính năng nâng cao (cửa hàng nhiều chi nhánh, khách hàng, khuyến mãi, topping, QR bàn, màn hình bếp, ca làm việc, định mức NVL). `POST form_action=tax` + `tax_percent` lưu mức thuế (0–30%).
+- `/quanly/customers/…`, `/quanly/promotions/…` — 403 khi tính năng tương ứng tắt hoặc gói không bao gồm.
+- `POST /quanly/staffs/<id>/delete/` — nhân viên đã có đơn bán thì không xoá được (báo lỗi, gợi ý tắt *Đang hoạt động*).
 - `GET /quanly/orders/`, `POST /quanly/orders/<id>/delete/` — lịch sử đơn (xoá đơn ghi nhật ký `order.delete`; lọc `status` gồm cả `refunded`)
 - `POST /quanly/orders/<id>/refund/` — hoàn tiền: `refund_type=full|partial`, `amount` (khi `partial`), `method=cash|card`, `reason` (bắt buộc), `next`. Chi tiết: `docs/setup/phase4/2_shifts_and_refunds.md`
 - `GET /quanly/audit-log/?action=&user=&store=&date_from=&date_to=&q=&page=` — nhật ký thao tác (`action` nhận mã thao tác hoặc `group:<n>`). Chi tiết: `docs/setup/phase4/3_audit_log.md`
@@ -122,5 +130,7 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
 - **Dashboard** `/quanly/`: khối **Đơn gần nhất** vẫn giới hạn cố định trên server (không dùng tham số `page`).
 
 ## Payment rule
+- `total_amount = (subtotal − discount) + tax`; `tax = làm tròn tới đồng((subtotal − discount) × Tenant.tax_percent / 100)`.
 - `cash`: `customer_paid >= total_amount`.
 - `card`: nếu `customer_paid <= 0` backend set bằng `total_amount`.
+- `customer_paid` trong khoảng `0 … 999.999.999.999`.

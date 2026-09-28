@@ -63,4 +63,37 @@
         </form>
     </div>
 </div>
+
+<div class="card border-0 shadow-sm mt-3" id="thue">
+    <div class="card-body">
+        <div class="crud-toolbar mb-3">
+            <h2 class="admin-card-title mb-0">
+                <i class="bi bi-percent"></i>
+                Thuế
+            </h2>
+        </div>
+        <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="form_action" value="tax">
+            <div class="col-12 col-sm-6 col-lg-4">
+                <label class="form-label fw-semibold" for="{{ tax_form.tax_percent.id_for_label }}">{{ tax_form.tax_percent.label }}</label>
+                <div class="input-group">
+                    {{ tax_form.tax_percent }}
+                    <span class="input-group-text">%</span>
+                </div>
+                {% if tax_form.tax_percent.errors %}
+                <div class="invalid-feedback d-block">{{ tax_form.tax_percent.errors|join:' ' }}</div>
+                {% endif %}
+            </div>
+            <div class="col-12 col-sm-auto">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check2 me-1"></i>Lưu mức thuế
+                </button>
+            </div>
+            <div class="col-12">
+                <div class="form-text">{{ tax_form.tax_percent.help_text }} POS hiện dòng thuế khi thanh toán, hoá đơn in ghi rõ tiền thuế.</div>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

@@ -18,7 +18,7 @@ from App_Catalog.models import Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, resolve_product_topping_links
 from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
 from App_Sales.realtime import notify_qr_order_changed
-from App_Sales.services import get_effective_unit_price
+from App_Sales.services import get_effective_unit_price, parse_item_quantity, validate_order_lines
 from App_Tenant.models import Store, Tenant
 
 PLACEHOLDER_PRODUCT_IMAGE = 'https://placehold.co/600x600/png?text=Product'
@@ -33,9 +33,10 @@ def _json_error(detail, status=400):
 
 def _parse_json_request(request):
     try:
-        return json.loads(request.body.decode('utf-8'))
-    except json.JSONDecodeError:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _has_requested_toppings(raw_topping_ids) -> bool:
@@ -59,8 +60,7 @@ def _product_image_url(request, product):
     return request.build_absolute_uri(raw)
 
 
-def _takeaway_ordering_enabled(tenant) -> bool:
-    return tenant.show_qr_order_feature and not tenant.is_subscription_expired()
+ORDERING_CLOSED_MESSAGE = 'Quán tạm ngưng nhận đặt món online.'
 
 
 def _get_table_by_credentials(*, table_code, token, tenant=None):
@@ -169,18 +169,13 @@ def _serialize_qr_order(order):
 def _prepare_order_items(*, tenant, store, raw_items):
     if not raw_items:
         raise ValueError('Giỏ hàng đang trống.')
+    validate_order_lines(raw_items)
 
     prepared_items = []
     for raw in raw_items:
         product_id = raw.get('product_id')
         unit_id = raw.get('unit_id')
-        try:
-            quantity = int(raw.get('quantity', 0))
-        except (TypeError, ValueError):
-            raise ValueError('Số lượng không hợp lệ.')
-
-        if quantity <= 0:
-            raise ValueError('Số lượng phải lớn hơn 0.')
+        quantity = parse_item_quantity(raw.get('quantity', 0))
 
         unit = ProductUnit.objects.select_related('product').filter(
             id=unit_id,
@@ -362,7 +357,7 @@ def tenant_catalog(request, public_slug):
     if selected_store:
         categories, products = _build_products_payload(tenant=tenant, store=selected_store, request=request)
 
-    ordering_enabled = bool(selected_store) and _takeaway_ordering_enabled(tenant)
+    ordering_enabled = bool(selected_store) and tenant.is_ordering_open()
     bootstrap_data = {
         'mode': 'takeaway',
         'tenant_slug': tenant.public_slug,
@@ -413,7 +408,7 @@ def tenant_qr_ordering(request, public_slug):
         table = _get_table_by_credentials(tenant=tenant, table_code=table_code, token=token)
         if not table:
             qr_error = 'Mã QR không đúng hoặc đã được đổi. Vui lòng quét lại mã tại bàn hoặc gọi nhân viên.'
-        elif not tenant.show_qr_order_feature:
+        elif not tenant.is_ordering_open():
             qr_error = 'Quán tạm ngưng gọi món qua mã QR. Vui lòng gọi nhân viên để đặt món.'
         else:
             categories, products = _build_products_payload(tenant=tenant, store=table.store, request=request)
@@ -460,8 +455,8 @@ def api_public_qr_orders(request):
     table = _get_table_by_credentials(table_code=table_code, token=token)
     if not table:
         return _json_error('QR không hợp lệ hoặc đã hết hiệu lực.', 403)
-    if not table.tenant.show_qr_order_feature:
-        return _json_error('Tính năng gọi món QR đang tắt.', 403)
+    if not table.tenant.is_ordering_open():
+        return _json_error('Quán tạm ngưng gọi món qua mã QR. Vui lòng gọi nhân viên.', 403)
 
     raw_items = payload.get('items') or []
     try:
@@ -477,7 +472,7 @@ def api_public_qr_orders(request):
             order_type=QROrder.OrderType.DINE_IN,
             status=QROrder.Status.PENDING,
             customer_note=customer_note,
-            created_by_ip=request.META.get('REMOTE_ADDR') or None,
+            created_by_ip=get_client_ip(request) or None,
         )
         _replace_qr_order_items(qr_order=qr_order, prepared_items=prepared_items)
 
@@ -514,8 +509,8 @@ def api_public_takeaway_orders(request):
     ).first()
     if not tenant:
         return _json_error('Không tìm thấy quán.', 404)
-    if not _takeaway_ordering_enabled(tenant):
-        return _json_error('Quán tạm ngưng nhận đặt món online.', 403)
+    if not tenant.is_ordering_open():
+        return _json_error(ORDERING_CLOSED_MESSAGE, 403)
 
     store_id = payload.get('store_id')
     store = None
@@ -615,11 +610,11 @@ def api_public_qr_order_detail(request, order_id):
             **order_filters,
         )
         tenant = qr_order.tenant
-        if not tenant.show_qr_order_feature:
-            return _json_error('Tính năng gọi món QR đang tắt.', 403)
+        if not tenant.is_ordering_open():
+            return _json_error(ORDERING_CLOSED_MESSAGE, 403)
         if not tenant.show_topping_feature:
             for raw in raw_items:
-                if 'topping_ids' in raw:
+                if isinstance(raw, dict) and 'topping_ids' in raw:
                     return _json_error('Tính năng topping đang tắt.', 400)
 
         if qr_order.status != QROrder.Status.PENDING:

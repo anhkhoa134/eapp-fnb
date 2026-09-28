@@ -11,7 +11,7 @@
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
 | 0.1 | Đăng nhập user **quản lý** | Thành công |
-| 0.2 | Truy cập `http://127.0.0.1:8000/quanly/` | Mở **Dashboard** (hoặc trang chủ quản lý), không lỗi 403 (nếu đúng quyền) |
+| 0.2 | Truy cập `http://127.0.0.1:8002/quanly/` | Mở **Dashboard** (hoặc trang chủ quản lý), không lỗi 403 (nếu đúng quyền) |
 
 ---
 
@@ -55,7 +55,7 @@
 
 ## 2. Dashboard
 
-**URL:** `http://127.0.0.1:8000/quanly/`
+**URL:** `http://127.0.0.1:8002/quanly/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -69,7 +69,7 @@
 
 ## 3. Cửa hàng
 
-**URL:** `http://127.0.0.1:8000/quanly/stores/`
+**URL:** `http://127.0.0.1:8002/quanly/stores/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -84,7 +84,7 @@
 
 ## 4. Lịch sử đơn
 
-**URL:** `http://127.0.0.1:8000/quanly/orders/`
+**URL:** `http://127.0.0.1:8002/quanly/orders/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -96,7 +96,7 @@
 
 ## 5. Danh mục
 
-**URL:** `http://127.0.0.1:8000/quanly/categories/`
+**URL:** `http://127.0.0.1:8002/quanly/categories/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -111,7 +111,7 @@
 
 ## 6. Sản phẩm & đơn vị
 
-**URL:** `http://127.0.0.1:8000/quanly/products/`, sửa đơn vị: `/quanly/units/<id>/edit/`, …
+**URL:** `http://127.0.0.1:8002/quanly/products/`, sửa đơn vị: `/quanly/units/<id>/edit/`, …
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -124,7 +124,7 @@
 
 ## 7. Topping & gán sản phẩm
 
-**URL:** `http://127.0.0.1:8000/quanly/toppings/`, `http://127.0.0.1:8000/quanly/product-toppings/` (có thể redirect)
+**URL:** `http://127.0.0.1:8002/quanly/toppings/`, `http://127.0.0.1:8002/quanly/product-toppings/` (có thể redirect)
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -135,7 +135,7 @@
 
 ## 8. QR bàn
 
-**URL:** `http://127.0.0.1:8000/quanly/qr-tables/`
+**URL:** `http://127.0.0.1:8002/quanly/qr-tables/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -150,7 +150,7 @@
 
 ## 9. QR thanh toán (POS)
 
-**URL:** `http://127.0.0.1:8000/quanly/payment-qr/`
+**URL:** `http://127.0.0.1:8002/quanly/payment-qr/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -165,7 +165,7 @@
 
 ## 10. Nhân viên
 
-**URL:** `http://127.0.0.1:8000/quanly/staffs/`
+**URL:** `http://127.0.0.1:8002/quanly/staffs/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|
@@ -177,7 +177,7 @@
 
 ## 11. Tài khoản quản lý
 
-**URL:** `http://127.0.0.1:8000/quanly/account/`
+**URL:** `http://127.0.0.1:8002/quanly/account/`
 
 | Bước | Thao tác | Kết quả / Thông báo mong đợi |
 |------|----------|-------------------------------|

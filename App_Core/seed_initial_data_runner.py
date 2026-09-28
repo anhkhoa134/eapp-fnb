@@ -209,11 +209,11 @@ def run_seed_initial_data(
 
     manager, manager_created = User.objects.get_or_create(
         username=f'{tenant_slug}_quanly',
-        defaults={'tenant': tenant, 'role': User.Role.MANAGER, 'is_staff': True, 'is_active': True},
+        defaults={'tenant': tenant, 'role': User.Role.MANAGER, 'is_staff': False, 'is_active': True},
     )
     manager.tenant = tenant
     manager.role = User.Role.MANAGER
-    manager.is_staff = True
+    manager.is_staff = False
     manager.is_active = True
     manager.save(update_fields=['tenant', 'role', 'is_staff', 'is_active'])
     if manager_created or reset_passwords:

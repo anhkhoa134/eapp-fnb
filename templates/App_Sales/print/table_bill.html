@@ -21,7 +21,11 @@
 <div class="center muted">Bàn chưa có món.</div>
 {% endif %}
 <hr class="sep solid">
-<div class="row total-row"><span>TẠM TÍNH</span><span>{{ subtotal|thousand_sep }}</span></div>
+{% if tax_amount %}
+<div class="row"><span>Tiền món</span><span>{{ subtotal|thousand_sep }}</span></div>
+<div class="row"><span>Thuế ({{ tax_percent|floatformat:"-2" }}%)</span><span>{{ tax_amount|thousand_sep }}</span></div>
+{% endif %}
+<div class="row total-row"><span>TẠM TÍNH</span><span>{{ total_amount|thousand_sep }}</span></div>
 <div class="center muted">(Chưa gồm khuyến mãi / ưu đãi thành viên)</div>
 {% include 'App_Sales/print/_payment_qr.html' %}
 <hr class="sep">

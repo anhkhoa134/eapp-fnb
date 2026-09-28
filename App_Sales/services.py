@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -28,6 +28,36 @@ def get_effective_unit_price(*, unit: ProductUnit, store_id: int) -> Decimal:
 
 
 LOYALTY_POINT_STEP = Decimal('10000')
+
+# Giới hạn đầu vào của một đơn (POS và khách đặt online): chặn số lượng tràn cột DB và payload quá lớn.
+MAX_ITEM_QUANTITY = 999
+MAX_ORDER_LINES = 100
+# Cột tiền là DecimalField(max_digits=14, decimal_places=2).
+MAX_MONEY_AMOUNT = Decimal('999999999999')
+
+
+def parse_item_quantity(raw) -> int:
+    """Số lượng 1 dòng món: số nguyên 1..MAX_ITEM_QUANTITY, ngược lại ValueError (thông báo tiếng Việt)."""
+    try:
+        quantity = int(raw)
+    except (TypeError, ValueError):
+        raise ValueError('Số lượng không hợp lệ.')
+    if quantity <= 0:
+        raise ValueError('Số lượng phải lớn hơn 0.')
+    if quantity > MAX_ITEM_QUANTITY:
+        raise ValueError(f'Số lượng mỗi món tối đa {MAX_ITEM_QUANTITY}.')
+    return quantity
+
+
+def validate_order_lines(raw_items):
+    """Danh sách món gửi lên: phải là list, không quá MAX_ORDER_LINES dòng, mỗi dòng là object."""
+    if not isinstance(raw_items, list):
+        raise ValueError('Danh sách món không hợp lệ.')
+    if len(raw_items) > MAX_ORDER_LINES:
+        raise ValueError(f'Một đơn tối đa {MAX_ORDER_LINES} dòng món.')
+    if any(not isinstance(row, dict) for row in raw_items):
+        raise ValueError('Danh sách món không hợp lệ.')
+    return raw_items
 
 
 def ensure_customer_tier_settings(tenant):
@@ -163,7 +193,8 @@ def calculate_order_totals(*, subtotal: Decimal, tax_rate: Decimal, promotion: P
         discount_amount = promotion_discount_amount
         discount_source = Order.DiscountSource.PROMOTION if discount_amount > 0 else Order.DiscountSource.NONE
     taxable_amount = max(Decimal('0'), subtotal - discount_amount)
-    tax_amount = taxable_amount * tax_rate
+    # Tiền thuế làm tròn tới đồng (POS dùng cùng công thức để hiện tổng tiền).
+    tax_amount = (taxable_amount * (tax_rate or Decimal('0'))).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
     total_amount = taxable_amount + tax_amount
     return {
         'discount_amount': discount_amount,

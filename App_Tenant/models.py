@@ -1,7 +1,9 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -21,7 +23,12 @@ RESERVED_PUBLIC_SLUGS = {
     'media',
     'offline',
     'favicon.ico',
+    'orders',
+    'tables',
 }
+
+# Mức thuế tối đa cho phép nhập ở Cấu hình tính năng (chặn gõ nhầm, VD 80 thay vì 8).
+MAX_TAX_PERCENT = Decimal('30')
 
 
 def _build_unique_slug(queryset, source_name, fallback='item'):
@@ -123,6 +130,15 @@ class Tenant(TimeStampedModel):
     show_kitchen_feature = models.BooleanField('Màn hình bếp (báo bếp)', default=False)
     show_shift_feature = models.BooleanField('Ca làm việc (chốt ca)', default=False)
     show_recipe_feature = models.BooleanField('Định mức nguyên liệu', default=False)
+    tax_percent = models.DecimalField(
+        'Thuế (%)',
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0'),
+        blank=True,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(MAX_TAX_PERCENT)],
+        help_text='Thuế cộng vào hoá đơn, tính trên số tiền sau giảm giá. 0 = không tính thuế.',
+    )
     subscription_plan = models.ForeignKey(
         SubscriptionPlan,
         on_delete=models.SET_NULL,
@@ -177,6 +193,8 @@ class Tenant(TimeStampedModel):
         verbose_name_plural = 'Doanh nghiệp'
 
     def clean(self):
+        if self.tax_percent is None:
+            self.tax_percent = Decimal('0')
         self.public_slug = (self.public_slug or '').strip().lower()
         validate_public_slug(self.public_slug)
         if self.subscription_starts_on and self.subscription_ends_on:
@@ -226,9 +244,30 @@ class Tenant(TimeStampedModel):
                 return bool(getattr(plan, plan_field))
         return True
 
+    def feature_enabled(self, tenant_field) -> bool:
+        """Tính năng dùng được: cờ tenant đang bật và gói hiện tại cho phép."""
+        return bool(getattr(self, tenant_field)) and self.plan_allows_feature(tenant_field)
+
+    @property
+    def customer_feature_enabled(self) -> bool:
+        return self.feature_enabled('show_customer_feature')
+
+    @property
+    def promotion_feature_enabled(self) -> bool:
+        return self.feature_enabled('show_promotion_feature')
+
     @property
     def recipe_feature_enabled(self) -> bool:
-        return self.show_recipe_feature and self.plan_allows_feature('show_recipe_feature')
+        return self.feature_enabled('show_recipe_feature')
+
+    @property
+    def tax_rate(self) -> Decimal:
+        """Tỷ lệ thuế dạng thập phân (10% -> 0.1) dùng khi tính hoá đơn."""
+        return (self.tax_percent or Decimal('0')) / Decimal('100')
+
+    def is_ordering_open(self) -> bool:
+        """Khách được đặt món online / gọi món QR: bật tính năng QR, doanh nghiệp hoạt động và gói còn hạn."""
+        return self.is_active and self.show_qr_order_feature and not self.is_subscription_expired()
 
     def subscription_days_left(self, today=None):
         """Số ngày còn lại của gói (0 = hết hạn cuối hôm nay, âm = đã hết hạn). None = không có ngày hết hạn."""

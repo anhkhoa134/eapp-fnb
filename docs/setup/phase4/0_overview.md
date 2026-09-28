@@ -16,6 +16,7 @@ Danh sách đầy đủ, ưu tiên và checklist nghiệm thu: `docs/backlog/1_b
 | Nhật ký thao tác | BL-013 | — | `3_audit_log.md` |
 | Hộp thoại dùng chung thay `alert` / `confirm` của trình duyệt | — | — | `4_shared_dialog.md` |
 | Định mức nguyên liệu, thành phẩm: giá vốn, lãi gộp, tiêu hao theo đơn bán | BL-018 (bước 1) | `show_recipe_feature` (mặc định tắt, gói *Chuyên nghiệp* trở lên) | `5_recipes.md` |
+| Rà soát 28/09: thuế theo cấu hình, chặn tính năng ở server, chống đơn trùng, giới hạn đầu vào, sửa XSS menu public | BL-036 | `Tenant.tax_percent` | `docs/backlog/1_backlog.md` BL-036 |
 
 Model / migration mới: `App_Sales.Shift`, `App_Sales.Refund`, `Order.table_name` / `refunded_amount` / `print_count`, `Order.Status.REFUNDED`, `KitchenTicket.print_count` (`App_Sales/0011_shift_refund_print`); `App_Core.AuditLog` (`App_Core/0001_initial`); `Tenant.show_shift_feature`, `SubscriptionPlan.feature_shift` (`App_Tenant/0016_shift_feature`).
 
@@ -33,5 +34,5 @@ Model / migration mới: `App_Sales.Shift`, `App_Sales.Refund`, `Order.table_nam
 ## Tiêu chí hoàn thành (phần đã làm)
 - [x] `App_Sales.tests_ops` pass (in, ca, hoàn tiền, nhật ký).
 - [x] Định mức: `App_Quanly.tests_recipes` pass (27 test; quyền gói, validation, giá vốn, tiêu hao, bộ lọc).
-- [x] Toàn bộ `python manage.py test` pass (300 test, 27/09/2026).
+- [x] Toàn bộ `python manage.py test` pass (356 test, 28/09/2026 — gồm `App_Sales.tests_hardening` sau rà soát, BL-036).
 - [ ] Chạy tay các case PRN / SHF / RFD / AUD trong `docs/testing/1_e2e_test_cases.md` trên máy in nhiệt thật.

@@ -4,11 +4,17 @@
 - Tenant được định danh bằng `Tenant.public_slug`.
 - Public route: `/<public_slug>/` (menu online, đặt món mang đi).
 - Public QR route: `/<public_slug>/qr/`.
-- Reserved slug đã chặn (`RESERVED_PUBLIC_SLUGS`): `admin`, `accounts`, `api`, `quanly`, `kitchen`, `shifts`, `static`, `media`, `offline`, `favicon.ico`. Thêm route một cấp mới ở gốc (`/<x>/`) thì phải thêm `x` vào danh sách này.
+- Reserved slug đã chặn (`RESERVED_PUBLIC_SLUGS`): `admin`, `accounts`, `api`, `quanly`, `kitchen`, `shifts`, `orders`, `tables`, `static`, `media`, `offline`, `favicon.ico`. Thêm route một cấp mới ở gốc (`/<x>/…`) thì phải thêm `x` vào danh sách này.
+
+## Doanh nghiệp (`Tenant`)
+- Cờ tính năng `show_*_feature`, gói cước `subscription_plan`, giới hạn `max_*`, thời hạn gói: `phase3/2_feature_settings_and_plan_limits.md`.
+- `tax_percent`: mức thuế (%) cộng vào hoá đơn, server tính khi checkout.
+- Helper: `feature_enabled(field)` (cờ bật và gói cho phép), `customer_feature_enabled`, `promotion_feature_enabled`, `recipe_feature_enabled`, `tax_rate` (dạng thập phân), `is_ordering_open()` (nhận đơn QR / mang đi online: bật QR + đang hoạt động + gói còn hạn).
 
 ## User và phân quyền
 - `User.role`: `MANAGER` / `STAFF`.
 - Mỗi tenant tối đa 1 manager (`uq_manager_per_tenant`).
+- Tài khoản thuộc tenant không có `is_staff` (không vào Django Admin); chỉ superuser quản trị hệ thống.
 - Quyền store theo `UserStoreAccess`.
 - Mỗi user tối đa 1 store mặc định (`uq_default_store_per_user`).
 
@@ -32,6 +38,8 @@
 - `Promotion`: khuyến mãi giảm hóa đơn theo % hoặc số tiền; POS nhân viên chọn khi thanh toán.
 - `Order.discount_amount` và snapshot khuyến mãi lưu lại số tiền giảm đã áp dụng tại thời điểm checkout.
 - `QROrder.rejection_reason`: lý do từ chối (text, tùy chọn) khi staff reject đơn QR.
+- `Order.tax_rate` / `tax_amount`: mức thuế (0.08 = 8%) và tiền thuế lúc bán, lấy từ `Tenant.tax_percent`.
+- `Order.client_request_id`: mã POS sinh cho mỗi lần bấm thanh toán, unique theo tenant (`uq_order_tenant_client_request`) — gửi lại cùng mã thì server trả đơn đã tạo, không tạo đơn trùng.
 - `Order.status`: `completed` · `cancelled` · `refunded` (đã hoàn đủ tiền). `Order.refunded_amount` (tổng đã hoàn), `Order.table_name` (tên bàn lúc thanh toán, in trên hoá đơn), `Order.print_count` (số lần in hoá đơn). Doanh thu thuần = `total_amount − refunded_amount`.
 - `Refund(order, amount, method, reason, is_full, created_by)`: mỗi lần hoàn tiền. Chi tiết: `docs/setup/phase4/2_shifts_and_refunds.md`.
 - `Shift(store, status=OPEN|CLOSED, opening_cash, …số liệu chốt ca)`: tối đa 1 ca mở / cửa hàng. Chi tiết: `docs/setup/phase4/2_shifts_and_refunds.md`.

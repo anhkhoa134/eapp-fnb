@@ -13,6 +13,14 @@ from App_Tenant.models import Store, Tenant, UserStoreAccess
 from Project.asgi import application
 
 
+WS_ORIGIN = (b'origin', b'http://localhost')
+
+
+def _ws(path, headers=()):
+    """WebSocket từ trang cùng domain (AllowedHostsOriginValidator yêu cầu header Origin hợp lệ)."""
+    return WebsocketCommunicator(application, path, headers=[WS_ORIGIN, *headers])
+
+
 @override_settings(
     CHANNEL_LAYERS={
         'default': {
@@ -70,23 +78,20 @@ class PublicQrWebSocketTests(TestCase):
 
     def test_public_qr_ws_security(self):
         async def scenario():
-            missing_token = WebsocketCommunicator(
-                application,
-                f'/ws/public/qr/order/{self.pending_order.id}/?table_code={self.table.code}&token=bad',
+            missing_token = _ws(
+            f'/ws/public/qr/order/{self.pending_order.id}/?table_code={self.table.code}&token=bad',
             )
             connected, _ = await missing_token.connect()
             self.assertFalse(connected)
 
-            wrong_order = WebsocketCommunicator(
-                application,
-                f'/ws/public/qr/order/{self.pending_order.id + 999}/?table_code={self.table.code}&token={self.table.qr_token}',
+            wrong_order = _ws(
+            f'/ws/public/qr/order/{self.pending_order.id + 999}/?table_code={self.table.code}&token={self.table.qr_token}',
             )
             connected, _ = await wrong_order.connect()
             self.assertFalse(connected)
 
-            valid = WebsocketCommunicator(
-                application,
-                f'/ws/public/qr/order/{self.pending_order.id}/?table_code={self.table.code}&token={self.table.qr_token}',
+            valid = _ws(
+            f'/ws/public/qr/order/{self.pending_order.id}/?table_code={self.table.code}&token={self.table.qr_token}',
             )
             connected, _ = await valid.connect()
             self.assertTrue(connected)
@@ -98,9 +103,8 @@ class PublicQrWebSocketTests(TestCase):
         self.client.force_login(self.staff)
 
         async def scenario():
-            communicator = WebsocketCommunicator(
-                application,
-                f'/ws/public/qr/order/{self.pending_order.id}/?table_code={self.table.code}&token={self.table.qr_token}',
+            communicator = _ws(
+            f'/ws/public/qr/order/{self.pending_order.id}/?table_code={self.table.code}&token={self.table.qr_token}',
             )
             connected, _ = await communicator.connect()
             self.assertTrue(connected)

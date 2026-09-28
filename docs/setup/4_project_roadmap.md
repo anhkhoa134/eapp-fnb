@@ -65,6 +65,8 @@ Tài liệu: `phase3/0_overview.md`.
 | 27/09/2026 | In hoá đơn / tạm tính / phiếu bếp / báo cáo ca (`phase4/1_printing.md`) |
 | 27/09/2026 | Ca làm việc + chốt ca, hoàn tiền toàn bộ / một phần (`phase4/2_shifts_and_refunds.md`) |
 | 27/09/2026 | Nhật ký thao tác (`phase4/3_audit_log.md`); hộp thoại dùng chung thay `alert` / `confirm` (`phase4/4_shared_dialog.md`) |
+| 27/09/2026 | Định mức nguyên liệu, thành phẩm (`phase4/5_recipes.md`) |
+| 28/09/2026 | Rà soát toàn app + sửa lỗi (BL-036): thuế cấu hình theo doanh nghiệp, chặn tính năng theo gói ở server, chống đơn trùng, giới hạn đầu vào, XSS menu public, WebSocket kiểm tra Origin |
 
 Còn lại:
 - [x] In phiếu từ trình duyệt (BL-009 bước 1). · [ ] In thẳng máy in nhiệt ESC/POS (bước 2).

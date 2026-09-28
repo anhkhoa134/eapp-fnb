@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
@@ -39,6 +39,8 @@ from App_Sales.models import (
 )
 from App_Sales.realtime import notify_qr_order_changed
 from App_Sales.services import (
+    MAX_ITEM_QUANTITY,
+    MAX_MONEY_AMOUNT,
     calculate_order_totals,
     calculate_points_for_amount,
     calculate_promotion_discount,
@@ -46,10 +48,12 @@ from App_Sales.services import (
     get_accessible_store_or_default,
     get_available_promotions,
     get_effective_unit_price,
+    parse_item_quantity,
     recompute_customer_stats,
     resolve_customer_for_checkout,
     resolve_promotion_for_checkout,
     sum_net_revenue,
+    validate_order_lines,
 )
 from App_Tenant.services import get_user_accessible_stores
 
@@ -78,9 +82,10 @@ def _pos_product_image_url(request, product):
 
 def _parse_json_request(request):
     try:
-        return json.loads(request.body.decode('utf-8'))
-    except json.JSONDecodeError:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _parse_decimal(raw_value, *, default='0', field='value'):
@@ -573,6 +578,8 @@ def api_customers(request):
     user = request.user
     if not user.tenant_id:
         return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
+    if not user.tenant.customer_feature_enabled:
+        return _json_error('Tính năng khách hàng đang tắt.', 403)
 
     if request.method == 'GET':
         q = (request.GET.get('q') or '').strip()
@@ -622,6 +629,8 @@ def api_promotions(request):
     user = request.user
     if not user.tenant_id:
         return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
+    if not user.tenant.promotion_feature_enabled:
+        return _json_error('Tính năng khuyến mãi đang tắt.', 403)
 
     store = get_accessible_store_or_default(user, request.GET.get('store_id'))
     if not store:
@@ -644,6 +653,112 @@ def api_promotions(request):
     )
 
 
+CLIENT_REQUEST_ID_RE = re.compile(r'^[A-Za-z0-9_-]{8,64}$')
+
+
+def _parse_client_request_id(payload):
+    """Mã POS sinh cho mỗi lần bấm thanh toán; gửi lại cùng mã thì trả về đơn đã tạo thay vì tạo đơn mới."""
+    raw = str(payload.get('client_request_id') or '').strip()
+    return raw if CLIENT_REQUEST_ID_RE.match(raw) else None
+
+
+def _find_replayed_order(tenant, request_id):
+    if not request_id:
+        return None
+    return Order.objects.filter(tenant=tenant, client_request_id=request_id).select_related('customer').first()
+
+
+def _parse_payment_fields(payload):
+    """Trả về (payment_method, customer_paid). Thuế không nhận từ client: lấy theo cấu hình doanh nghiệp."""
+    payment_method = payload.get('payment_method') or Order.PaymentMethod.CASH
+    if payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+        raise ValueError('Phương thức thanh toán không hợp lệ.')
+    customer_paid = _parse_decimal(payload.get('customer_paid', '0'), field='customer_paid')
+    if customer_paid < 0 or customer_paid > MAX_MONEY_AMOUNT:
+        raise ValueError('Số tiền khách đưa không hợp lệ.')
+    return payment_method, customer_paid
+
+
+def _resolve_checkout_discounts(*, tenant, store, payload, subtotal):
+    """Khách hàng + khuyến mãi của lần thanh toán; tính năng tắt (hoặc ngoài gói) thì không nhận."""
+    customer_id = payload.get('customer_id')
+    customer = None
+    if customer_id:
+        if not tenant.customer_feature_enabled:
+            raise ValueError('Tính năng khách hàng đang tắt.')
+        customer = resolve_customer_for_checkout(tenant=tenant, customer_id=customer_id)
+        if not customer:
+            raise ValueError('Khách hàng không hợp lệ hoặc đã ngưng hoạt động.')
+
+    promotion_id = payload.get('promotion_id')
+    promotion = None
+    if promotion_id:
+        if not tenant.promotion_feature_enabled:
+            raise ValueError('Tính năng khuyến mãi đang tắt.')
+        promotion = resolve_promotion_for_checkout(
+            tenant=tenant, store=store, promotion_id=promotion_id, subtotal=subtotal
+        )
+        if not promotion:
+            raise ValueError('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.')
+    return customer, promotion
+
+
+def _checkout_response(order, *, kitchen_ticket_id=None, status=200, replayed=False, extra=None):
+    customer = order.customer
+    if replayed:
+        first_ticket = order.kitchen_tickets.order_by('id').first()
+        kitchen_ticket_id = first_ticket.id if first_ticket else None
+    payload = {
+        'order_id': order.id,
+        'order_code': order.order_code,
+        'subtotal': float(order.subtotal),
+        'discount_amount': float(order.discount_amount),
+        'discount_source': order.discount_source,
+        'tier_discount_amount': float(order.tier_discount_amount),
+        'tier_discount_percent': float(order.tier_discount_percent),
+        'tax_rate': float(order.tax_rate),
+        'tax_amount': float(order.tax_amount),
+        'total_amount': float(order.total_amount),
+        'customer_paid': float(order.customer_paid),
+        'change_amount': float(order.change_amount),
+        'points_earned': calculate_points_for_amount(order.total_amount) if customer else 0,
+        'customer_tier': customer.tier if customer else '',
+        'kitchen_ticket_id': kitchen_ticket_id,
+        'replayed': replayed,
+        **(extra or {}),
+    }
+    return JsonResponse(payload, status=status)
+
+
+def _kitchen_line_key(*, unit_id, topping_ids, note):
+    return (unit_id, tuple(sorted(tid or 0 for tid in topping_ids)), (note or '').strip())
+
+
+def _takeaway_extra_kitchen_rows(qr_order, prepared_items, kitchen_rows):
+    """Đơn mang đi online đã báo bếp lúc duyệt: chỉ giữ phần món thu ngân thêm so với đơn khách đặt."""
+    remaining = {}
+    for qr_item in qr_order.items.prefetch_related('toppings'):
+        key = _kitchen_line_key(
+            unit_id=qr_item.unit_id,
+            topping_ids=[row.topping_id for row in qr_item.toppings.all()],
+            note=qr_item.note,
+        )
+        remaining[key] = remaining.get(key, 0) + qr_item.quantity
+
+    extra_rows = []
+    for item, row in zip(prepared_items, kitchen_rows):
+        key = _kitchen_line_key(
+            unit_id=item['unit'].id,
+            topping_ids=[top.get('topping_id') for top in item['snapshot_toppings']],
+            note=item['note'],
+        )
+        covered = min(item['quantity'], remaining.get(key, 0))
+        remaining[key] = remaining.get(key, 0) - covered
+        if item['quantity'] > covered:
+            extra_rows.append({**row, 'quantity': item['quantity'] - covered})
+    return extra_rows
+
+
 @login_required
 @staff_or_manager_required
 @require_POST
@@ -660,209 +775,193 @@ def api_checkout(request):
     if not store:
         return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
 
+    request_id = _parse_client_request_id(payload)
+    replayed = _find_replayed_order(user.tenant, request_id)
+    if replayed:
+        return _checkout_response(replayed, replayed=True)
+
     items = payload.get('items') or []
     if not items:
         return _json_error('Giỏ hàng trống.', 400)
-
-    payment_method = payload.get('payment_method') or Order.PaymentMethod.CASH
-    if payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
-        return _json_error('Phương thức thanh toán không hợp lệ.', 400)
-
     try:
-        tax_rate = _parse_decimal(payload.get('tax_rate', '0'), field='tax_rate')
-    except ValueError as exc:
-        return _json_error(str(exc), 400)
-
-    if tax_rate < 0:
-        return _json_error('tax_rate không được âm.', 400)
-
-    try:
-        customer_paid = _parse_decimal(payload.get('customer_paid', '0'), field='customer_paid')
+        validate_order_lines(items)
+        payment_method, customer_paid = _parse_payment_fields(payload)
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
     raw_qr_order_id = payload.get('qr_order_id')
 
-    with transaction.atomic():
-        takeaway_qr_order = None
-        if raw_qr_order_id not in (None, ''):
-            takeaway_qr_order = (
-                QROrder.objects.select_for_update()
-                .filter(
-                    id=raw_qr_order_id if str(raw_qr_order_id).isdigit() else 0,
+    try:
+        with transaction.atomic():
+            takeaway_qr_order = None
+            if raw_qr_order_id not in (None, ''):
+                takeaway_qr_order = (
+                    QROrder.objects.select_for_update()
+                    .filter(
+                        id=raw_qr_order_id if str(raw_qr_order_id).isdigit() else 0,
+                        tenant=user.tenant,
+                        store=store,
+                        order_type=QROrder.OrderType.TAKEAWAY,
+                        status=QROrder.Status.APPROVED,
+                        sale_order__isnull=True,
+                    )
+                    .first()
+                )
+                if not takeaway_qr_order:
+                    return _json_error('Đơn mang đi không hợp lệ hoặc đã được thu tiền.', 400)
+
+            prepared_items = []
+            subtotal = Decimal('0')
+
+            for item in items:
+                product_id = item.get('product_id')
+                unit_id = item.get('unit_id')
+                try:
+                    quantity = parse_item_quantity(item.get('quantity', 0))
+                except ValueError as exc:
+                    return _json_error(str(exc), 400)
+                note = (item.get('note') or '').strip()[:255]
+
+                unit = _resolve_product_unit_for_store(
                     tenant=user.tenant,
                     store=store,
-                    order_type=QROrder.OrderType.TAKEAWAY,
-                    status=QROrder.Status.APPROVED,
-                    sale_order__isnull=True,
+                    product_id=product_id,
+                    unit_id=unit_id,
                 )
-                .first()
-            )
-            if not takeaway_qr_order:
-                return _json_error('Đơn mang đi không hợp lệ hoặc đã được thu tiền.', 400)
+                if not unit:
+                    return _json_error(f'Sản phẩm hoặc đơn vị không hợp lệ: {product_id}/{unit_id}', 400)
 
-        prepared_items = []
-        subtotal = Decimal('0')
+                raw_topping_ids = item.get('topping_ids')
+                if not user.tenant.show_topping_feature and _has_requested_toppings(raw_topping_ids):
+                    return _json_error('Tính năng topping đang tắt.', 400)
+                try:
+                    topping_links = _resolve_topping_links_for_unit(
+                        unit=unit,
+                        raw_topping_ids=raw_topping_ids,
+                    )
+                except ValueError as exc:
+                    return _json_error(str(exc), 400)
 
-        for item in items:
-            product_id = item.get('product_id')
-            unit_id = item.get('unit_id')
+                base_price = get_effective_unit_price(unit=unit, store_id=store.id)
+                topping_total = calc_toppings_total(topping_links)
+                effective_unit_price = base_price + topping_total
+                line_total = effective_unit_price * quantity
+                subtotal += line_total
+                prepared_items.append(
+                    {
+                        'product': unit.product,
+                        'unit': unit,
+                        'quantity': quantity,
+                        'note': note,
+                        'unit_price': effective_unit_price,
+                        'line_total': line_total,
+                        'snapshot_toppings': _snapshot_rows_from_product_toppings(topping_links),
+                    }
+                )
+
             try:
-                quantity = int(item.get('quantity', 0))
-            except (TypeError, ValueError):
-                return _json_error('Số lượng không hợp lệ.', 400)
-            note = (item.get('note') or '').strip()[:255]
-
-            if quantity <= 0:
-                return _json_error('Số lượng phải lớn hơn 0.', 400)
-
-            unit = _resolve_product_unit_for_store(
-                tenant=user.tenant,
-                store=store,
-                product_id=product_id,
-                unit_id=unit_id,
-            )
-            if not unit:
-                return _json_error(f'Sản phẩm hoặc đơn vị không hợp lệ: {product_id}/{unit_id}', 400)
-
-            raw_topping_ids = item.get('topping_ids')
-            if not user.tenant.show_topping_feature and _has_requested_toppings(raw_topping_ids):
-                return _json_error('Tính năng topping đang tắt.', 400)
-            try:
-                topping_links = _resolve_topping_links_for_unit(
-                    unit=unit,
-                    raw_topping_ids=raw_topping_ids,
+                customer, promotion = _resolve_checkout_discounts(
+                    tenant=user.tenant, store=store, payload=payload, subtotal=subtotal
                 )
             except ValueError as exc:
                 return _json_error(str(exc), 400)
 
-            base_price = get_effective_unit_price(unit=unit, store_id=store.id)
-            topping_total = calc_toppings_total(topping_links)
-            effective_unit_price = base_price + topping_total
-            line_total = effective_unit_price * quantity
-            subtotal += line_total
-            prepared_items.append(
-                {
-                    'product': unit.product,
-                    'unit': unit,
-                    'quantity': quantity,
-                    'note': note,
-                    'unit_price': effective_unit_price,
-                    'line_total': line_total,
-                    'snapshot_toppings': _snapshot_rows_from_product_toppings(topping_links),
-                }
+            totals = calculate_order_totals(
+                subtotal=subtotal, tax_rate=user.tenant.tax_rate, promotion=promotion, customer=customer
             )
+            total_amount = totals['total_amount']
 
-        customer_id = payload.get('customer_id')
-        customer = resolve_customer_for_checkout(tenant=user.tenant, customer_id=customer_id)
-        if customer_id and not customer:
-            return _json_error('Khách hàng không hợp lệ hoặc đã ngưng hoạt động.', 400)
+            if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
+                return _json_error('Khách đưa chưa đủ tiền.', 400)
 
-        promotion_id = payload.get('promotion_id')
-        promotion = resolve_promotion_for_checkout(
-            tenant=user.tenant,
-            store=store,
-            promotion_id=promotion_id,
-            subtotal=subtotal,
-        )
-        if promotion_id and not promotion:
-            return _json_error('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.', 400)
+            if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
+                customer_paid = total_amount
 
-        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion, customer=customer)
-        discount_amount = totals['discount_amount']
-        tier_discount_amount = totals['tier_discount_amount']
-        tier_discount_percent = totals['tier_discount_percent']
-        discount_source = totals['discount_source']
-        tax_amount = totals['tax_amount']
-        total_amount = totals['total_amount']
-
-        if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
-            return _json_error('Khách đưa chưa đủ tiền.', 400)
-
-        if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
-            customer_paid = total_amount
-
-        change_amount = customer_paid - total_amount
-
-        order = Order.objects.create(
-            tenant=user.tenant,
-            store=store,
-            cashier=user,
-            customer=customer,
-            promotion=promotion,
-            payment_method=payment_method,
-            sale_channel=Order.SaleChannel.TAKEAWAY,
-            subtotal=subtotal,
-            discount_amount=discount_amount,
-            tax_rate=tax_rate,
-            tax_amount=tax_amount,
-            total_amount=total_amount,
-            customer_paid=customer_paid,
-            change_amount=change_amount,
-            **_snapshot_promotion_fields(promotion),
-            **_snapshot_tier_discount_fields(totals),
-        )
-
-        for item in prepared_items:
-            order_item = OrderItem.objects.create(
-                order=order,
-                product=item['product'],
-                unit=item['unit'],
-                snapshot_product_name=item['product'].name,
-                snapshot_unit_name=item['unit'].name,
-                unit_price=item['unit_price'],
-                quantity=item['quantity'],
-                note=item['note'],
-                line_total=item['line_total'],
-            )
-            OrderItemTopping.objects.bulk_create(
-                [
-                    OrderItemTopping(
-                        order_item=order_item,
-                        topping_id=row.get('topping_id'),
-                        snapshot_topping_name=row['name'],
-                        snapshot_price=row['price'],
-                    )
-                    for row in item['snapshot_toppings']
-                ]
-            )
-
-        kitchen_ticket = None
-        if takeaway_qr_order:
-            takeaway_qr_order.sale_order = order
-            takeaway_qr_order.save(update_fields=['sale_order', 'updated_at'])
-            # Món đã báo bếp lúc duyệt đơn: chỉ gắn phiếu bếp với hoá đơn, không tạo phiếu mới.
-            already_sent = takeaway_qr_order.kitchen_tickets.exists()
-            takeaway_qr_order.kitchen_tickets.update(order=order)
-        else:
-            already_sent = False
-
-        if kitchen.kitchen_enabled(user.tenant) and not already_sent:
-            kitchen_ticket = kitchen.create_kitchen_ticket(
+            order = Order.objects.create(
                 tenant=user.tenant,
                 store=store,
-                source=KitchenTicket.Source.TAKEAWAY,
-                table_name=(
-                    takeaway_qr_order.display_label if takeaway_qr_order else f'Mang về · {order.order_code}'
-                ),
-                order=order,
-                created_by=user,
-                rows=[
-                    {
-                        'product_id': item['product'].id,
-                        'name': item['product'].name,
-                        'unit_name': item['unit'].name,
-                        'toppings_text': kitchen.toppings_text(row['name'] for row in item['snapshot_toppings']),
-                        'quantity': item['quantity'],
-                        'note': item['note'],
-                    }
-                    for item in prepared_items
-                ],
+                cashier=user,
+                customer=customer,
+                promotion=promotion,
+                payment_method=payment_method,
+                sale_channel=Order.SaleChannel.TAKEAWAY,
+                subtotal=subtotal,
+                discount_amount=totals['discount_amount'],
+                tax_rate=user.tenant.tax_rate,
+                tax_amount=totals['tax_amount'],
+                total_amount=total_amount,
+                customer_paid=customer_paid,
+                change_amount=customer_paid - total_amount,
+                client_request_id=request_id,
+                **_snapshot_promotion_fields(promotion),
+                **_snapshot_tier_discount_fields(totals),
             )
 
-        points_earned = calculate_points_for_amount(total_amount) if customer else 0
-        if customer:
-            customer = recompute_customer_stats(customer)
+            for item in prepared_items:
+                order_item = OrderItem.objects.create(
+                    order=order,
+                    product=item['product'],
+                    unit=item['unit'],
+                    snapshot_product_name=item['product'].name,
+                    snapshot_unit_name=item['unit'].name,
+                    unit_price=item['unit_price'],
+                    quantity=item['quantity'],
+                    note=item['note'],
+                    line_total=item['line_total'],
+                )
+                OrderItemTopping.objects.bulk_create(
+                    [
+                        OrderItemTopping(
+                            order_item=order_item,
+                            topping_id=row.get('topping_id'),
+                            snapshot_topping_name=row['name'],
+                            snapshot_price=row['price'],
+                        )
+                        for row in item['snapshot_toppings']
+                    ]
+                )
+
+            kitchen_rows = [
+                {
+                    'product_id': item['product'].id,
+                    'name': item['product'].name,
+                    'unit_name': item['unit'].name,
+                    'toppings_text': kitchen.toppings_text(row['name'] for row in item['snapshot_toppings']),
+                    'quantity': item['quantity'],
+                    'note': item['note'],
+                }
+                for item in prepared_items
+            ]
+            if takeaway_qr_order:
+                takeaway_qr_order.sale_order = order
+                takeaway_qr_order.save(update_fields=['sale_order', 'updated_at'])
+                if takeaway_qr_order.kitchen_tickets.exists():
+                    # Món đã báo bếp lúc duyệt đơn: gắn phiếu cũ với hoá đơn, chỉ báo bếp phần thu ngân thêm.
+                    takeaway_qr_order.kitchen_tickets.update(order=order)
+                    kitchen_rows = _takeaway_extra_kitchen_rows(takeaway_qr_order, prepared_items, kitchen_rows)
+
+            kitchen_ticket = None
+            if kitchen.kitchen_enabled(user.tenant):
+                kitchen_ticket = kitchen.create_kitchen_ticket(
+                    tenant=user.tenant,
+                    store=store,
+                    source=KitchenTicket.Source.TAKEAWAY,
+                    table_name=(
+                        takeaway_qr_order.display_label if takeaway_qr_order else f'Mang về · {order.order_code}'
+                    ),
+                    order=order,
+                    created_by=user,
+                    rows=kitchen_rows,
+                )
+
+            if customer:
+                recompute_customer_stats(customer)
+    except IntegrityError:
+        # Hai request cùng mã thanh toán chạy song song: trả về đơn của request đã ghi trước.
+        replayed = _find_replayed_order(user.tenant, request_id)
+        if replayed:
+            return _checkout_response(replayed, replayed=True)
+        raise
 
     if takeaway_qr_order:
         notify_qr_order_changed(
@@ -872,25 +971,8 @@ def api_checkout(request):
             reason='paid',
         )
 
-    return JsonResponse(
-        {
-            'order_id': order.id,
-            'order_code': order.order_code,
-            'subtotal': float(subtotal),
-            'discount_amount': float(discount_amount),
-            'discount_source': discount_source,
-            'tier_discount_amount': float(tier_discount_amount),
-            'tier_discount_percent': float(tier_discount_percent),
-            'tax_amount': float(tax_amount),
-            'total_amount': float(total_amount),
-            'customer_paid': float(customer_paid),
-            'change_amount': float(change_amount),
-            'points_earned': points_earned,
-            'customer_tier': customer.tier if customer else '',
-            'kitchen_ticket_id': kitchen_ticket.id if kitchen_ticket else None,
-        },
-        status=201,
-    )
+    order = Order.objects.select_related('customer').get(pk=order.pk)
+    return _checkout_response(order, kitchen_ticket_id=kitchen_ticket.id if kitchen_ticket else None, status=201)
 
 
 @login_required
@@ -1005,13 +1087,11 @@ def api_table_cart_add(request, table_id):
     product_id = payload.get('product_id')
     unit_id = payload.get('unit_id')
     try:
-        quantity = int(payload.get('quantity', 0))
-    except (TypeError, ValueError):
-        return _json_error('Số lượng không hợp lệ.', 400)
+        quantity = parse_item_quantity(payload.get('quantity', 0))
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
 
     note = (payload.get('note') or '').strip()[:255]
-    if quantity <= 0:
-        return _json_error('Số lượng phải lớn hơn 0.', 400)
 
     unit = _resolve_product_unit_for_store(
         tenant=user.tenant,
@@ -1073,18 +1153,20 @@ def api_table_import_takeaway(request, table_id):
     raw_items = payload.get('items') or []
     if not raw_items:
         return _json_error('Không có món để lưu vào bàn.', 400)
+    try:
+        validate_order_lines(raw_items)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
 
     prepared_rows = []
     for row in raw_items:
         product_id = row.get('product_id')
         unit_id = row.get('unit_id')
         try:
-            quantity = int(row.get('quantity', 0))
-        except (TypeError, ValueError):
-            return _json_error('Số lượng không hợp lệ.', 400)
+            quantity = parse_item_quantity(row.get('quantity', 0))
+        except ValueError as exc:
+            return _json_error(str(exc), 400)
         note = (row.get('note') or '').strip()[:255]
-        if quantity <= 0:
-            return _json_error('Số lượng phải lớn hơn 0.', 400)
 
         unit = _resolve_product_unit_for_store(
             tenant=user.tenant,
@@ -1280,33 +1362,16 @@ def api_table_cart_item(request, table_id, item_id):
     quantity = payload.get('quantity')
     topping_ids = payload.get('topping_ids') if 'topping_ids' in payload else None
 
-    note_changed = False
-    voided_quantity = 0
-    if note is not None:
-        new_note = str(note).strip()[:255]
-        note_changed = new_note != item.note
-        item.note = new_note
-
+    # Kiểm tra hết đầu vào trước khi đụng tới phiếu bếp, để request lỗi không huỷ nhầm món đã báo bếp.
     if quantity is not None:
         try:
             quantity = int(quantity)
         except (TypeError, ValueError):
             return _json_error('Số lượng không hợp lệ.', 400)
+        if quantity > MAX_ITEM_QUANTITY:
+            return _json_error(f'Số lượng mỗi món tối đa {MAX_ITEM_QUANTITY}.', 400)
 
-        if quantity <= 0:
-            with transaction.atomic():
-                _log_cart_void(request, item, item.quantity)
-                kitchen.sync_kitchen_on_quantity_decrease(item, 0)
-                item.delete()
-            return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
-        voided_quantity = max(item.quantity - quantity, 0)
-        kitchen.sync_kitchen_on_quantity_decrease(item, quantity)
-        item.quantity = quantity
-
-    if note_changed:
-        kitchen.sync_kitchen_on_item_modified(item)
-
-    update_fields = ['note', 'quantity', 'kitchen_sent_quantity', 'updated_at']
+    new_topping_rows = None
     if topping_ids is not None:
         if not user.tenant.show_topping_feature:
             return _json_error('Tính năng topping đang tắt.', 400)
@@ -1319,22 +1384,47 @@ def api_table_cart_item(request, table_id, item_id):
             )
         except ValueError as exc:
             return _json_error(str(exc), 400)
-        base_unit_price = get_effective_unit_price(unit=item.unit, store_id=table.store_id)
-        item.unit_price_snapshot = base_unit_price + calc_toppings_total(topping_links)
-        update_fields.append('unit_price_snapshot')
         new_topping_rows = _snapshot_rows_from_product_toppings(topping_links)
-        if _topping_signature(new_topping_rows) != _table_item_topping_signature(item):
-            kitchen.sync_kitchen_on_item_modified(item)
-        item.save(update_fields=update_fields)
-        _replace_table_item_toppings(
-            table_item=item,
-            snapshot_rows=new_topping_rows,
+        new_unit_price = get_effective_unit_price(unit=item.unit, store_id=table.store_id) + calc_toppings_total(
+            topping_links
         )
-        item.refresh_from_db()
-    else:
-        item.save(update_fields=update_fields)
-    if voided_quantity:
-        _log_cart_void(request, item, voided_quantity)
+
+    if quantity is not None and quantity <= 0:
+        with transaction.atomic():
+            _log_cart_void(request, item, item.quantity)
+            kitchen.sync_kitchen_on_quantity_decrease(item, 0)
+            item.delete()
+        return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
+
+    voided_quantity = 0
+    with transaction.atomic():
+        note_changed = False
+        if note is not None:
+            new_note = str(note).strip()[:255]
+            note_changed = new_note != item.note
+            item.note = new_note
+
+        if quantity is not None:
+            voided_quantity = max(item.quantity - quantity, 0)
+            kitchen.sync_kitchen_on_quantity_decrease(item, quantity)
+            item.quantity = quantity
+
+        if note_changed:
+            kitchen.sync_kitchen_on_item_modified(item)
+
+        update_fields = ['note', 'quantity', 'kitchen_sent_quantity', 'updated_at']
+        if new_topping_rows is not None:
+            item.unit_price_snapshot = new_unit_price
+            update_fields.append('unit_price_snapshot')
+            if _topping_signature(new_topping_rows) != _table_item_topping_signature(item):
+                kitchen.sync_kitchen_on_item_modified(item)
+            item.save(update_fields=update_fields)
+            _replace_table_item_toppings(table_item=item, snapshot_rows=new_topping_rows)
+            item.refresh_from_db()
+        else:
+            item.save(update_fields=update_fields)
+        if voided_quantity:
+            _log_cart_void(request, item, voided_quantity)
     return JsonResponse({'item': _serialize_table_cart_item(item), 'summary': _table_cart_summary(table)})
 
 
@@ -1351,135 +1441,117 @@ def api_table_checkout(request, table_id):
     if payload is None:
         return _json_error('Payload JSON không hợp lệ.', 400)
 
-    payment_method = payload.get('payment_method') or Order.PaymentMethod.CASH
-    if payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
-        return _json_error('Phương thức thanh toán không hợp lệ.', 400)
+    table_extra = {'detail': 'Thanh toán bàn thành công.', 'table_status': 'empty'}
+    request_id = _parse_client_request_id(payload)
+    replayed = _find_replayed_order(user.tenant, request_id)
+    if replayed:
+        return _checkout_response(replayed, replayed=True, extra=table_extra)
 
     try:
-        tax_rate = _parse_decimal(payload.get('tax_rate', '0'), field='tax_rate')
-        customer_paid = _parse_decimal(payload.get('customer_paid', '0'), field='customer_paid')
+        payment_method, customer_paid = _parse_payment_fields(payload)
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
-    if tax_rate < 0:
-        return _json_error('tax_rate không được âm.', 400)
-
-    with transaction.atomic():
-        cart_items = list(
-            TableCartItem.objects.filter(table=table)
-            .select_related('product', 'unit')
-            .prefetch_related('toppings')
-        )
-        if not cart_items:
-            return _json_error('Bàn này chưa có món để thanh toán.', 400)
-
-        subtotal = Decimal('0')
-        for item in cart_items:
-            subtotal += item.unit_price_snapshot * item.quantity
-
-        customer_id = payload.get('customer_id')
-        customer = resolve_customer_for_checkout(tenant=user.tenant, customer_id=customer_id)
-        if customer_id and not customer:
-            return _json_error('Khách hàng không hợp lệ hoặc đã ngưng hoạt động.', 400)
-
-        promotion_id = payload.get('promotion_id')
-        promotion = resolve_promotion_for_checkout(
-            tenant=user.tenant,
-            store=table.store,
-            promotion_id=promotion_id,
-            subtotal=subtotal,
-        )
-        if promotion_id and not promotion:
-            return _json_error('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.', 400)
-
-        totals = calculate_order_totals(subtotal=subtotal, tax_rate=tax_rate, promotion=promotion, customer=customer)
-        discount_amount = totals['discount_amount']
-        tier_discount_amount = totals['tier_discount_amount']
-        tier_discount_percent = totals['tier_discount_percent']
-        discount_source = totals['discount_source']
-        tax_amount = totals['tax_amount']
-        total_amount = totals['total_amount']
-
-        if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
-            return _json_error('Khách đưa chưa đủ tiền.', 400)
-
-        if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
-            customer_paid = total_amount
-
-        change_amount = customer_paid - total_amount
-
-        order = Order.objects.create(
-            tenant=user.tenant,
-            store=table.store,
-            cashier=user,
-            customer=customer,
-            promotion=promotion,
-            payment_method=payment_method,
-            sale_channel=Order.SaleChannel.DINE_IN,
-            table_name=table.name[:120],
-            subtotal=subtotal,
-            discount_amount=discount_amount,
-            tax_rate=tax_rate,
-            tax_amount=tax_amount,
-            total_amount=total_amount,
-            customer_paid=customer_paid,
-            change_amount=change_amount,
-            **_snapshot_promotion_fields(promotion),
-            **_snapshot_tier_discount_fields(totals),
-        )
-
-        for item in cart_items:
-            order_item = OrderItem.objects.create(
-                order=order,
-                product=item.product,
-                unit=item.unit,
-                snapshot_product_name=item.snapshot_product_name,
-                snapshot_unit_name=item.snapshot_unit_name,
-                unit_price=item.unit_price_snapshot,
-                quantity=item.quantity,
-                note=item.note,
-                line_total=item.unit_price_snapshot * item.quantity,
+    try:
+        with transaction.atomic():
+            # Khoá bàn: hai máy (hoặc bấm đúp) thanh toán cùng bàn thì request sau chờ, rồi thấy giỏ đã trống.
+            DiningTable.objects.select_for_update().filter(pk=table.pk).first()
+            cart_items = list(
+                TableCartItem.objects.filter(table=table)
+                .select_related('product', 'unit')
+                .prefetch_related('toppings')
             )
-            OrderItemTopping.objects.bulk_create(
-                [
-                    OrderItemTopping(
-                        order_item=order_item,
-                        topping_id=topping.topping_id,
-                        snapshot_topping_name=topping.snapshot_topping_name,
-                        snapshot_price=topping.snapshot_price,
-                    )
-                    for topping in item.toppings.all().order_by('id')
-                ]
+            if not cart_items:
+                return _json_error('Bàn này chưa có món để thanh toán.', 400)
+
+            subtotal = Decimal('0')
+            for item in cart_items:
+                subtotal += item.unit_price_snapshot * item.quantity
+
+            try:
+                customer, promotion = _resolve_checkout_discounts(
+                    tenant=user.tenant, store=table.store, payload=payload, subtotal=subtotal
+                )
+            except ValueError as exc:
+                return _json_error(str(exc), 400)
+
+            totals = calculate_order_totals(
+                subtotal=subtotal, tax_rate=user.tenant.tax_rate, promotion=promotion, customer=customer
+            )
+            total_amount = totals['total_amount']
+
+            if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
+                return _json_error('Khách đưa chưa đủ tiền.', 400)
+
+            if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
+                customer_paid = total_amount
+
+            order = Order.objects.create(
+                tenant=user.tenant,
+                store=table.store,
+                cashier=user,
+                customer=customer,
+                promotion=promotion,
+                payment_method=payment_method,
+                sale_channel=Order.SaleChannel.DINE_IN,
+                table_name=table.name[:120],
+                subtotal=subtotal,
+                discount_amount=totals['discount_amount'],
+                tax_rate=user.tenant.tax_rate,
+                tax_amount=totals['tax_amount'],
+                total_amount=total_amount,
+                customer_paid=customer_paid,
+                change_amount=customer_paid - total_amount,
+                client_request_id=request_id,
+                **_snapshot_promotion_fields(promotion),
+                **_snapshot_tier_discount_fields(totals),
             )
 
-        kitchen_ticket = None
-        if kitchen.kitchen_enabled(user.tenant):
-            # Món đã thanh toán mà chưa báo bếp thì tự báo để bếp không bỏ sót.
-            kitchen_ticket = kitchen.send_table_cart_to_kitchen(table=table, user=user, order=order)
+            for item in cart_items:
+                order_item = OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    unit=item.unit,
+                    snapshot_product_name=item.snapshot_product_name,
+                    snapshot_unit_name=item.snapshot_unit_name,
+                    unit_price=item.unit_price_snapshot,
+                    quantity=item.quantity,
+                    note=item.note,
+                    line_total=item.unit_price_snapshot * item.quantity,
+                )
+                OrderItemTopping.objects.bulk_create(
+                    [
+                        OrderItemTopping(
+                            order_item=order_item,
+                            topping_id=topping.topping_id,
+                            snapshot_topping_name=topping.snapshot_topping_name,
+                            snapshot_price=topping.snapshot_price,
+                        )
+                        for topping in item.toppings.all().order_by('id')
+                    ]
+                )
 
-        TableCartItem.objects.filter(table=table).delete()
+            kitchen_ticket = None
+            if kitchen.kitchen_enabled(user.tenant):
+                # Món đã thanh toán mà chưa báo bếp thì tự báo để bếp không bỏ sót.
+                kitchen_ticket = kitchen.send_table_cart_to_kitchen(table=table, user=user, order=order)
 
-        points_earned = calculate_points_for_amount(total_amount) if customer else 0
-        if customer:
-            customer = recompute_customer_stats(customer)
+            TableCartItem.objects.filter(table=table).delete()
 
-    return JsonResponse(
-        {
-            'detail': 'Thanh toán bàn thành công.',
-            'order_id': order.id,
-            'order_code': order.order_code,
-            'discount_amount': float(discount_amount),
-            'discount_source': discount_source,
-            'tier_discount_amount': float(tier_discount_amount),
-            'tier_discount_percent': float(tier_discount_percent),
-            'total_amount': float(total_amount),
-            'change_amount': float(change_amount),
-            'points_earned': points_earned,
-            'customer_tier': customer.tier if customer else '',
-            'table_status': 'empty',
-            'kitchen_ticket_id': kitchen_ticket.id if kitchen_ticket else None,
-        },
+            if customer:
+                recompute_customer_stats(customer)
+    except IntegrityError:
+        replayed = _find_replayed_order(user.tenant, request_id)
+        if replayed:
+            return _checkout_response(replayed, replayed=True, extra=table_extra)
+        raise
+
+    order = Order.objects.select_related('customer').get(pk=order.pk)
+    return _checkout_response(
+        order,
+        kitchen_ticket_id=kitchen_ticket.id if kitchen_ticket else None,
         status=201,
+        extra=table_extra,
     )
 
 
@@ -2030,6 +2102,9 @@ def table_bill_print(request, table_id):
         )
         for item in items
     ]
+    subtotal = sum((row['line_total'] for row in rows), Decimal('0'))
+    # Tạm tính chưa gồm khuyến mãi / ưu đãi hạng (chọn lúc thanh toán), nhưng gồm thuế theo cấu hình.
+    totals = calculate_order_totals(subtotal=subtotal, tax_rate=table.tenant.tax_rate)
     return render(
         request,
         'App_Sales/print/table_bill.html',
@@ -2037,7 +2112,10 @@ def table_bill_print(request, table_id):
             'table': table,
             'store': table.store,
             'rows': rows,
-            'subtotal': sum((row['line_total'] for row in rows), Decimal('0')),
+            'subtotal': subtotal,
+            'tax_percent': table.tenant.tax_percent,
+            'tax_amount': totals['tax_amount'],
+            'total_amount': totals['total_amount'],
             'printed_at': timezone.now(),
         },
     )

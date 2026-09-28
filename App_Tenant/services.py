@@ -116,7 +116,7 @@ def provision_tenant_owner_and_store(tenant, *, store_name='Cửa hàng trung t�
             password=DEFAULT_TENANT_USER_PASSWORD,
             tenant=tenant,
             role=User.Role.MANAGER,
-            is_staff=True,
+            is_staff=False,
         )
         staff_user = User.objects.create_user(
             username=staff_username,
@@ -154,7 +154,7 @@ def provision_tenant_default_setup(tenant, *, default_password=DEFAULT_TENANT_US
             password=default_password,
             tenant=tenant,
             role=User.Role.MANAGER,
-            is_staff=True,
+            is_staff=False,
             is_active=True,
         )
 

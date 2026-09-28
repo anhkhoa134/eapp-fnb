@@ -34,7 +34,8 @@ Hỗ trợ quán có bếp riêng, chương trình khách hàng thân thiết, v
 ## Quy tắc giảm giá khi checkout
 - **Không cộng dồn:** hệ thống lấy mức giảm **lớn hơn** giữa ưu đãi hạng và khuyến mãi (`calculate_order_totals`).
 - Ghi lại trên `Order`: `discount_amount`, `discount_source` (`none` / `promotion` / `tier`), snapshot hạng và % giảm.
-- Thuế tính trên số tiền sau giảm.
+- Thuế tính trên số tiền sau giảm, theo mức `Tenant.tax_percent` cấu hình ở *Cấu hình tính năng* (server tính, làm tròn tới đồng; POS không tự gửi mức thuế). Chi tiết: `2_feature_settings_and_plan_limits.md` mục *Thuế*.
+- Tính năng Khách hàng / Khuyến mãi tắt (hoặc ngoài gói): server từ chối `customer_id` / `promotion_id` khi checkout và chặn trang quản lý / API tương ứng (403).
 
 ## Tiêu chí hoàn thành
 - [x] `App_Sales.tests_kitchen` và test khách hàng / khuyến mãi pass.

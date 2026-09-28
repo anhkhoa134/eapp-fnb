@@ -17,7 +17,7 @@ source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
 python manage.py migrate
 python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 redis-server                                  # terminal riêng
-python manage.py runserver 127.0.0.1:8000     # KHÔNG dùng --noasgi
+python manage.py runserver 127.0.0.1:8002     # KHÔNG dùng --noasgi
 ```
 
 ### 0.2 Dữ liệu & tài khoản
@@ -73,8 +73,11 @@ Thiết bị: 1 desktop Chrome (POS), 1 cửa sổ ẩn danh / điện thoại (
 | E2E-SEC-11 | 🔒 | Header bảo mật | Xem response header trang bất kỳ | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` | P2 |
 | E2E-SEC-12 | 🔒 | CSRF | POST form `/quanly/…` không có CSRF token | 403 | P1 |
 | E2E-SEC-13 | 🔒 | Tenant ngừng hoạt động (public) | `SA` tắt `is_active` tenant `demo` → mở `/demo/`, `/demo/qr/…` | Không truy cập được | P1 |
+| E2E-SEC-14 | 🔒 | XSS qua tên món (menu public) | Tạo món tên `x" onload="alert(1)` → mở `/<slug>/` | Tên hiện nguyên văn, không có thuộc tính `onload`, không chạy JS | P0 |
+| E2E-SEC-15 | 🔒 | WebSocket từ trang lạ | Mở `wss://…/ws/pos/store/<id>/` với header `Origin` khác domain (prod, `ALLOWED_HOSTS` cụ thể) | Kết nối bị từ chối | P1 |
+| E2E-SEC-16 | 🔒 | Quản lý tenant vào Django Admin | Login `/<REAL_ADMIN_PATH>/` bằng tài khoản `*_quanly` | Không đăng nhập được (không có `is_staff`) | P1 |
 
-> Lưu ý: POS / quản lý hiện **chưa** chặn tenant `is_active=False` hoặc hết hạn gói — xem `docs/backlog/1_backlog.md` BL-001. Khi làm xong, bổ sung test case tương ứng.
+> Chặn tenant `is_active=False` / hết hạn gói cho POS, API, `/quanly/` và WebSocket đã làm (BL-001) — test tự động ở `App_Tenant.tests_access`.
 
 ## 3. POS — Bán mang về (POS)
 | ID | Loại | Kịch bản | Bước | Kết quả mong đợi | Ưu tiên |
@@ -106,6 +109,10 @@ Thiết bị: 1 desktop Chrome (POS), 1 cửa sổ ẩn danh / điện thoại (
 | E2E-PAY-12 | ✅ | Tạo khách nhanh tại POS | Nhập tên + SĐT mới khi thanh toán; thử lại với SĐT đã có | SĐT mới: tạo khách và gắn vào đơn. SĐT đã có: trả khách cũ, báo *Khách hàng đã tồn tại.* | P2 |
 | E2E-PAY-13 | ❌ | Tạo khách thiếu SĐT | Chỉ nhập tên | 400 *Vui lòng nhập số điện thoại khách hàng.* | P2 |
 | E2E-PAY-14 | ✅ | Đơn trong ngày | Sau các đơn trên → `/orders/today/` | Đơn mới hiện đủ; KPI tổng đơn / doanh thu khớp | P1 |
+| E2E-PAY-15 | ✅ | Thuế theo cấu hình | Manager đặt thuế 8% ở *Cấu hình tính năng* → POS bán món 65.000 | Modal hiện *Thuế (8%)* 5.200, tổng 70.200; đơn lưu `tax_rate=0.08`; hoá đơn in *Thuế (8%)* | P0 |
+| E2E-PAY-16 | 🔒 | Client gửi thuế giả | Gọi `POST /api/pos/checkout/` kèm `tax_rate: 5` | Bị bỏ qua, thuế tính theo mức của doanh nghiệp | P0 |
+| E2E-PAY-17 | ❌ | Bấm đúp thanh toán | Bấm *Hoàn tất thanh toán* 2 lần liên tiếp (hoặc gửi lại cùng `client_request_id`) | Chỉ 1 đơn; request lặp trả 200 `replayed: true` | P0 |
+| E2E-PAY-18 | ❌ | Số lượng / số dòng quá lớn | Checkout với `quantity` = 1000 hoặc > 100 dòng | 400, không tạo đơn, không lỗi 500 | P1 |
 
 ## 5. Bán tại bàn (TBL)
 | ID | Loại | Kịch bản | Bước | Kết quả mong đợi | Ưu tiên |
@@ -139,6 +146,7 @@ Thiết bị: 1 desktop Chrome (POS), 1 cửa sổ ẩn danh / điện thoại (
 | E2E-QRC-11 | ✅ | Không lộ từ kỹ thuật | Mở trang QR hợp lệ | Không có chữ *WebSocket*, *fallback*, *Mobile-first*; trạng thái hiện *Tự động cập nhật* | P2 |
 | E2E-QRC-12 | ✅ | Thêm món khi đơn đang chờ | Đơn `PENDING` → bấm **+** ở một món | Tự vào chế độ *Đang sửa đơn #…*, giỏ có món cũ + món mới, nút *Cập nhật đơn* | P1 |
 | E2E-QRC-13 | ✅ | Giữ giỏ nháp | Thêm 2 món, chưa gửi → reload | Giỏ còn nguyên | P2 |
+| E2E-QRC-14 | ❌ | Gói của quán hết hạn | `SA` đặt ngày hết hạn gói về hôm qua → quét QR bàn, gửi đơn | Trang báo *Quán tạm ngưng gọi món qua mã QR…*; API tạo / sửa đơn 403; đơn đang chờ vẫn huỷ được | P1 |
 
 ## 7. Gọi món QR — Nhân viên (QRS)
 | ID | Loại | Kịch bản | Bước | Kết quả mong đợi | Ưu tiên |
@@ -251,18 +259,20 @@ Tiền điều kiện: cờ **Khách hàng** và **Khuyến mãi** bật.
 |---|---|---|---|---|---|
 | E2E-FEAT-01 | 🔒 | Tắt Topping | Tắt cờ → POS, `/quanly/toppings/` | Ẩn topping trên POS / QR; trang topping bị chặn; API thêm topping trả 400 *Tính năng topping đang tắt.* | P1 |
 | E2E-FEAT-02 | 🔒 | Tắt QR bàn | Tắt cờ → trang QR khách, `/quanly/qr-tables/`, API public | Bị chặn (403 *Tính năng gọi món QR đang tắt.*); POS ẩn tab Đơn QR | P0 |
-| E2E-FEAT-03 | 🔒 | Tắt Khách hàng | Tắt cờ | Ẩn menu Khách hàng; POS không chọn được khách | P1 |
-| E2E-FEAT-04 | 🔒 | Tắt Khuyến mãi | Tắt cờ | Ẩn menu + phần chọn KM ở POS | P1 |
+| E2E-FEAT-03 | 🔒 | Tắt Khách hàng | Tắt cờ → gõ thẳng URL `/quanly/customers/`, gọi `GET /api/pos/customers/`, checkout kèm `customer_id` | Ẩn menu, POS không chọn được khách; URL / API trả 403; checkout trả 400 *Tính năng khách hàng đang tắt.* | P0 |
+| E2E-FEAT-04 | 🔒 | Tắt Khuyến mãi | Tắt cờ → gõ thẳng URL `/quanly/promotions/`, `GET /api/pos/promotions/`, checkout kèm `promotion_id` | Ẩn menu + phần chọn KM ở POS; URL / API trả 403; checkout 400 | P0 |
 | E2E-FEAT-05 | 🔒 | Tắt nhiều cửa hàng | Tenant có > 1 store đang hoạt động → tắt cờ | Không cho tắt, báo lỗi; khi còn 1 store thì tắt được và `/quanly/stores/` trả 403 | P1 |
 | E2E-FEAT-06 | ✅ | Bật lại tính năng | Bật lại từng cờ | Dữ liệu cũ vẫn còn, hiển thị lại bình thường | P2 |
 | E2E-FEAT-07 | ❌ | Giới hạn cửa hàng | Tenant `T2` (tối đa 1) bật nhiều cửa hàng → tạo store thứ 2 | Báo *Đã đạt giới hạn số cửa hàng (1)…* | P1 |
 | E2E-FEAT-08 | ❌ | Giới hạn bàn | `T2` tạo bàn thứ 13 | Báo *Đã đạt giới hạn số bàn (12)…* | P1 |
 | E2E-FEAT-09 | ❌ | Giới hạn nhân viên | `T2` tạo nhân viên thứ 3 | Báo *Đã đạt giới hạn số nhân viên (2)…* | P1 |
-| E2E-FEAT-10 | ✅ | Không giới hạn | `SA` đặt giới hạn = 0 | Tạo thêm thoải mái | P2 |
+| E2E-FEAT-10 | ✅ | Không giới hạn / không cho tạo | `SA` **để trống** giới hạn; sau đó đặt `max_staff_users = 0` | Để trống: tạo thêm thoải mái. `0`: báo *Gói hiện tại không bao gồm tài khoản nhân viên…* | P2 |
 | E2E-FEAT-11 | ✅ | Xem mức sử dụng | `/quanly/account/` | Hiện đã dùng / tối đa và ngày hết hạn gói | P2 |
 | E2E-FEAT-12 | 🔒 | Tắt / bật Ca làm việc | Tenant mới → kiểm tra mặc định; bật cờ → mở ca; tắt cờ → `/shifts/`, `/shifts/<id>/print/`, `GET /api/pos/shifts/current/` | Mặc định tắt; khi tắt: 403 *Tính năng ca làm việc đang tắt…*, ẩn mục Ca làm việc (sidebar, POS, Đơn trong ngày); bật lại: ca đang mở vẫn còn | P1 |
 | E2E-FEAT-13 | 🔒 | Ca làm việc theo gói | Gán gói *Miễn phí* → `/quanly/settings/features/`; gán *Cơ bản* | Miễn phí: cờ bị tắt, công tắc khoá + nhãn *Cần nâng cấp gói*, POST bật bị bỏ qua. Cơ bản: bật được | P1 |
 | E2E-FEAT-14 | ✅ | Vị trí mục Ca làm việc | Bật cờ → xem sidebar Quản lý | *Ca làm việc* nằm trong nhóm con dưới *Cấu hình tính năng* | P2 |
+| E2E-FEAT-15 | ✅ | Đặt mức thuế | `/quanly/settings/features/` → thẻ *Thuế* nhập 8 → Lưu; thử 80 | Lưu 8% (nhật ký ghi *Thuế (%)*), công tắc tính năng không đổi; 80 bị từ chối (tối đa 30%) | P1 |
+| E2E-FEAT-16 | 🔒 | Gói không có tính năng nhưng cờ còn bật | `SA` sửa gói bỏ *Khách hàng* mà không gán lại gói cho tenant | Tính năng vẫn bị chặn (403) vì gói không cho phép | P1 |
 
 ## 13b. In ấn (PRN)
 Tiền điều kiện: máy tính có máy in nhiệt 80mm (hoặc *Save as PDF* để kiểm tra bố cục).
@@ -356,6 +366,8 @@ Chuẩn bị: manager có gói cho phép `feature_recipe`, bật **Định mức
 | ID | Loại | Kịch bản | Bước | Kết quả mong đợi | Ưu tiên |
 |---|---|---|---|---|---|
 | E2E-NFR-01 | ✅ | Cài app (Chrome) | DevTools → Application → Manifest / Service Worker | Manifest hợp lệ, SW active scope `/`, có nút cài | P2 |
+| E2E-NFR-01b | ✅ | Không lẫn với PWA eApp khác | Chạy FnB ở `127.0.0.1:8002`; DevTools → Application → Manifest, Cache Storage, Cookies | Tên *eApp FnB*, icon có nhãn FnB, screenshot POS FnB; cache chỉ `eapp-fnb-v3` (không xoá cache app khác); cookie `eappfnb_sessionid` / `eappfnb_csrftoken` | P2 |
+| E2E-NFR-01c | ✅ | Cài trên iPhone | Safari → Chia sẻ → Thêm vào MH chính | Tên *eApp FnB*, icon PNG có nhãn FnB | P2 |
 | E2E-NFR-02 | ✅ | Trang offline | Đã mở site online → Network Offline → reload | Hiển thị `/offline/` | P2 |
 | E2E-NFR-03 | 🔒 | Không cache trang đã đăng nhập | Offline → mở `/quanly/` | Trang offline, không lộ nội dung cũ | P1 |
 | E2E-NFR-04 | ✅ | iOS Add to Home Screen | Safari → Share → Add to Home Screen | Đúng tên + icon | P2 |
@@ -422,11 +434,13 @@ Chạy trước mỗi release, theo thứ tự, trên dữ liệu seed sạch.
 | POS, PAY, TBL, QRS, CUS | `App_Sales.tests` |
 | KIT | `App_Sales.tests_kitchen` |
 | PRN, SHF, RFD, AUD, FEAT-12/13/14 | `App_Sales.tests_ops` |
+| PAY-15…18, FEAT-03/04/15/16, QRC-14, SEC-14…16 | `App_Sales.tests_hardening` (25 test); SEC-14 + PAY-15/17 đã chạy bằng Playwright (Chrome headless) ngày 28/09/2026 |
 | REC | `App_Quanly.tests_recipes` (27 test) |
 | QRC, TKW | `App_Public.tests` (`PublicQrApiTests`, `PublicTakeawayApiTests`) |
 | WS | `App_Sales.tests_ws`, `App_Public.tests_ws` |
+| PWA (manifest, SW, icon, cookie riêng) | `App_Core.tests.PwaIdentityTests` |
 
 ```bash
-python manage.py test            # 300 test — pass ngày 27/09/2026
+python manage.py test            # 356 test — pass ngày 28/09/2026
 ```
 Các case có đánh dấu ⚡, NFR và Journey cần kiểm thử thủ công hoặc bằng công cụ E2E trình duyệt (đề xuất Playwright — thêm vào backlog khi cần tự động hoá).

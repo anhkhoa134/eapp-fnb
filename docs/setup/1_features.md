@@ -27,6 +27,10 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 | Trang Tài khoản `/quanly/account/` (manager + staff): cập nhật họ tên, email, đổi mật khẩu; manager sửa thêm tên doanh nghiệp | ✅ | — | `phase1/3_routes_permissions_api.md` |
 | Superadmin tạo tenant → auto bootstrap dữ liệu tối thiểu | ✅ | — | `phase1/4_seed_demo_data.md` |
 | Seed demo idempotent (`seed_initial_data`), phục hồi demo từ admin | ✅ | — | `phase1/4_seed_demo_data.md` |
+| Tự đăng ký `/accounts/signup/` → tạo doanh nghiệp gói *Miễn phí* (1 cửa hàng, 1 quản lý, vài bàn); Quên mật khẩu qua email | ✅ | — | `phase3/2_feature_settings_and_plan_limits.md` |
+| Gói cước (`SubscriptionPlan`), giới hạn cửa hàng / bàn / nhân viên / món, bảng gói ở trang Tài khoản | ✅ | — | `phase3/2_feature_settings_and_plan_limits.md` |
+| Chặn doanh nghiệp ngừng hoạt động / hết hạn gói (POS, API, `/quanly/`, WebSocket; cảnh báo trước 7 ngày) | ✅ | — | `docs/backlog/1_backlog.md` BL-001 |
+| Chống brute-force đăng nhập, giới hạn tần suất đăng ký / quên mật khẩu / đặt mang đi | ✅ | — | `5_security_policy.md` |
 
 ## 2. POS bán hàng — Phase 1
 | Tính năng | Trạng thái | Cờ tenant | Tài liệu |
@@ -36,6 +40,8 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 | Topping theo sản phẩm (giá topping theo product) | ✅ | `show_topping_feature` | — |
 | Import giỏ mang về lên bàn, đổi sang mang về, chuyển bàn | ✅ | — | `phase1/3_routes_permissions_api.md` |
 | Thanh toán tiền mặt / thẻ, QR thanh toán theo cửa hàng | ✅ | — | `phase1/3_routes_permissions_api.md` |
+| Thuế theo mức cấu hình của doanh nghiệp (server tính, POS hiện dòng thuế, in trên hoá đơn / tạm tính) | ✅ | `Tenant.tax_percent` | `phase3/2_feature_settings_and_plan_limits.md` |
+| Chống tạo đơn trùng khi bấm đúp / mạng chập chờn (`client_request_id`, khoá bàn khi thanh toán) | ✅ | — | `phase1/3_routes_permissions_api.md` |
 | `Order.sale_channel` (tại quán / mang về) | ✅ | — | — |
 | Đơn trong ngày (KPI + bảng phân trang) | ✅ | — | — |
 | Giao diện mobile (offcanvas giỏ hàng) | ✅ | — | `phase1/testing/trang_ban_hang.md` |
@@ -69,7 +75,7 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 | Khách hàng, tích điểm, hạng thành viên (Member/Silver/Gold/VIP) | ✅ | `show_customer_feature` | `phase3/0_overview.md` |
 | Khuyến mãi giảm hoá đơn (% / số tiền, trần giảm) | ✅ | `show_promotion_feature` | `phase3/0_overview.md` |
 | Màn hình bếp: báo bếp, phiếu bếp, trạng thái món (thanh công cụ làm lại 27/09/2026) | ✅ | `show_kitchen_feature` (mặc định tắt) | `phase3/1_kitchen_display.md` |
-| Trang Cấu hình tính năng + giới hạn gói (store/bàn/nhân viên) | ✅ | — | `phase3/2_feature_settings_and_plan_limits.md` |
+| Trang Cấu hình tính năng (công tắc tính năng, chặn ở server) + mức thuế + giới hạn gói (store/bàn/nhân viên/món) | ✅ | — | `phase3/2_feature_settings_and_plan_limits.md` |
 
 ## 6. Vận hành hằng ngày — Phase 4
 | Tính năng | Trạng thái | Cờ tenant | Tài liệu |

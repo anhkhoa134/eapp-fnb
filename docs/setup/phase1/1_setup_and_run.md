@@ -7,8 +7,10 @@ source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
 python manage.py migrate
 python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 redis-server                                   # terminal khác, cần cho WebSocket
-python manage.py runserver 127.0.0.1:8000      # không dùng --noasgi
+python manage.py runserver 127.0.0.1:8002      # không dùng --noasgi
 ```
+
+> **Cổng 8002 là cổng dev riêng của FnB.** Các project eApp khác (POS, PM, Reader, Prompt…) cũng là PWA và đều chạy dev ở `127.0.0.1:8000`. Trình duyệt coi cùng giao thức + host + **cổng** là một "origin", nên nếu dùng chung cổng thì service worker, Cache Storage, localStorage và app đã cài sẽ đè lên nhau. Chi tiết: `docs/setup/phase2/3_pwa.md` mục *Tránh nhầm với PWA của project khác*.
 
 Route và API chi tiết: `docs/setup/phase1/3_routes_permissions_api.md`.
 
@@ -70,7 +72,7 @@ python manage.py seed_initial_data --reset-passwords --default-password 123456 -
 
 ## Chạy server
 ```bash
-python manage.py runserver 127.0.0.1:8000
+python manage.py runserver 127.0.0.1:8002
 ```
 
 Lưu ý realtime QR:
@@ -84,12 +86,12 @@ redis-server
 ```
 
 ## URL chính
-- POS: `http://127.0.0.1:8000/`
-- Login: `http://127.0.0.1:8000/accounts/login/`
-- Quản lý: `http://127.0.0.1:8000/quanly/`
-- Đơn hôm nay: `http://127.0.0.1:8000/orders/today/`
-- Menu online (xem menu + đặt mang đi): `http://127.0.0.1:8000/demo/`
-- Public QR ordering: `http://127.0.0.1:8000/demo/qr/?table_code=<CODE>&token=<TOKEN>`
+- POS: `http://127.0.0.1:8002/`
+- Login: `http://127.0.0.1:8002/accounts/login/`
+- Quản lý: `http://127.0.0.1:8002/quanly/`
+- Đơn hôm nay: `http://127.0.0.1:8002/orders/today/`
+- Menu online (xem menu + đặt mang đi): `http://127.0.0.1:8002/demo/`
+- Public QR ordering: `http://127.0.0.1:8002/demo/qr/?table_code=<CODE>&token=<TOKEN>`
 
 ## Tài khoản demo
 - Manager: `demo_quanly / 123456`

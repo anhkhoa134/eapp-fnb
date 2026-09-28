@@ -257,6 +257,10 @@ EMAIL_BACKEND = (
 PASSWORD_RESET_ENABLED = bool(EMAIL_HOST) or ENVIRONMENT == 'dev'
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
+# Tên cookie riêng của FnB: cookie không phân biệt cổng, nên các project Django khác chạy dev ở
+# 127.0.0.1:<cổng khác> dùng tên mặc định `sessionid` / `csrftoken` sẽ đè phiên đăng nhập của nhau.
+SESSION_COOKIE_NAME = env('SESSION_COOKIE_NAME', default='eappfnb_sessionid')
+CSRF_COOKIE_NAME = env('CSRF_COOKIE_NAME', default='eappfnb_csrftoken')
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SECURE_REFERRER_POLICY = 'same-origin'

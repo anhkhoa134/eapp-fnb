@@ -216,11 +216,14 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
 
     // ---------- helpers ----------
     const fmt = (value) => `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(value || 0)))} đ`;
-    const esc = (value) => {
-        const div = document.createElement('div');
-        div.textContent = value == null ? '' : String(value);
-        return div.innerHTML;
-    };
+    // Escape cả dấu nháy: giá trị còn được chèn vào thuộc tính (alt, aria-label, src, data-*),
+    // nên tên món chứa `"` không được phép thoát khỏi thuộc tính (XSS trên trang public).
+    const esc = (value) => String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     const fold = (value) => (value || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
     const $ = (id) => document.getElementById(id);
 

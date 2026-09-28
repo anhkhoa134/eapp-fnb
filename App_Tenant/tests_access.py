@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from asgiref.sync import async_to_sync
 from channels.testing import WebsocketCommunicator
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -151,13 +152,13 @@ class ExpiringSoonSubscriptionTests(TenantAccessTestBase):
 class BlockedTenantWebSocketTests(TenantAccessTestBase):
     def _can_connect(self):
         self.client.force_login(self.staff)
-        cookie = self.client.cookies['sessionid'].value
+        cookie = self.client.cookies[settings.SESSION_COOKIE_NAME].value
 
         async def scenario():
             ws = WebsocketCommunicator(
                 application,
                 f'/ws/pos/store/{self.store.id}/',
-                headers=[(b'cookie', f'sessionid={cookie}'.encode('utf-8'))],
+                headers=[(b'cookie', f'{settings.SESSION_COOKIE_NAME}={cookie}'.encode('utf-8'))],
             )
             connected, _ = await ws.connect()
             if connected:

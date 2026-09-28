@@ -56,7 +56,7 @@ eapp-fnb/
 │   ├── shifts.py                       # Mở / chốt ca, tổng hợp số liệu ca
 │   ├── realtime.py                     # Push event qua channel layer
 │   ├── consumers.py · ws_urls.py       # WebSocket POS theo store
-│   └── tests.py · tests_kitchen.py · tests_ws.py · tests_ops.py (in, ca, hoàn tiền, nhật ký)
+│   └── tests.py · tests_kitchen.py · tests_ws.py · tests_ops.py (in, ca, hoàn tiền, nhật ký) · tests_hardening.py (thuế, chặn tính năng, chống đơn trùng, giới hạn đầu vào)
 │
 ├── App_Quanly/                         # Trang quản lý /quanly/
 │   ├── views.py · urls.py · forms.py   # Dashboard, CRUD, QR bàn, cấu hình tính năng
@@ -81,8 +81,9 @@ eapp-fnb/
 │   └── admin/app_core/                 # Template xác nhận phục hồi demo
 │
 ├── static/
-│   ├── images/logo/
-│   ├── pwa/icons/ · pwa/screenshots/
+│   ├── images/logo/eapp.webp           # Logo giao diện, ảnh gốc để tạo icon PWA
+│   ├── pwa/icons/                      # fnb-icon-*.webp (manifest), fnb-icon-180x180.png (iOS), fnb-favicon.ico
+│   ├── pwa/screenshots/                # fnb-pos-narrow.webp, fnb-pos-wide.webp (manifest)
 │   ├── sounds/co-don-moi.mp3           # Âm báo đơn QR mới
 │   ├── js/eapp_print.js                # In qua iframe ẩn (window.eappPrint, data-print-url)
 │   ├── js/eapp_dialog.js               # Hộp thoại dùng chung (eappDialog, data-confirm)
@@ -92,7 +93,7 @@ eapp-fnb/
 ├── logs/recent-errors.log
 ├── backup/                             # Tài liệu / cấu hình cũ (tham khảo, không dùng runtime)
 ├── scripts/
-│   ├── run/                            # 1_reset_project.py, 2_git_clean_cached.py, print_secret_key.py
+│   ├── run/                            # 1_reset_project.py, 2_git_clean_cached.py, print_secret_key.py, make_pwa_icons.py (tạo icon + favicon FnB)
 │   ├── pipeline.txt
 │   └── run.txt
 │

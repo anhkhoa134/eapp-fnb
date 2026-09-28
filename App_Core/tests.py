@@ -98,3 +98,57 @@ class ResetDemoDataTests(TestCase):
         self.assertFalse(Store.objects.filter(name='CN Lạ').exists())
         self.assertFalse(Order.objects.exists())
         self.assertEqual(Tenant.objects.filter(public_slug='demo').count(), 1)
+
+
+class PwaIdentityTests(TestCase):
+    """PWA của FnB phải có định danh riêng: không lẫn với các PWA eApp khác (POS, PM, Reader…)."""
+
+    def test_manifest_identity_icons_and_screenshots(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        from PIL import Image
+
+        response = self.client.get(reverse('pwa_manifest'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('application/manifest+json', response['Content-Type'])
+        data = response.json()
+        self.assertEqual(data['id'], '/')
+        self.assertEqual(data['name'], 'eApp FnB')
+        self.assertEqual(data['short_name'], 'eApp FnB')
+
+        purposes = {icon['purpose'] for icon in data['icons']}
+        self.assertEqual(purposes, {'any', 'maskable'})
+        for image in [*data['icons'], *data['screenshots']]:
+            self.assertEqual(image['type'], 'image/webp')
+            relative = image['src'].split(settings.STATIC_URL, 1)[1]
+            self.assertIn('fnb-', relative, 'Tên file phải riêng của FnB, không dùng icon/ảnh chung của eApp')
+            path = Path(settings.BASE_DIR) / 'static' / relative
+            self.assertTrue(path.exists(), relative)
+            with Image.open(path) as img:
+                self.assertEqual(img.format, 'WEBP')
+                self.assertEqual(f'{img.width}x{img.height}', image['sizes'])
+        sizes = {icon['sizes'] for icon in data['icons'] if icon['purpose'] == 'maskable'}
+        self.assertEqual(sizes, {'192x192', '512x512'})
+        self.assertEqual({shot['form_factor'] for shot in data['screenshots']}, {'narrow', 'wide'})
+
+    def test_service_worker_only_clears_its_own_caches(self):
+        response = self.client.get(reverse('pwa_service_worker'))
+        js = response.content.decode()
+        self.assertIn("const CACHE_PREFIX = 'eapp-fnb-';", js)
+        self.assertIn("const CACHE_NAME = 'eapp-fnb-v3';", js)
+        self.assertIn('k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME', js)
+        self.assertIn('/static/pwa/icons/fnb-icon-192x192.webp', js)
+        self.assertNotIn('__CACHE', js)
+
+    def test_cookie_names_are_project_specific(self):
+        from django.conf import settings
+
+        # Cookie không phân biệt cổng: tên mặc định sẽ đụng với project Django khác chạy trên cùng host.
+        self.assertNotEqual(settings.SESSION_COOKIE_NAME, 'sessionid')
+        self.assertNotEqual(settings.CSRF_COOKIE_NAME, 'csrftoken')
+
+    def test_pages_use_fnb_icons(self):
+        page = self.client.get(reverse('App_Accounts:login'))
+        self.assertContains(page, 'pwa/icons/fnb-favicon.ico')
+        self.assertContains(page, 'images/logo/eapp.webp')

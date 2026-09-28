@@ -10,7 +10,7 @@ from App_Accounts.models import User
 from App_Catalog.models import Category, Ingredient, Product, ProductTopping, ProductUnit, Topping
 from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload, clear_product_uploaded_images
 from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Promotion
-from App_Tenant.models import Store, Tenant
+from App_Tenant.models import MAX_TAX_PERCENT, Store, Tenant
 
 
 def _apply_bootstrap_classes(form):
@@ -98,6 +98,34 @@ class AccountProfileForm(forms.ModelForm):
             user.tenant.name = tenant_name
             user.tenant.save(update_fields=['name', 'updated_at'])
         return user
+
+
+class TenantTaxSettingsForm(forms.ModelForm):
+    """Mức thuế của doanh nghiệp, lưu riêng với các công tắc tính năng. POS/checkout tính thuế theo mức này."""
+
+    class Meta:
+        model = Tenant
+        fields = ['tax_percent']
+        labels = {'tax_percent': 'Mức thuế (%)'}
+        help_texts = {
+            'tax_percent': (
+                f'Cộng vào hoá đơn, tính trên số tiền sau giảm giá, làm tròn tới đồng. '
+                f'Nhập 0 nếu giá bán đã gồm thuế hoặc không tính thuế. Tối đa {MAX_TAX_PERCENT:g}%.'
+            ),
+        }
+        widgets = {
+            'tax_percent': forms.NumberInput(
+                attrs={'min': '0', 'max': str(MAX_TAX_PERCENT), 'step': '0.01', 'inputmode': 'decimal'}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['tax_percent'].widget.attrs['class'] = 'form-control'
+
+    def clean_tax_percent(self):
+        value = self.cleaned_data.get('tax_percent')
+        return Decimal('0') if value is None else value
 
 
 class TenantFeatureSettingsForm(forms.ModelForm):

@@ -77,8 +77,23 @@ class Order(TimeStampedModel):
     table_name = models.CharField('Bàn', max_length=120, blank=True)
     refunded_amount = models.DecimalField('Đã hoàn tiền', max_digits=14, decimal_places=2, default=0)
     print_count = models.PositiveIntegerField('Số lần in hoá đơn', default=0)
+    client_request_id = models.CharField(
+        'Mã yêu cầu thanh toán',
+        max_length=64,
+        null=True,
+        blank=True,
+        editable=False,
+        help_text='Khoá chống tạo đơn trùng khi POS gửi lại cùng một lần thanh toán (bấm đúp, mạng chập chờn).',
+    )
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'client_request_id'],
+                condition=models.Q(client_request_id__isnull=False),
+                name='uq_order_tenant_client_request',
+            ),
+        ]
         indexes = [
             models.Index(fields=['tenant', 'store', 'created_at']),
             models.Index(fields=['tenant', 'status', 'created_at']),
@@ -101,6 +116,11 @@ class Order(TimeStampedModel):
     @property
     def net_amount(self) -> Decimal:
         return self.total_amount - self.refunded_amount
+
+    @property
+    def tax_percent_label(self) -> str:
+        """Mức thuế để in: 0.1 -> '10', 0.085 -> '8.5'."""
+        return format(((self.tax_rate or Decimal('0')) * 100).normalize(), 'f')
 
     def __str__(self):
         return self.order_code

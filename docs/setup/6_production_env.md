@@ -49,6 +49,7 @@ POSTGRES_PASSWORD=<db-password>
 POSTGRES_HOST=127.0.0.1
 POSTGRES_PORT=5432
 
+# Liệt kê domain cụ thể, KHÔNG dùng * : WebSocket chỉ nhận Origin thuộc danh sách này.
 ALLOWED_HOSTS=pos.example.com,www.pos.example.com
 CSRF_TRUSTED_ORIGINS=https://pos.example.com,https://www.pos.example.com
 REAL_ADMIN_PATH=secure-admin-portal

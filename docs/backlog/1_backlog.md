@@ -1,6 +1,6 @@
 # 1) Backlog & checklist tính năng
 
-**Cập nhật:** 27/09/2026 · Nguồn: rà soát code hiện tại + `docs/planning/1_market_research_features.md`.
+**Cập nhật:** 28/09/2026 · Nguồn: rà soát code hiện tại + `docs/planning/1_market_research_features.md`.
 
 ## Quy ước
 - **Ưu tiên:** `P0` chặn release / rủi ro bảo mật · `P1` nên làm ngay phase kế · `P2` có giá trị, lên lịch sau · `P3` ý tưởng dài hạn.
@@ -40,12 +40,15 @@
 | BL-027 | Bán offline (PWA) + đồng bộ | Nền tảng | P3 | XL | 6 | [ ] |
 | BL-028 | Đồng bộ GrabFood / ShopeeFood | Kênh online | P3 | XL | 6 | [ ] |
 | BL-029 | Zalo ZNS / SMS: hoá đơn, sinh nhật, khuyến mãi | Marketing | P3 | M | 6 | [ ] |
-| BL-030 | Tự đăng ký dùng thử + thanh toán gói | SaaS | P3 | L | 6 | [ ] |
+| BL-030 | Tự đăng ký dùng thử + thanh toán gói | SaaS | P3 | L | 6 | [~] |
 | BL-031 | Trợ lý AI báo cáo + dự báo nhập hàng | AI | P3 | L | 6 | [ ] |
 | BL-032 | Kiosk tự gọi món | Kênh | P3 | M | 6 | [ ] |
 | BL-033 | Kịch bản QA cho bếp, khách hàng, khuyến mãi | QA | P2 | S | — | [~] |
 | BL-034 | Bug: tạo khách trùng SĐT ở `/quanly/customers/` gây lỗi 500 | Bug | P1 | S | — | [x] |
 | BL-035 | Chọn cách chạy tác vụ định kỳ (systemd timer hay Celery) | DevOps | P1 | S | 4 | [ ] |
+| BL-036 | Sửa lỗi sau rà soát 28/09: XSS menu public, chặn tính năng theo gói, thuế server, đơn trùng, giới hạn đầu vào… | Bảo mật / Bug | P0 | M | 4 | [x] |
+| BL-037 | Việc còn lại sau rà soát 28/09: huỷ mềm đơn, chụp món của ca đã chốt, in không ghi qua GET | Nợ kỹ thuật | P2 | M | 5 | [ ] |
+| BL-038 | Tách PWA FnB khỏi PWA eApp khác: icon/screenshot riêng (WebP), cache, cookie, cổng dev | PWA | P1 | S | 4 | [x] |
 
 ---
 
@@ -106,6 +109,35 @@ Django 5.0 đã hết hỗ trợ bảo mật.
 - [x] `CustomerForm.clean_phone` kiểm tra trùng trong tenant (loại trừ chính instance khi sửa).
 - [x] Rà soát các ModelForm khác có constraint chứa `tenant` (danh mục, sản phẩm, bàn…). Phát hiện thêm `ProductUnitForm` cùng lỗi với `UniqueConstraint(product, name)` → đã sửa. Danh mục / sản phẩm / topping / cửa hàng tự sinh slug nên không trùng; `DiningTableForm`, `ProductToppingForm` có đủ field nên Django tự kiểm tra.
 - [x] Test: tạo và sửa khách trùng SĐT → lỗi form, không 500.
+
+### BL-036 · Sửa lỗi sau rà soát 28/09/2026 — P0 — ✅ xong
+Rà soát toàn bộ app theo docs; các lỗi đã tái hiện và sửa, test ở `App_Sales/tests_hardening.py` (25 test), kiểm thử trình duyệt bằng Playwright (Chrome headless).
+- [x] **XSS lưu trữ trên menu public:** hàm `esc()` của trang khách không escape dấu nháy mà tên món được chèn vào `alt` / `aria-label` → tên món `x" onload="…"` chạy JS cùng origin với POS / Quản lý / Admin (ai cũng tự đăng ký tenant được). Sửa: escape đủ `& < > " '`.
+- [x] **Vượt gói:** cờ Khách hàng / Khuyến mãi chỉ ẩn menu — URL `/quanly/customers/`, `/quanly/promotions/`, `/api/pos/customers/`, `/api/pos/promotions/` vẫn chạy, checkout nhận `customer_id` / `promotion_id`. Sửa: chặn ở server theo cờ **và** gói (`Tenant.feature_enabled`).
+- [x] **Thuế do client quyết định:** `tax_rate` gửi từ POS không giới hạn (25.000đ thành 150.000đ). Sửa: thêm `Tenant.tax_percent` (0–30%) ở *Cấu hình tính năng*, server tự tính, làm tròn tới đồng; POS hiện dòng thuế; hoá đơn / phiếu tạm tính in thuế.
+- [x] **Đơn trùng:** nút thanh toán không khoá khi đang gửi, không có khoá idempotency, thanh toán bàn không khoá dòng. Sửa: `Order.client_request_id` (unique theo tenant), khoá nút, `select_for_update` bàn.
+- [x] **Lỗi 500:** xoá nhân viên đã có đơn (`ProtectedError`); số lượng cực lớn tràn cột DB. Sửa: báo lỗi thân thiện; giới hạn 100 dòng / 1–999 mỗi món; body JSON phải là object; `customer_paid` có trần.
+- [x] **Gói hết hạn vẫn nhận đơn QR tại bàn** (POS bị chặn nên đơn treo). Sửa: `Tenant.is_ordering_open()` cho trang QR, tạo / sửa đơn.
+- [x] Đơn mang đi online: món thu ngân thêm lúc thu tiền không được báo bếp → nay báo bếp phần thêm.
+- [x] Sửa món giỏ bàn (PATCH): kiểm tra topping trước, gộp thay đổi trong transaction — request lỗi không còn huỷ nhầm phần đã báo bếp.
+- [x] WebSocket kiểm tra `Origin` (`AllowedHostsOriginValidator`); tài khoản tenant bỏ `is_staff` (không vào Django Admin); IP đơn QR tại bàn lấy qua `get_client_ip`; slug dành riêng thêm `orders`, `tables`; service worker đổi static sang stale-while-revalidate (nay `eapp-fnb-v3`, xem BL-038).
+- [x] Cập nhật docs lệch với code (chính sách bảo mật, quy ước giới hạn `0` / để trống, gói mẫu, số test).
+
+### BL-038 · Tách PWA FnB khỏi các PWA eApp khác — ✅ xong 28/09/2026
+Máy dev có nhiều project eApp là PWA, đều chạy `127.0.0.1:8000` với `scope` / `id` `/`, và FnB dùng icon + screenshot giống hệt POS, Prompt, Reader, EquipTrack. Chi tiết: `docs/setup/phase2/3_pwa.md` mục 5.
+- [x] Icon + favicon riêng (logo eApp + nhãn FnB), screenshot thật của POS; bỏ ảnh hình nền chung và icon `manager-icon-*` không dùng.
+- [x] Ảnh chuyển sang WebP (icon manifest, screenshot, logo); giữ PNG cho `apple-touch-icon` (iOS) và file QR bàn để in.
+- [x] Manifest khai báo `id: "/"` cố định, tách icon `any` / `maskable`; SW `eapp-fnb-v3` chỉ dọn cache tiền tố `eapp-fnb-`.
+- [x] Tên cookie riêng `eappfnb_sessionid` / `eappfnb_csrftoken` (cookie không phân biệt cổng) — deploy sẽ đăng xuất người dùng một lần.
+- [x] Cổng dev riêng `127.0.0.1:8002`.
+- [x] Test `App_Core.tests.PwaIdentityTests`; kiểm tra Chrome: manifest không lỗi, cài được, không xoá cache app khác.
+
+### BL-037 · Việc còn lại sau rà soát 28/09/2026 — P2
+Chưa làm vì là quyết định nghiệp vụ / thay đổi lớn, cần chốt trước:
+- [ ] **Huỷ mềm đơn** thay vì xoá hẳn: `/quanly/orders/<id>/delete/` đang xoá `Order` và cascade xoá `Refund` → mất chứng từ tài chính (chỉ còn nhật ký). Đề xuất: chuyển sang `status=cancelled` + lý do, loại khỏi doanh thu; liên quan HĐĐT (BL-014).
+- [ ] **Báo cáo ca đã chốt:** tổng tiền lấy số đã chụp, nhưng danh sách món bán ra tính lại từ đơn hiện tại (xoá / sửa đơn sau khi chốt sẽ làm lệch). Đề xuất: chụp danh sách món vào ca lúc chốt (JSON).
+- [ ] **In qua GET có ghi dữ liệu:** `?autoprint=1` tăng `print_count` và ghi nhật ký bằng GET. Đề xuất: ghi nhận lần in bằng `POST` riêng từ `eapp_print.js`.
+- [ ] Rate limit API QR tại bàn (BL-003) và CSP (BL-007) — lớp bảo vệ thứ hai cho public / XSS.
 
 ### BL-035 · Chọn cách chạy tác vụ định kỳ — P1
 **Hiện trạng (27/09/2026):** đã có 2 lệnh cần chạy hằng ngày nhưng **chưa có gì tự chạy chúng** trên production:
@@ -262,7 +294,10 @@ Theo NĐ 70/2025/NĐ-CP — bắt buộc với nhà hàng / hộ kinh doanh doan
 - [ ] Gửi hoá đơn, điểm tích luỹ, ưu đãi sinh nhật, khuyến mãi (cần Zalo OA + template duyệt).
 
 ### BL-030 · Tự đăng ký + thanh toán gói — P3
-- [ ] Đăng ký dùng thử, tự bootstrap tenant, thanh toán gia hạn online (liên quan BL-001).
+- [x] Tự đăng ký `/accounts/signup/`: tạo doanh nghiệp gói mặc định (*Miễn phí*), 1 cửa hàng, tài khoản quản lý `<tên>_quanly`, vài bàn; giới hạn đăng ký theo IP.
+- [x] Trang Tài khoản hiện bảng gói cước + liên hệ nâng cấp (Zalo).
+- [ ] Dùng thử gói trả phí có thời hạn.
+- [ ] Thanh toán gia hạn / nâng gói online (liên quan BL-001, BL-010).
 
 ### BL-031 · Trợ lý AI — P3
 - [ ] Hỏi đáp doanh thu / món bán chạy bằng ngôn ngữ tự nhiên trên `/quanly/`.

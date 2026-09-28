@@ -44,51 +44,69 @@ def _abs_static(request, relative_path: str) -> str:
     return request.build_absolute_uri(static_url(relative_path))
 
 
+# Định danh PWA của eApp FnB. Nhiều project eApp khác cũng là PWA (POS, PM, Reader…): tên, icon, cache
+# và cookie phải riêng để không lẫn khi cài app hoặc khi chạy dev chung host.
+PWA_APP_ID = '/'  # Giữ nguyên: đổi id làm app đã cài trên máy người dùng thành "app khác".
+PWA_CACHE_PREFIX = 'eapp-fnb-'
+PWA_CACHE_NAME = f'{PWA_CACHE_PREFIX}v3'
+PWA_ICON_SIZES = (72, 96, 128, 144, 152, 180, 192, 384, 512)
+PWA_MASKABLE_SIZES = (192, 512)
+
+
+def _pwa_icon(size) -> str:
+    return f'pwa/icons/fnb-icon-{size}x{size}.webp'
+
+
 def manifest_view(request):
     """Web App Manifest (installable PWA)."""
-    icon_files = [
-        (72, 'icon-72x72.png'),
-        (96, 'icon-96x96.png'),
-        (128, 'icon-128x128.png'),
-        (144, 'icon-144x144.png'),
-        (152, 'icon-152x152.png'),
-        (180, 'icon-180x180.png'),
-        (192, 'icon-192x192.png'),
-        (384, 'icon-384x384.png'),
-        (512, 'icon-512x512.png'),
-    ]
-    icons = []
-    for size, name in icon_files:
-        entry = {
-            'src': _abs_static(request, f'pwa/icons/{name}'),
+    icons = [
+        {
+            'src': _abs_static(request, _pwa_icon(size)),
             'sizes': f'{size}x{size}',
-            'type': 'image/png',
-            'purpose': 'any maskable' if size in (192, 512) else 'any',
+            'type': 'image/webp',
+            'purpose': 'any',
         }
-        icons.append(entry)
+        for size in PWA_ICON_SIZES
+    ]
+    # Icon maskable khai báo riêng (Chrome không khuyến khích gộp "any maskable"); nhãn "FnB" nằm trong vùng an toàn.
+    icons += [
+        {
+            'src': _abs_static(request, _pwa_icon(size)),
+            'sizes': f'{size}x{size}',
+            'type': 'image/webp',
+            'purpose': 'maskable',
+        }
+        for size in PWA_MASKABLE_SIZES
+    ]
 
     data = {
+        'id': PWA_APP_ID,
         'name': 'eApp FnB',
-        'short_name': 'FnB',
-        'description': 'Ứng dụng bán hàng & quản lý F&B đa cửa hàng, đa doanh nghiệp.',
+        'short_name': 'eApp FnB',
+        'description': 'eApp FnB — bán hàng & quản lý quán cà phê, nhà hàng: POS, gọi món QR, bếp, ca làm việc.',
         'start_url': '/',
         'scope': '/',
         'display': 'standalone',
         'background_color': '#ffffff',
         'theme_color': '#10b981',
         'lang': 'vi',
+        'dir': 'ltr',
+        'categories': ['business', 'food'],
         'icons': icons,
         'screenshots': [
             {
-                'src': _abs_static(request, 'pwa/screenshots/splash-750x1334.png'),
-                'type': 'image/png',
-                'sizes': '750x1334',
+                'src': _abs_static(request, 'pwa/screenshots/fnb-pos-narrow.webp'),
+                'type': 'image/webp',
+                'sizes': '780x1688',
                 'form_factor': 'narrow',
+                'label': 'Màn hình bán hàng eApp FnB trên điện thoại',
             },
             {
-                'src': _abs_static(request, 'pwa/screenshots/water-splash.jpg'),
-                'type': 'image/jpeg',
+                'src': _abs_static(request, 'pwa/screenshots/fnb-pos-wide.webp'),
+                'type': 'image/webp',
+                'sizes': '1280x800',
                 'form_factor': 'wide',
+                'label': 'Màn hình bán hàng eApp FnB trên máy tính',
             },
         ],
     }
@@ -98,13 +116,16 @@ def manifest_view(request):
 
 
 def service_worker_view(request):
-    """Service worker: precache offline shell; network-first for navigations; cache-first for static/media."""
+    """Service worker: precache offline shell; network-first cho trang; stale-while-revalidate cho static/media."""
     js = """
-const CACHE_NAME = 'eapp-fnb-v1';
+// eApp FnB service worker. Chỉ đụng tới cache có tiền tố __CACHE_PREFIX__ để không xoá cache
+// của PWA khác chạy cùng origin (VD các project eApp khác cùng chạy dev ở 127.0.0.1:8000).
+const CACHE_PREFIX = '__CACHE_PREFIX__';
+const CACHE_NAME = '__CACHE_NAME__';
 const PRECACHE_URLS = [
   '/offline/',
   '/manifest.webmanifest',
-  '/static/pwa/icons/icon-192x192.png',
+  '/static/__ICON_192__',
 ];
 
 self.addEventListener('install', (event) => {
@@ -118,7 +139,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+        keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME).map((k) => caches.delete(k))
       );
     }).then(() => self.clients.claim())
   );
@@ -138,21 +159,31 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/static/') || url.pathname.startsWith('/media/')) {
+    // Stale-while-revalidate: trả bản cache ngay cho nhanh, đồng thời tải bản mới để lần sau dùng.
+    // Tên file static không có hash, nên cache-first thuần sẽ giữ JS/CSS cũ mãi sau khi deploy.
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          const copy = response.clone();
-          if (response.ok) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(request).then((cached) => {
+          const network = fetch(request).then((response) => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          });
+          if (cached) {
+            event.waitUntil(network.catch(() => null));
+            return cached;
           }
-          return response;
-        });
-      })
+          return network;
+        })
+      )
     );
   }
 });
 """
+    js = (
+        js.replace('__CACHE_PREFIX__', PWA_CACHE_PREFIX)
+        .replace('__CACHE_NAME__', PWA_CACHE_NAME)
+        .replace('__ICON_192__', _pwa_icon(192))
+    )
     response = HttpResponse(js.strip(), content_type='application/javascript; charset=utf-8')
     response['Cache-Control'] = 'no-cache, must-revalidate'
     return response

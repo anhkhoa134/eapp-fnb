@@ -1,8 +1,10 @@
 import json
+from urllib.parse import urlparse
 from decimal import Decimal
 
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.testing import WebsocketCommunicator
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -11,6 +13,14 @@ from App_Catalog.models import Category, Product, ProductUnit, StoreCategory, St
 from App_Sales.models import DiningTable
 from App_Tenant.models import Store, Tenant, UserStoreAccess
 from Project.asgi import application
+
+
+WS_ORIGIN = (b'origin', b'http://localhost')
+
+
+def _ws(path, headers=()):
+    """WebSocket từ trang cùng domain (AllowedHostsOriginValidator yêu cầu header Origin hợp lệ)."""
+    return WebsocketCommunicator(application, path, headers=[WS_ORIGIN, *headers])
 
 
 @override_settings(
@@ -60,29 +70,27 @@ class PosWebSocketTests(TestCase):
 
     def _session_cookie_for(self, user):
         self.client.force_login(user)
-        return self.client.cookies['sessionid'].value
+        return self.client.cookies[settings.SESSION_COOKIE_NAME].value
 
     def test_pos_ws_security_anonymous_and_forbidden(self):
         forbidden_cookie = self._session_cookie_for(self.staff_store_2)
         allowed_cookie = self._session_cookie_for(self.staff_store_1)
 
         async def scenario():
-            anonymous = WebsocketCommunicator(application, f'/ws/pos/store/{self.store_1.id}/')
+            anonymous = _ws(f'/ws/pos/store/{self.store_1.id}/')
             connected, _ = await anonymous.connect()
             self.assertFalse(connected)
 
-            forbidden = WebsocketCommunicator(
-                application,
+            forbidden = _ws(
                 f'/ws/pos/store/{self.store_1.id}/',
-                headers=[(b'cookie', f'sessionid={forbidden_cookie}'.encode('utf-8'))],
+                headers=[(b'cookie', f'{settings.SESSION_COOKIE_NAME}={forbidden_cookie}'.encode('utf-8'))],
             )
             connected, _ = await forbidden.connect()
             self.assertFalse(connected)
 
-            allowed = WebsocketCommunicator(
-                application,
+            allowed = _ws(
                 f'/ws/pos/store/{self.store_1.id}/',
-                headers=[(b'cookie', f'sessionid={allowed_cookie}'.encode('utf-8'))],
+                headers=[(b'cookie', f'{settings.SESSION_COOKIE_NAME}={allowed_cookie}'.encode('utf-8'))],
             )
             connected, _ = await allowed.connect()
             self.assertTrue(connected)
@@ -90,14 +98,23 @@ class PosWebSocketTests(TestCase):
 
         async_to_sync(scenario)()
 
+    def test_websocket_stack_checks_origin(self):
+        # Chặn cross-site WebSocket hijacking: chỉ nhận Origin thuộc ALLOWED_HOSTS
+        # (dev để ALLOWED_HOSTS=* nên không kiểm được bằng kết nối thật ở đây).
+        from channels.security.websocket import OriginValidator
+
+        self.assertIsInstance(application.application_mapping['websocket'], OriginValidator)
+        validator = OriginValidator(None, ['fnb.eapp.vn'])
+        self.assertFalse(validator.valid_origin(urlparse('https://evil.example')))
+        self.assertTrue(validator.valid_origin(urlparse('https://fnb.eapp.vn')))
+
     def test_pos_ws_receives_create_event_from_public_qr_api(self):
         cookie = self._session_cookie_for(self.staff_store_1)
 
         async def scenario():
-            pos_ws = WebsocketCommunicator(
-                application,
+            pos_ws = _ws(
                 f'/ws/pos/store/{self.store_1.id}/',
-                headers=[(b'cookie', f'sessionid={cookie}'.encode('utf-8'))],
+                headers=[(b'cookie', f'{settings.SESSION_COOKIE_NAME}={cookie}'.encode('utf-8'))],
             )
             connected, _ = await pos_ws.connect()
             self.assertTrue(connected)
@@ -140,10 +157,9 @@ class PosWebSocketTests(TestCase):
         cookie = self._session_cookie_for(self.staff_store_1)
 
         async def scenario():
-            pos_ws = WebsocketCommunicator(
-                application,
+            pos_ws = _ws(
                 f'/ws/pos/store/{self.store_1.id}/',
-                headers=[(b'cookie', f'sessionid={cookie}'.encode('utf-8'))],
+                headers=[(b'cookie', f'{settings.SESSION_COOKIE_NAME}={cookie}'.encode('utf-8'))],
             )
             connected, _ = await pos_ws.connect()
             self.assertTrue(connected)

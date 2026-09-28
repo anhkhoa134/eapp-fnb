@@ -2,7 +2,7 @@ Chạy Django Project:
 source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
 python manage.py makemigrations
 python manage.py migrate
-python manage.py runserver
+python manage.py runserver 127.0.0.1:8002   # cổng riêng của FnB, xem docs/setup/phase2/3_pwa.md
 
 Tạo mới Repository:
 git init

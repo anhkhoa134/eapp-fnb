@@ -1,4 +1,5 @@
 import json
+from functools import wraps
 import hashlib
 from datetime import date, datetime, time, timedelta
 from io import BytesIO
@@ -66,6 +67,7 @@ from App_Quanly.forms import (
     StoreForm,
     StorePaymentForm,
     TenantFeatureSettingsForm,
+    TenantTaxSettingsForm,
     ToppingForm,
 )
 from App_Core.audit import Action, log_action
@@ -100,6 +102,29 @@ def _tenant_or_404(user):
 
 def _feature_disabled_response(message):
     return HttpResponse(message, status=403)
+
+
+def _feature_required(check, message):
+    """403 khi tính năng tuỳ chọn đang tắt hoặc gói không bao gồm (không chỉ ẩn menu)."""
+
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            if not check(_tenant_or_404(request.user)):
+                return _feature_disabled_response(message)
+            return view_func(request, *args, **kwargs)
+
+        return _wrapped
+
+    return decorator
+
+
+customer_feature_required = _feature_required(
+    lambda tenant: tenant.customer_feature_enabled, 'Tính năng khách hàng đang tắt hoặc chưa có trong gói.'
+)
+promotion_feature_required = _feature_required(
+    lambda tenant: tenant.promotion_feature_enabled, 'Tính năng khuyến mãi đang tắt hoặc chưa có trong gói.'
+)
 
 
 def _plan_limit_message(label, limit):
@@ -815,6 +840,7 @@ def audit_log(request):
 
 
 @manager_required
+@customer_feature_required
 def customer_list_create(request):
     tenant = _tenant_or_404(request.user)
     ensure_customer_tier_settings(tenant)
@@ -880,6 +906,7 @@ def customer_list_create(request):
 
 
 @manager_required
+@customer_feature_required
 def customer_edit(request, pk):
     tenant = _tenant_or_404(request.user)
     customer = get_object_or_404(Customer, pk=pk, tenant=tenant)
@@ -896,6 +923,7 @@ def customer_edit(request, pk):
 
 @manager_required
 @require_POST
+@customer_feature_required
 def customer_delete(request, pk):
     tenant = _tenant_or_404(request.user)
     customer = get_object_or_404(Customer, pk=pk, tenant=tenant)
@@ -906,6 +934,7 @@ def customer_delete(request, pk):
 
 
 @manager_required
+@promotion_feature_required
 def promotion_list_create(request):
     tenant = _tenant_or_404(request.user)
     stores = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
@@ -956,6 +985,7 @@ def promotion_list_create(request):
 
 
 @manager_required
+@promotion_feature_required
 def promotion_edit(request, pk):
     tenant = _tenant_or_404(request.user)
     promotion = get_object_or_404(Promotion, pk=pk, tenant=tenant)
@@ -974,6 +1004,7 @@ def promotion_edit(request, pk):
 
 @manager_required
 @require_POST
+@promotion_feature_required
 def promotion_delete(request, pk):
     tenant = _tenant_or_404(request.user)
     promotion = get_object_or_404(Promotion, pk=pk, tenant=tenant)
@@ -2121,7 +2152,16 @@ def staff_delete(request, pk):
     tenant = _tenant_or_404(request.user)
     staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
     username = staff_user.username
-    staff_user.delete()
+    try:
+        staff_user.delete()
+    except ProtectedError:
+        # Đơn bán giữ người thu ngân (PROTECT) để lịch sử / báo cáo không mất dấu.
+        messages.error(
+            request,
+            f'Không thể xóa "{username}" vì nhân viên đã có đơn bán. '
+            'Hãy tắt "Đang hoạt động" để khoá tài khoản, lịch sử đơn vẫn được giữ.',
+        )
+        return redirect('App_Quanly:staffs')
     messages.success(request, f'Đã xóa nhân viên "{username}".')
     return redirect('App_Quanly:staffs')
 
@@ -2242,15 +2282,24 @@ def store_delete(request, pk):
 @manager_required
 def feature_settings(request):
     tenant_obj = Tenant.objects.get(pk=_tenant_or_404(request.user).pk)
-    form = TenantFeatureSettingsForm(request.POST if request.method == 'POST' else None, instance=tenant_obj)
-    if request.method == 'POST':
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Đã cập nhật cấu hình tính năng.')
+    is_post = request.method == 'POST'
+    # Hai form độc lập trên cùng trang, phân biệt bằng form_action.
+    tax_action = is_post and request.POST.get('form_action') == 'tax'
+    form = TenantFeatureSettingsForm(request.POST if is_post and not tax_action else None, instance=tenant_obj)
+    tax_form = TenantTaxSettingsForm(request.POST if tax_action else None, instance=tenant_obj)
+    if is_post:
+        bound = tax_form if tax_action else form
+        if bound.is_valid():
+            bound.save()
+            messages.success(request, 'Đã cập nhật mức thuế.' if tax_action else 'Đã cập nhật cấu hình tính năng.')
             return redirect('App_Quanly:feature_settings')
-        messages.error(request, 'Không thể cập nhật cấu hình tính năng. Vui lòng kiểm tra lại.')
+        messages.error(request, 'Không thể lưu. Vui lòng kiểm tra lại.')
 
-    return render(request, 'App_Quanly/feature_settings.html', {'form': form, 'tenant_obj': tenant_obj})
+    return render(
+        request,
+        'App_Quanly/feature_settings.html',
+        {'form': form, 'tax_form': tax_form, 'tenant_obj': tenant_obj},
+    )
 
 
 @staff_or_manager_required

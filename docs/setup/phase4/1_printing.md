@@ -14,8 +14,8 @@ Backlog: BL-009 (bước 1 — in từ trình duyệt). In thẳng máy in nhi�
 ## Các loại phiếu
 | Phiếu | URL | Quyền | Nội dung |
 |---|---|---|---|
-| Hoá đơn | `GET /orders/<order_id>/receipt/` | Staff/manager có quyền store của đơn | Tên, địa chỉ, SĐT cửa hàng; số HĐ, giờ, bàn (`Order.table_name`) hoặc *Mang về*, thu ngân, khách; món + topping + ghi chú; tạm tính, giảm giá (KM / hạng), thuế, tổng, khách đưa, tiền thừa; các lần hoàn tiền + *Thực thu* |
-| Phiếu tạm tính | `GET /tables/<table_id>/bill/` | Staff/manager có quyền bàn | Món trong giỏ bàn, tạm tính (chưa gồm KM / ưu đãi hạng), QR + tài khoản chuyển khoản của cửa hàng |
+| Hoá đơn | `GET /orders/<order_id>/receipt/` | Staff/manager có quyền store của đơn | Tên, địa chỉ, SĐT cửa hàng; số HĐ, giờ, bàn (`Order.table_name`) hoặc *Mang về*, thu ngân, khách; món + topping + ghi chú; tạm tính, giảm giá (KM / hạng), *Thuế (x%)* khi có, tổng, khách đưa, tiền thừa; các lần hoàn tiền + *Thực thu* |
+| Phiếu tạm tính | `GET /tables/<table_id>/bill/` | Staff/manager có quyền bàn | Món trong giỏ bàn, tạm tính (chưa gồm KM / ưu đãi hạng; khi tenant có thuế thì in *Tiền món*, *Thuế (x%)* và tạm tính đã gồm thuế), QR + tài khoản chuyển khoản của cửa hàng |
 | Phiếu bếp | `GET /kitchen/tickets/<ticket_id>/print/` | Như trên; 403 khi tắt `show_kitchen_feature` | Tên bàn (chữ lớn), nguồn, giờ gửi, nhân viên, mã đơn; món × SL, topping, ghi chú; món đã huỷ gạch ngang *ĐÃ HUỶ* |
 | Báo cáo ca | `GET /shifts/<shift_id>/print/` | Như trên; 403 khi tắt `show_shift_feature` | Xem `2_shifts_and_refunds.md` |
 

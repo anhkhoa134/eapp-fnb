@@ -35,7 +35,7 @@
 </div>
 {% endif %}
 {% if order.tax_amount %}
-<div class="row"><span>Thuế</span><span>{{ order.tax_amount|thousand_sep }}</span></div>
+<div class="row"><span>Thuế{% if order.tax_rate %} ({{ order.tax_percent_label }}%){% endif %}</span><span>{{ order.tax_amount|thousand_sep }}</span></div>
 {% endif %}
 <hr class="sep solid">
 <div class="row total-row"><span>TỔNG CỘNG</span><span>{{ order.total_amount|thousand_sep }}</span></div>

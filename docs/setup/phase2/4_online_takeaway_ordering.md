@@ -28,7 +28,7 @@ Gửi đơn ──────────────▶ Đơn chờ duyệt (t
 ```
 - **Duyệt:** không đụng giỏ bàn. Nếu bật bếp, tạo phiếu `KitchenTicket(source=TAKEAWAY, table_name="Mang đi · <tên>", qr_order=…)` ngay lúc duyệt.
 - **Thu tiền:** nút **Thu tiền** đưa món của đơn vào giỏ mang về (thay giỏ hiện tại sau khi hỏi xác nhận nếu giỏ đang có món; đang ở bàn thì tự chuyển sang mang về, vẫn quay lại bàn được). Thanh toán gửi thêm `qr_order_id`.
-- **Checkout có `qr_order_id`:** server kiểm tra đơn là `TAKEAWAY` + `APPROVED` + cùng store + chưa thu tiền. Sau khi tạo `Order`: gán `QROrder.sale_order`; nếu đơn đã có phiếu bếp thì **không tạo phiếu mới**, chỉ gắn `KitchenTicket.order`. Thu tiền lần hai cho cùng đơn trả `400`.
+- **Checkout có `qr_order_id`:** server kiểm tra đơn là `TAKEAWAY` + `APPROVED` + cùng store + chưa thu tiền. Sau khi tạo `Order`: gán `QROrder.sale_order`; nếu đơn đã có phiếu bếp thì gắn `KitchenTicket.order` và **chỉ báo bếp phần món thu ngân thêm** so với đơn khách đặt (so theo đơn vị + topping + ghi chú); không thêm món thì không tạo phiếu mới. Thu tiền lần hai cho cùng đơn trả `400`.
 - **Từ chối / khách huỷ:** như đơn QR tại bàn.
 
 ## Data model (`App_Sales.QROrder`, migration `0012_qr_takeaway`)
