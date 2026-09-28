@@ -23,6 +23,7 @@ urlpatterns = [
     path('promotions/<int:pk>/delete/', views.promotion_delete, name='promotion_delete'),
     path('categories/', views.category_list_create, name='categories'),
     path('catalog-import/template/', views.catalog_import_template_download, name='catalog_import_template'),
+    path('catalog-import/preview/', views.catalog_import_preview, name='catalog_import_preview'),
     path('catalog-import/upload/', views.catalog_import_upload, name='catalog_import_upload'),
     path('categories/<int:pk>/edit/', views.category_edit, name='category_edit'),
     path('categories/<int:pk>/delete/', views.category_delete, name='category_delete'),

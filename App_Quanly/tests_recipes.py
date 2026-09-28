@@ -388,6 +388,37 @@ class IngredientUsageTests(RecipeTestBase):
         res = self.client.get(reverse('App_Quanly:ingredient_usage'), {'date_from': 'bad'})
         self.assertEqual(res.status_code, 200)
 
+    def test_usage_page_paginates_both_tables_independently(self):
+        extra = [
+            Ingredient.objects.create(tenant=self.tenant, name=f'NL {idx:02d}', unit='g', cost_per_unit=Decimal('1'))
+            for idx in range(20)
+        ]
+        for ingredient in extra:
+            RecipeItem.objects.create(product_unit=self.unit_m, ingredient=ingredient, quantity=Decimal('1'))
+        missing_units = [
+            ProductUnit.objects.create(product=self.product, name=f'Size X{idx:02d}', price=Decimal('1000'))
+            for idx in range(21)
+        ]
+        self.create_order([(self.unit_m, 1, [])] + [(unit, 1, []) for unit in missing_units])
+
+        self.client.force_login(self.manager)
+        url = reverse('App_Quanly:ingredient_usage')
+        res = self.client.get(url, {'store': self.store.id})
+        self.assertEqual(len(res.context['usage_rows']), 20)
+        self.assertEqual(res.context['usage_page'].paginator.count, 22)
+        self.assertEqual(len(res.context['missing_rows']), 20)
+        # Tổng giá vốn luôn tính trên toàn bộ nguyên liệu, không chỉ trang hiện tại.
+        self.assertEqual(res.context['total_cost'], Decimal('18') * 350 + Decimal('30') * 40 + 20)
+        self.assertContains(res, f'?store={self.store.id}&page=2')
+        self.assertContains(res, f'?store={self.store.id}&missing_page=2')
+
+        res = self.client.get(url, {'store': self.store.id, 'page': 2, 'missing_page': 2})
+        self.assertEqual(len(res.context['usage_rows']), 2)
+        self.assertEqual(len(res.context['missing_rows']), 1)
+        # Chuyển trang bảng này giữ nguyên trang của bảng kia.
+        self.assertContains(res, f'?store={self.store.id}&amp;missing_page=2&page=1')
+        self.assertContains(res, f'?store={self.store.id}&amp;page=2&missing_page=1')
+
     def test_usage_includes_refunds_and_inactive_ingredients_but_not_cancelled_or_foreign_orders(self):
         self.coffee.is_active = False
         self.coffee.save(update_fields=['is_active'])

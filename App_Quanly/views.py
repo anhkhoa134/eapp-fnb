@@ -1,4 +1,5 @@
 import json
+import hashlib
 from datetime import date, datetime, time, timedelta
 from io import BytesIO
 from decimal import Decimal
@@ -8,11 +9,12 @@ import qrcode
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
+from django.core import signing
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models import CharField, Count, F, Prefetch, Q, Sum, Value
 from django.db.models.functions import Coalesce, TruncDate
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -46,6 +48,7 @@ from App_Quanly.catalog_excel import (
     next_display_order,
     template_workbook_bytes,
 )
+from App_Quanly.catalog_preview import catalog_state_fingerprint
 from App_Quanly.forms import (
     AccountProfileForm,
     CategoryForm,
@@ -550,18 +553,25 @@ def order_history(request):
     if end_dt:
         qr_orders = qr_orders.filter(created_at__lte=end_dt)
 
-    sale_keys = list(orders.values_list('created_at', 'id'))
-    qr_keys = list(qr_orders.values_list('created_at', 'id', 'status'))
-    merged_entries = [(t[0], 'sale', t[1], None) for t in sale_keys]
-    merged_entries.extend((t[0], 'qr', t[1], t[2]) for t in qr_keys)
-    merged_entries.sort(key=lambda x: x[0], reverse=True)
+    # Gộp đơn bán + đơn QR bằng UNION trong DB để COUNT/LIMIT/OFFSET chạy ở DB, không nạp toàn bộ khoá lên Python.
+    # Hai nhánh cùng dạng (2 cột model + 2 annotation) để thứ tự cột SQL khớp nhau.
+    sale_keys = orders.order_by().annotate(
+        kind=Value('sale', output_field=CharField()),
+        qr_status=Value('', output_field=CharField()),
+    ).values_list('created_at', 'id', 'kind', 'qr_status')
+    qr_keys = qr_orders.order_by().annotate(
+        kind=Value('qr', output_field=CharField()),
+        qr_status=F('status'),
+    ).values_list('created_at', 'id', 'kind', 'qr_status')
+    merged_entries = sale_keys.union(qr_keys, all=True).order_by('-created_at', '-kind', '-id')
 
-    total_merged = len(merged_entries)
     paginator = Paginator(merged_entries, 20)
     page_obj = paginator.get_page(request.GET.get('page'))
+    total_merged = paginator.count
 
-    sale_ids = [row[2] for row in page_obj.object_list if row[1] == 'sale']
-    qr_ids = [row[2] for row in page_obj.object_list if row[1] == 'qr']
+    page_entries = list(page_obj.object_list)
+    sale_ids = [pk for _created_at, pk, kind, _status in page_entries if kind == 'sale']
+    qr_ids = [pk for _created_at, pk, kind, _status in page_entries if kind == 'qr']
 
     sales_by_id = {
         o.id: o
@@ -588,7 +598,7 @@ def order_history(request):
     }
 
     history_rows = []
-    for created_at, kind, pk, qr_status in page_obj.object_list:
+    for created_at, pk, kind, qr_status in page_entries:
         if kind == 'sale':
             so = sales_by_id.get(pk)
             if so:
@@ -1066,35 +1076,76 @@ def catalog_import_template_download(request):
     )
 
 
+def _catalog_upload_error(upload):
+    if not upload:
+        return 'Chưa chọn file Excel.'
+    if upload.size > MAX_UPLOAD_BYTES:
+        return 'File quá lớn (tối đa 5 MB).'
+    if not (upload.name or '').lower().endswith('.xlsx'):
+        return 'Chỉ chấp nhận file .xlsx'
+    return None
+
+
+@manager_required
+@require_POST
+def catalog_import_preview(request):
+    tenant = _tenant_or_404(request.user)
+    upload = request.FILES.get('excel_file')
+    error = _catalog_upload_error(upload)
+    if error:
+        return JsonResponse({'ok': False, 'errors': [error]}, status=400)
+    raw = upload.read()
+    # Capture state before scanning so edits during a scan also invalidate confirmation.
+    state = catalog_state_fingerprint(tenant)
+    result = import_catalog_from_upload(tenant, BytesIO(raw), preview=True)
+    if result['ok']:
+        result['preview_token'] = signing.dumps({
+            'tenant': tenant.pk, 'user': request.user.pk,
+            'file': hashlib.sha256(raw).hexdigest(), 'state': state,
+        }, salt='catalog-import-preview', compress=True)
+    return JsonResponse(result)
+
+
 @manager_required
 @require_POST
 def catalog_import_upload(request):
     tenant = _tenant_or_404(request.user)
     upload = request.FILES.get('excel_file')
-    if not upload:
-        messages.error(request, 'Chưa chọn file Excel.')
+    wants_json = request.headers.get('Accept') == 'application/json'
+
+    def fail(errors, status=400):
+        if wants_json:
+            return JsonResponse({'ok': False, 'errors': errors}, status=status)
+        for error in errors[:40]:
+            messages.error(request, error)
         return redirect('App_Quanly:categories')
-    if upload.size > MAX_UPLOAD_BYTES:
-        messages.error(request, 'File quá lớn (tối đa 5 MB).')
-        return redirect('App_Quanly:categories')
-    if not (upload.name or '').lower().endswith('.xlsx'):
-        messages.error(request, 'Chỉ chấp nhận file .xlsx')
-        return redirect('App_Quanly:categories')
-    result = import_catalog_from_upload(tenant, upload)
-    if result['ok']:
+
+    error = _catalog_upload_error(upload)
+    if error:
+        return fail([error])
+    try:
+        token = signing.loads(request.POST.get('preview_token', ''), salt='catalog-import-preview', max_age=1800)
+    except signing.BadSignature:
+        return fail(['Bản xem trước đã hết hạn hoặc chưa được quét. Hãy quét lại file trước khi nhập.'], 409)
+    raw = upload.read()
+    if (token.get('tenant') != tenant.pk or token.get('user') != request.user.pk
+            or token.get('file') != hashlib.sha256(raw).hexdigest()):
+        return fail(['File hoặc tài khoản đã thay đổi. Hãy quét lại file trước khi nhập.'], 409)
+    with transaction.atomic():
+        tenant = Tenant.objects.select_for_update().get(pk=tenant.pk)
+        if token.get('state') != catalog_state_fingerprint(tenant):
+            return fail(['Dữ liệu danh mục, cửa hàng hoặc giới hạn gói đã thay đổi sau khi quét. Hãy quét lại để xem kết quả mới.'], 409)
+        result = import_catalog_from_upload(tenant, BytesIO(raw))
+        if not result['ok']:
+            return fail(result['errors'])
         log_action(
             Action.CATALOG_IMPORT,
             request=request,
             message=f'Nhập Excel "{upload.name[:80]}": {result["message"]}',
         )
-        messages.success(request, result['message'])
-    else:
-        err_list = result['errors']
-        max_show = 40
-        for msg in err_list[:max_show]:
-            messages.error(request, msg)
-        if len(err_list) > max_show:
-            messages.error(request, f'… và thêm {len(err_list) - max_show} lỗi.')
+    messages.success(request, result['message'])
+    if wants_json:
+        return JsonResponse({'ok': True, 'message': result['message']})
     return redirect('App_Quanly:categories')
 
 
@@ -1608,6 +1659,9 @@ def ingredient_usage(request):
         order_items = order_items.filter(order__store_id=int(selected_store))
 
     usage = compute_ingredient_usage(order_items)
+    # Hai bảng phân trang độc lập: `page` cho nguyên liệu, `missing_page` cho món chưa có định mức.
+    usage_page = Paginator(usage['rows'], QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))
+    missing_page = Paginator(usage['missing'], QUANLY_LIST_PER_PAGE).get_page(request.GET.get('missing_page'))
     return render(
         request,
         'App_Quanly/ingredient_usage.html',
@@ -1616,9 +1670,13 @@ def ingredient_usage(request):
             'selected_store': selected_store,
             'date_from': date_from,
             'date_to': date_to,
-            'usage_rows': usage['rows'],
+            'usage_page': usage_page,
+            'usage_rows': usage_page.object_list,
+            'usage_query_string': _list_query_without_keys(request, 'page'),
             'total_cost': usage['total_cost'],
-            'missing_rows': usage['missing'],
+            'missing_page': missing_page,
+            'missing_rows': missing_page.object_list,
+            'missing_query_string': _list_query_without_keys(request, 'missing_page'),
         },
     )
 

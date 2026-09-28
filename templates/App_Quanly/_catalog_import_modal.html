@@ -1,0 +1,84 @@
+<div class="modal fade crud-modal" id="catalogImportModal" tabindex="-1" aria-labelledby="catalogImportTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
+        <form class="modal-content border-0 shadow" id="catalogImportForm" method="post"
+              action="{% url 'App_Quanly:catalog_import_upload' %}" enctype="multipart/form-data"
+              data-preview-url="{% url 'App_Quanly:catalog_import_preview' %}">
+            {% csrf_token %}
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold" id="catalogImportTitle"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Import Excel</h5>
+                    <div class="text-muted small mt-1">Chọn file → Kiểm tra kết quả → Xác nhận nhập</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                    <div class="small text-muted">
+                        Mẫu 1 sheet <strong>San_pham</strong>: danh mục, tên sản phẩm, đơn vị, giá.<br>
+                        Mỗi đơn vị một dòng. Sửa hoặc xóa các dòng mẫu trước khi nhập.
+                    </div>
+                    <a class="btn btn-sm btn-outline-success" href="{% url 'App_Quanly:catalog_import_template' %}" aria-label="Tải mẫu Excel">
+                        <i class="bi bi-download me-1" aria-hidden="true"></i>Tải mẫu Excel
+                    </a>
+                </div>
+                <label class="form-label fw-semibold" for="catalogImportFile">Chọn file Excel</label>
+                <div class="d-flex gap-2 align-items-start">
+                    <input class="form-control" type="file" name="excel_file" id="catalogImportFile"
+                           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                           aria-describedby="catalogImportHelp" required>
+                    <button class="btn btn-outline-secondary text-nowrap" type="button" id="catalogImportRescan" disabled>Quét lại</button>
+                </div>
+                <div id="catalogImportHelp" class="form-text mb-3">File .xlsx, tối đa 5 MB và 5.000 dòng mỗi sheet. Tự quét khi chọn file, chưa ghi dữ liệu.</div>
+                <details class="border rounded p-2 mb-3 small">
+                    <summary class="fw-semibold">Dữ liệu mới và dữ liệu đã có được xử lý thế nào?</summary>
+                    <ul class="mt-2 mb-0 ps-3">
+                        <li>Chưa có danh mục hoặc sản phẩm: tạo mới, mặc định hoạt động tại các cửa hàng đang hoạt động.</li>
+                        <li>Sản phẩm đã có: thêm đơn vị mới; đơn vị đã có thì chỉ cập nhật giá. Giá bằng hiện tại thì không đổi.</li>
+                        <li>Giữ mô tả, ảnh, trạng thái đang tắt, giới hạn cửa hàng và giá riêng theo cửa hàng. Không xóa dữ liệu không có trong file.</li>
+                        <li>Nhận diện sản phẩm bằng danh mục + tên sản phẩm; đơn vị bằng tên đơn vị. Bỏ khoảng trắng ở hai đầu, không tự gộp tên gần giống.</li>
+                        <li>Cùng tên nhưng khác danh mục: tạo sản phẩm riêng. Nhiều đơn vị: lặp lại danh mục và tên sản phẩm ở mỗi dòng.</li>
+                        <li>Trùng danh mục + sản phẩm + đơn vị trong file, tên trùng không xác định được trong hệ thống, thiếu cột, giá sai hoặc vượt giới hạn gói: sửa file rồi quét lại.</li>
+                        <li>Giá 0 hợp lệ. Dòng trống được bỏ qua. Công thức Excel cần đổi thành giá trị. Mẫu cũ vẫn hỗ trợ và sẽ có lưu ý riêng.</li>
+                    </ul>
+                </details>
+                <div id="catalogImportStatus" class="alert alert-light border small" role="status" aria-live="polite">Chọn file để xem trước kết quả nhập.</div>
+                <div id="catalogImportErrors" class="alert alert-danger small d-none" role="alert"></div>
+                <div id="catalogImportWarnings" class="alert alert-warning small d-none"></div>
+                <section id="catalogImportPreview" class="d-none" aria-label="Kết quả xem trước">
+                    <div id="catalogImportSummary" class="d-flex flex-wrap gap-2 mb-3"></div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <label for="catalogImportFilter" class="small fw-semibold">Hiển thị</label>
+                        <select id="catalogImportFilter" class="form-select form-select-sm w-auto">
+                            <option value="all">Tất cả dòng</option>
+                            <option value="create">Tạo mới</option>
+                            <option value="update">Cập nhật</option>
+                            <option value="unchanged">Không đổi</option>
+                            <option value="warning">Có lưu ý</option>
+                            <option value="error">Có lỗi</option>
+                        </select>
+                        <span class="small text-muted ms-auto" id="catalogImportPageInfo"></span>
+                    </div>
+                    <div class="table-responsive border rounded">
+                        <table class="table table-sm align-middle mb-0 small" style="min-width: 760px;">
+                            <thead class="table-light"><tr>
+                                <th scope="col">Dòng</th><th scope="col">Danh mục / Sản phẩm</th><th scope="col">Đơn vị / Topping</th>
+                                <th scope="col" class="text-end text-nowrap">Giá cũ → mới</th><th scope="col">Kết quả dự kiến</th>
+                            </tr></thead>
+                            <tbody id="catalogImportRows"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="catalogImportPrev">Trước</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="catalogImportNext">Sau</button>
+                    </div>
+                </section>
+                <noscript><p class="text-danger">Cần bật JavaScript để quét và xem trước file trước khi nhập.</p></noscript>
+            </div>
+            <div class="modal-footer">
+                <span class="small text-muted me-auto" id="catalogImportFootnote">Chỉ ghi dữ liệu sau khi bạn xác nhận. Có lỗi thì không nhập toàn bộ file.</span>
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Đóng</button>
+                <button type="submit" class="btn btn-primary" id="catalogImportConfirm" disabled>Xác nhận nhập</button>
+            </div>
+        </form>
+    </div>
+</div>

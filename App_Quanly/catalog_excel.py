@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import io
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import transaction
@@ -22,6 +22,7 @@ SHEET_TOPPING = 'Topping'
 SHEET_SAN_PHAM_TOPPING = 'San_pham_Topping'
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_IMPORT_ROWS = 5000
 
 
 def _norm_header(val: Any) -> str:
@@ -35,8 +36,6 @@ def _row_is_empty(row: tuple[Any, ...]) -> bool:
 
 
 def _iter_sheet_dicts(ws) -> list[tuple[int, dict[str, Any]]]:
-    from openpyxl.worksheet.worksheet import Worksheet
-
     if ws is None:
         return []
     rows = list(ws.iter_rows(values_only=True))
@@ -177,90 +176,36 @@ def _style_data_sheet_header(ws, column_widths: list[float]) -> None:
 
 def build_template_workbook():
     from openpyxl import Workbook
-    from openpyxl.utils import get_column_letter
+    from openpyxl.comments import Comment
 
     wb = Workbook()
-    ws0 = wb.active
-    ws0.title = SHEET_HUONG_DAN
-    lines = [
-        'eApp FnB — Hướng dẫn import catalog',
-        '',
-        'Thứ tự xử lý: Danh_muc → San_pham → Don_vi → Topping → San_pham_Topping.',
-        'Cột cua_hang: để trống hoặc * = áp dụng tất cả cửa hàng đang hoạt động; hoặc liệt kê tên cửa hàng, phân cách bởi dấu phẩy hoặc chấm phẩy.',
-        'hoat_dong: 1 = bật, 0 = tắt (mặc định bật nếu để trống).',
-        'Khóa: Danh mục theo ten_danh_muc; Sản phẩm theo (ten_danh_muc + ten_san_pham), ten_danh_muc có thể để trống nếu tên sản phẩm là duy nhất trong tenant.',
-        'Đơn vị / gán topping: có thể tham chiếu sản phẩm sẽ được tạo trong cùng file (sheet San_pham).',
-        'Thứ tự hiển thị: dòng mới được xếp cuối theo thứ tự trong file; mục đã có giữ nguyên vị trí. '
-        'Đổi thứ tự bằng kéo thả trên trang Quản lý.',
-        'Ảnh sản phẩm: upload trên trang Sản phẩm (file không nhận URL ảnh).',
-        'Đơn vị: (ten_danh_muc, ten_san_pham, ten_don_vi). Topping: ten_topping. Gán topping: (ten_san_pham, ten_topping) + ten_danh_muc khi cần.',
-        '',
-        'Các sheet dữ liệu có thêm vài dòng mẫu để tham khảo định dạng; có thể xóa hoặc sửa trước khi import.',
+    ws = wb.active
+    ws.title = SHEET_SAN_PHAM
+    ws.append(['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia'])
+    for row in [
+        ['Đồ uống', 'Cà phê sữa', 'Ly nhỏ', 25000],
+        ['Đồ uống', 'Cà phê sữa', 'Ly lớn', 30000],
+        ['Món ăn', 'Cơm tấm sườn', 'Phần', 55000],
+    ]:
+        ws.append(row)
+    _style_data_sheet_header(ws, [26, 32, 22, 18])
+    ws.freeze_panes = 'A2'
+    ws.auto_filter.ref = ws.dimensions
+    notes = [
+        'Bắt buộc. Danh mục chưa có sẽ được tạo tự động.',
+        'Bắt buộc. Mỗi đơn vị một dòng; lặp lại danh mục và tên sản phẩm khi có nhiều đơn vị.',
+        'Bắt buộc. Ví dụ: Ly, Ly nhỏ, Ly lớn, Phần.',
+        'Bắt buộc. Giá bán bằng VND, từ 0 trở lên. Ví dụ: 25000.',
     ]
-    for i, line in enumerate(lines, start=1):
-        ws0.cell(row=i, column=1, value=line)
-    ws0.column_dimensions[get_column_letter(1)].width = 92
-
-    sheet_column_widths: dict[str, list[float]] = {
-        SHEET_DANH_MUC: [20, 48, 11, 30],
-        SHEET_SAN_PHAM: [16, 24, 42, 11, 30],
-        SHEET_DON_VI: [16, 24, 14, 12, 11],
-        SHEET_TOPPING: [22, 11],
-        SHEET_SAN_PHAM_TOPPING: [16, 24, 20, 12, 11],
-    }
-
-    sheets_spec: list[tuple[str, list[str], list[list[Any]]]] = [
-        (
-            SHEET_DANH_MUC,
-            ['ten_danh_muc', 'mo_ta', 'hoat_dong', 'cua_hang'],
-            [
-                ['Đồ uống', 'Danh mục ví dụ — nước, cà phê', 1, '*'],
-                ['Món mặn', 'Danh mục ví dụ — cơm, món chính', 1, '*'],
-            ],
-        ),
-        (
-            SHEET_SAN_PHAM,
-            ['ten_danh_muc', 'ten_san_pham', 'mo_ta', 'hoat_dong', 'cua_hang'],
-            [
-                ['Đồ uống', 'Trà đá chanh', 'Trà đá với chanh tươi', 1, '*'],
-                ['Đồ uống', 'Cà phê sữa', 'Pha phin truyền thống', 1, '*'],
-                ['Món mặn', 'Cơm tấm sườn', 'Sườn nướng, bì, chả', 1, '*'],
-            ],
-        ),
-        (
-            SHEET_DON_VI,
-            ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia', 'hoat_dong'],
-            [
-                ['Đồ uống', 'Trà đá chanh', 'Ly', 15000, 1],
-                ['Đồ uống', 'Cà phê sữa', 'Ly', 25000, 1],
-                ['Món mặn', 'Cơm tấm sườn', 'Phần', 55000, 1],
-            ],
-        ),
-        (
-            SHEET_TOPPING,
-            ['ten_topping', 'hoat_dong'],
-            [
-                ['Thêm đá', 1],
-                ['Thêm sữa', 1],
-            ],
-        ),
-        (
-            SHEET_SAN_PHAM_TOPPING,
-            ['ten_danh_muc', 'ten_san_pham', 'ten_topping', 'gia_them', 'hoat_dong'],
-            [
-                ['Đồ uống', 'Trà đá chanh', 'Thêm đá', 0, 1],
-                ['Đồ uống', 'Cà phê sữa', 'Thêm sữa', 5000, 1],
-            ],
-        ),
-    ]
-    for title, headers, sample_rows in sheets_spec:
-        nws = wb.create_sheet(title)
-        nws.append(headers)
-        for row in sample_rows:
-            nws.append(row)
-        widths = sheet_column_widths.get(title)
-        if widths:
-            _style_data_sheet_header(nws, widths)
+    for cell, note in zip(ws[1], notes):
+        cell.comment = Comment(
+            note + ' Sửa hoặc xóa các dòng mẫu trước khi nhập. '
+            'Dữ liệu mới mặc định hoạt động, áp dụng mọi cửa hàng đang hoạt động. '
+            'Dòng đã có chỉ cập nhật giá; các thiết lập khác được giữ nguyên.',
+            'eApp FnB',
+        )
+    for row in ws.iter_rows(min_row=2, min_col=4, max_col=4):
+        row[0].number_format = '#,##0.##'
     return wb
 
 
@@ -281,7 +226,7 @@ class _ProductLimitExceeded(Exception):
     pass
 
 
-def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
+def import_catalog_from_upload(tenant: Tenant, file_obj, *, preview: bool = False) -> dict[str, Any]:
     """
     Validate toàn bộ workbook, sau đó upsert trong một transaction.
     Trả về dict: ok, errors (list str), stats (dict đếm), message (str tóm tắt).
@@ -294,8 +239,10 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
         'categories_updated': 0,
         'products_created': 0,
         'products_updated': 0,
+        'products_unchanged': 0,
         'units_created': 0,
         'units_updated': 0,
+        'units_unchanged': 0,
         'toppings_created': 0,
         'toppings_updated': 0,
         'mappings_created': 0,
@@ -312,11 +259,11 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
         }
 
     try:
-        wb = load_workbook(file_obj, read_only=True, data_only=True)
-    except Exception as exc:
+        wb = load_workbook(file_obj, read_only=True, data_only=False)
+    except Exception:
         return {
             'ok': False,
-            'errors': [f'Không đọc được file Excel: {exc}'],
+            'errors': ['Không đọc được file Excel. Hãy kiểm tra file và lưu lại dưới dạng .xlsx.'],
             'stats': stats,
             'message': '',
         }
@@ -326,11 +273,87 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
             return []
         return _iter_sheet_dicts(wb[name])
 
-    rows_dm = sheet_dicts(SHEET_DANH_MUC)
-    rows_sp = sheet_dicts(SHEET_SAN_PHAM)
-    rows_dv = sheet_dicts(SHEET_DON_VI)
-    rows_tp = sheet_dicts(SHEET_TOPPING)
-    rows_spt = sheet_dicts(SHEET_SAN_PHAM_TOPPING)
+    supported = (SHEET_DANH_MUC, SHEET_SAN_PHAM, SHEET_DON_VI, SHEET_TOPPING, SHEET_SAN_PHAM_TOPPING)
+    raw_rows = {}
+    headers_by_sheet = {}
+    try:
+        for name in supported:
+            if name not in wb.sheetnames:
+                raw_rows[name] = []
+                continue
+            ws = wb[name]
+            if ws.max_row and ws.max_row > MAX_IMPORT_ROWS + 1:
+                errors.append(f'{name}: tối đa {MAX_IMPORT_ROWS} dòng. Hãy chia nhỏ file.')
+                raw_rows[name] = []
+                continue
+            headers = [_norm_header(value) for value in next(ws.iter_rows(values_only=True), ())]
+            headers_by_sheet[name] = set(headers)
+            if len([h for h in headers if h]) != len(set(h for h in headers if h)):
+                errors.append(f'{name}: trùng tên cột. Mỗi cột chỉ xuất hiện một lần.')
+            raw_rows[name] = sheet_dicts(name)
+            for r, data in raw_rows[name]:
+                for column, value in data.items():
+                    if isinstance(value, str) and value.startswith('='):
+                        errors.append(f'{name} dòng {r}: {column} chứa công thức; hãy dán giá trị thay cho công thức.')
+        ignored_sheets = [name for name in wb.sheetnames if name not in supported and name != SHEET_HUONG_DAN]
+    except Exception:
+        return {'ok': False, 'errors': ['Không đọc được dữ liệu trong file Excel. Hãy lưu lại dưới dạng .xlsx.'], 'stats': stats, 'message': ''}
+    finally:
+        wb.close()
+    rows_dm = list(raw_rows[SHEET_DANH_MUC])
+    rows_sp = list(raw_rows[SHEET_SAN_PHAM])
+    rows_dv = list(raw_rows[SHEET_DON_VI])
+    rows_tp = list(raw_rows[SHEET_TOPPING])
+    rows_spt = list(raw_rows[SHEET_SAN_PHAM_TOPPING])
+    product_headers = headers_by_sheet.get(SHEET_SAN_PHAM, set())
+    compact = bool({'ten_don_vi', 'gia'} & product_headers) or (
+        SHEET_SAN_PHAM in headers_by_sheet
+        and not ({'mo_ta', 'hoat_dong', 'cua_hang'} & product_headers)
+        and not any((rows_dm, rows_dv, rows_tp, rows_spt))
+    )
+    unit_sheet = SHEET_SAN_PHAM if compact else SHEET_DON_VI
+    required_headers = {
+        SHEET_DANH_MUC: ('ten_danh_muc',),
+        SHEET_SAN_PHAM: ('ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia') if compact else ('ten_san_pham',),
+        SHEET_DON_VI: ('ten_san_pham', 'ten_don_vi', 'gia'),
+        SHEET_TOPPING: ('ten_topping',),
+        SHEET_SAN_PHAM_TOPPING: ('ten_san_pham', 'ten_topping', 'gia_them'),
+    }
+    for sheet_name, headers in headers_by_sheet.items():
+        missing = [col for col in required_headers[sheet_name] if col not in headers]
+        if missing:
+            errors.append(f'{sheet_name}: thiếu cột {", ".join(missing)}')
+        for r, data in raw_rows[sheet_name]:
+            for col, max_length in (('ten_danh_muc', 120), ('ten_san_pham', 180), ('ten_don_vi', 120), ('ten_topping', 140)):
+                if data.get(col) is not None and len(str(data[col]).strip()) > max_length:
+                    errors.append(f'{sheet_name} dòng {r}: {col} tối đa {max_length} ký tự')
+    if not any((rows_dm, rows_sp, rows_dv, rows_tp, rows_spt)):
+        errors.append('File không có dữ liệu để nhập. Hãy điền sheet San_pham theo mẫu.')
+    if compact:
+        if rows_dv:
+            errors.append('Đã nhập đơn vị và giá trong San_pham thì không dùng thêm sheet Don_vi.')
+        rows_dv = rows_sp
+        rows_sp = []
+        compact_products = set()
+        category_names = {str(d.get('ten_danh_muc') or '').strip() for _, d in rows_dm}
+        for r, d in rows_dv:
+            for col in ('ten_danh_muc', 'ten_san_pham', 'ten_don_vi'):
+                if not str(d.get(col) or '').strip():
+                    errors.append(f'{SHEET_SAN_PHAM} dòng {r}: thiếu {col}')
+            cat_name = str(d.get('ten_danh_muc') or '').strip()
+            prod_name = str(d.get('ten_san_pham') or '').strip()
+            if not cat_name or not prod_name:
+                continue
+            matches = _categories_by_name(tenant, cat_name)
+            if len(matches) > 1:
+                errors.append(f'{SHEET_SAN_PHAM} dòng {r}: nhiều danh mục trùng tên "{cat_name}" trong DB')
+            if not matches and cat_name not in category_names:
+                rows_dm.append((r, {'ten_danh_muc': cat_name}))
+                category_names.add(cat_name)
+            key = _product_key(cat_name, prod_name)
+            if key not in compact_products:
+                rows_sp.append((r, {'ten_danh_muc': cat_name, 'ten_san_pham': prod_name}))
+                compact_products.add(key)
 
     names_in_dm_file: set[str] = set()
     for r, d in rows_dm:
@@ -375,6 +398,10 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 errors.append(
                     f'{SHEET_SAN_PHAM} dòng {r}: ten_san_pham "{prod_name}" không gắn danh mục nhưng có {c} sản phẩm trùng tên — cần ten_danh_muc'
                 )
+        if resolve_product_qs(tenant, cat_name, prod_name).count() > 1:
+            errors.append(f'{SHEET_SAN_PHAM} dòng {r}: nhiều sản phẩm trùng tên trong cùng danh mục; hãy xử lý trùng trước khi nhập.')
+        if cat_name and len(_categories_by_name(tenant, cat_name)) > 1:
+            errors.append(f'{SHEET_SAN_PHAM} dòng {r}: nhiều danh mục trùng tên "{cat_name}" trong DB')
         try:
             resolve_store_ids(tenant, d.get('cua_hang'), stores)
         except ValueError as e:
@@ -384,7 +411,7 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
     for r, d in rows_dv:
         for col in ('ten_san_pham', 'ten_don_vi'):
             if d.get(col) is None or not str(d.get(col)).strip():
-                errors.append(f'{SHEET_DON_VI} dòng {r}: thiếu {col}')
+                errors.append(f'{unit_sheet} dòng {r}: thiếu {col}')
                 break
         else:
             tdm = d.get('ten_danh_muc')
@@ -393,23 +420,29 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
             unit_name = str(d.get('ten_don_vi')).strip()
             uk = (cat_name, prod_name, unit_name)
             if uk in seen_units:
-                errors.append(f'{SHEET_DON_VI} dòng {r}: trùng bộ (ten_danh_muc, ten_san_pham, ten_don_vi)')
+                errors.append(f'{unit_sheet} dòng {r}: trùng bộ (ten_danh_muc, ten_san_pham, ten_don_vi)')
             seen_units.add(uk)
             qs = resolve_product_qs(tenant, cat_name, prod_name)
             cnt = qs.count()
             pkey = _product_key(cat_name, prod_name)
             if cnt == 0 and pkey not in seen_products:
                 errors.append(
-                    f'{SHEET_DON_VI} dòng {r}: không tìm thấy sản phẩm ({cat_name or "∅"}, {prod_name}) (DB hoặc sheet {SHEET_SAN_PHAM})'
+                    f'{unit_sheet} dòng {r}: không tìm thấy sản phẩm ({cat_name or "∅"}, {prod_name}) (DB hoặc sheet {SHEET_SAN_PHAM})'
                 )
             elif cnt > 1:
                 errors.append(
-                    f'{SHEET_DON_VI} dòng {r}: nhiều sản phẩm khớp ({cat_name or "∅"}, {prod_name}) — chỉ định ten_danh_muc'
+                    f'{unit_sheet} dòng {r}: nhiều sản phẩm khớp ({cat_name or "∅"}, {prod_name}) — chỉ định ten_danh_muc'
                 )
             try:
-                parse_decimal_cell(d.get('gia'))
+                price = parse_decimal_cell(d.get('gia'))
+                if not price.is_finite() or price < 0 or price >= Decimal('1000000000000'):
+                    raise ValueError('Giá phải từ 0 đến dưới 1.000.000.000.000')
+                if price != price.quantize(Decimal('0.01')):
+                    raise ValueError('Giá chỉ được có tối đa 2 chữ số thập phân')
+            except InvalidOperation:
+                errors.append(f'{unit_sheet} dòng {r}: gia — Giá không hợp lệ')
             except ValueError as e:
-                errors.append(f'{SHEET_DON_VI} dòng {r}: gia — {e}')
+                errors.append(f'{unit_sheet} dòng {r}: gia — {e}')
 
     seen_top: set[str] = set()
     for r, d in rows_tp:
@@ -459,11 +492,28 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 errors.append(
                     f'{SHEET_SAN_PHAM_TOPPING} dòng {r}: không có topping "{top_name}" (DB hoặc sheet {SHEET_TOPPING})'
                 )
+        if len(_toppings_by_name(tenant, top_name)) > 1:
+            errors.append(f'{SHEET_SAN_PHAM_TOPPING} dòng {r}: nhiều topping trùng tên "{top_name}" trong DB')
         try:
-            parse_decimal_cell(d.get('gia_them'))
-        except ValueError as e:
+            price = parse_decimal_cell(d.get('gia_them'))
+            if not price.is_finite() or price < 0 or price >= Decimal('1000000000000') or price != price.quantize(Decimal('0.01')):
+                raise ValueError('Giá thêm không hợp lệ')
+        except (ValueError, InvalidOperation) as e:
             errors.append(f'{SHEET_SAN_PHAM_TOPPING} dòng {r}: gia_them — {e}')
 
+    new_products = sum(
+        not resolve_product_qs(tenant, cat_name, prod_name).exists()
+        for cat_name, prod_name in seen_products
+    )
+    if new_products and tenant.max_products is not None and tenant.product_count() + new_products > tenant.max_products:
+        errors.append(
+            f'File tạo thêm {new_products} sản phẩm, vượt giới hạn {tenant.max_products} món của gói hiện tại. '
+            'Chưa có dữ liệu nào được ghi.'
+        )
+    if preview:
+        from App_Quanly.catalog_preview import build_catalog_preview
+
+        return build_catalog_preview(tenant, raw_rows, compact, errors, ignored_sheets)
     if errors:
         return {'ok': False, 'errors': errors, 'stats': stats, 'message': ''}
 
@@ -516,14 +566,17 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                         key = _product_key('', prod_name)
                         cat = None
 
-                if key in prod_by_key:
+                product_exists = key in prod_by_key
+                if product_exists:
                     pr = prod_by_key[key]
                     if cat_name:
                         pr.category = cat
-                    pr.description = long_d
-                    pr.is_active = active
-                    pr.save()
-                    stats['products_updated'] += 1
+                    if not compact:
+                        pr.description = long_d
+                        pr.is_active = active
+                    if not compact:
+                        pr.save()
+                    stats['products_unchanged' if compact else 'products_updated'] += 1
                 else:
                     pr = Product(
                         tenant=tenant,
@@ -537,7 +590,8 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                     stats['products_created'] += 1
                     if tenant.max_products is not None and tenant.product_count() > tenant.max_products:
                         raise _ProductLimitExceeded
-                sync_product_store_links(pr, store_ids)
+                if not compact or not product_exists:
+                    sync_product_store_links(pr, store_ids)
 
             for _, d in rows_dv:
                 tdm = d.get('ten_danh_muc')
@@ -561,13 +615,16 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
                 )
                 prod_by_key[key] = pr
                 price = parse_decimal_cell(d.get('gia'))
-                active = parse_bool_cell(d.get('hoat_dong'), default=True)
+                active = True if compact else parse_bool_cell(d.get('hoat_dong'), default=True)
                 unit = ProductUnit.objects.filter(product=pr, name=unit_name).first()
                 if unit:
+                    changed = unit.price != price or (not compact and unit.is_active != active)
                     unit.price = price
-                    unit.is_active = active
-                    unit.save(update_fields=['price', 'is_active', 'updated_at'])
-                    stats['units_updated'] += 1
+                    if not compact:
+                        unit.is_active = active
+                    if changed:
+                        unit.save(update_fields=['price', 'is_active', 'updated_at'])
+                    stats['units_updated' if changed else 'units_unchanged'] += 1
                 else:
                     ProductUnit.objects.create(
                         product=pr,
@@ -661,4 +718,10 @@ def import_catalog_from_upload(tenant: Tenant, file_obj) -> dict[str, Any]:
         f'Gán +{stats["mappings_created"]}/~{stats["mappings_updated"]}',
     ]
     message = 'Import thành công. ' + ', '.join(parts) + ' (tạo mới/cập nhật).'
+    if compact and not any(data for name, data in raw_rows.items() if name != SHEET_SAN_PHAM):
+        message = (
+            f'Import thành công. Tạo mới {stats["categories_created"]} danh mục, '
+            f'{stats["products_created"]} sản phẩm, {stats["units_created"]} đơn vị; '
+            f'cập nhật giá {stats["units_updated"]} đơn vị; giữ nguyên {stats["units_unchanged"]} đơn vị.'
+        )
     return {'ok': True, 'errors': [], 'stats': stats, 'message': message}

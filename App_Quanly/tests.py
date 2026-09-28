@@ -10,7 +10,16 @@ from django.utils import timezone
 
 from App_Accounts.models import User
 from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, Topping
-from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Order, OrderItem, OrderItemTopping, Promotion
+from App_Sales.models import (
+    Customer,
+    CustomerTierSetting,
+    DiningTable,
+    Order,
+    OrderItem,
+    OrderItemTopping,
+    Promotion,
+    QROrder,
+)
 from App_Quanly.forms import StaffCreateForm
 from App_Tenant.models import Store, SubscriptionPlan, Tenant, UserStoreAccess
 
@@ -818,6 +827,68 @@ class QuanlyOrderHistoryTests(TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.content.decode('utf-8')
         self.assertIn('?q=ORD-PAGE&page=2', html)
+        self.assertIn('Hiển thị <strong>1–20</strong>\n        / 22', html)
+        self.assertIn('href="?q=ORD-PAGE&page=2" aria-label="Trang cuối"', html)
+        self.assertIn('is-disabled" aria-disabled="true" aria-label="Trang đầu"', html)
+
+        res = self.client.get(reverse('App_Quanly:orders'), {'q': 'ORD-PAGE', 'page': 2})
+        html = res.content.decode('utf-8')
+        self.assertIn('href="?q=ORD-PAGE&page=1" aria-label="Trang đầu"', html)
+        self.assertIn('is-disabled" aria-disabled="true" aria-label="Trang cuối"', html)
+        self.assertIn('aria-current="page">2<', html)
+
+    def test_order_history_paginates_sales_and_qr_orders_together_by_time(self):
+        """Đơn bán và đơn QR bị từ chối/huỷ gộp chung, sắp theo thời gian mới nhất, chia trang ở DB."""
+        now = timezone.now()
+        Order.objects.filter(pk=self.order_2.pk).delete()
+        Order.objects.filter(pk=self.order_1.pk).update(created_at=now - timedelta(minutes=100))
+        expected = [('sale', self.order_1.pk)]
+        for idx in range(25):
+            created_at = now - timedelta(minutes=idx * 2)
+            if idx % 2:
+                qr = QROrder.objects.create(
+                    tenant=self.tenant,
+                    store=self.store_1,
+                    status=QROrder.Status.REJECTED if idx % 4 == 1 else QROrder.Status.CANCELLED,
+                    customer_name=f'Khách QR {idx}',
+                )
+                QROrder.objects.filter(pk=qr.pk).update(created_at=created_at)
+                expected.append(('qr', qr.pk, created_at))
+            else:
+                order = Order.objects.create(
+                    tenant=self.tenant,
+                    store=self.store_1,
+                    cashier=self.cashier_1,
+                    payment_method=Order.PaymentMethod.CASH,
+                    status=Order.Status.COMPLETED,
+                    subtotal=Decimal('10000'),
+                    tax_amount=Decimal('0'),
+                    total_amount=Decimal('10000'),
+                    customer_paid=Decimal('10000'),
+                )
+                Order.objects.filter(pk=order.pk).update(created_at=created_at)
+                expected.append(('sale', order.pk, created_at))
+        # QR đang chờ không thuộc lịch sử.
+        QROrder.objects.create(tenant=self.tenant, store=self.store_1, status=QROrder.Status.PENDING)
+        expected = [expected[0]] + sorted(expected[1:], key=lambda row: row[2], reverse=True)
+
+        def row_key(row):
+            return (row['kind'], row['order'].pk if row['kind'] == 'sale' else row['qr'].pk)
+
+        self.client.login(username='manager_orders', password='123456')
+        page_1 = self.client.get(reverse('App_Quanly:orders'))
+        page_2 = self.client.get(reverse('App_Quanly:orders'), {'page': 2})
+        self.assertEqual(page_1.context['total_orders'], 26)
+        self.assertEqual(page_1.context['page_obj'].paginator.num_pages, 2)
+        got = [row_key(r) for r in page_1.context['history_rows']] + [row_key(r) for r in page_2.context['history_rows']]
+        self.assertEqual(got, [row[:2] for row in expected[1:]] + [expected[0]])
+        qr_rows = [r for r in page_1.context['history_rows'] if r['kind'] == 'qr']
+        self.assertTrue(all(r['qr_status'] == r['qr'].status for r in qr_rows))
+
+        only_qr = self.client.get(reverse('App_Quanly:orders'), {'q': 'Khách QR'})
+        self.assertEqual(only_qr.context['total_orders'], 12)
+        only_sales = self.client.get(reverse('App_Quanly:orders'), {'payment_method': Order.PaymentMethod.CASH})
+        self.assertEqual(only_sales.context['total_orders'], 14)
 
     def test_order_history_renders_item_and_topping_snapshot(self):
         self.client.login(username='manager_orders', password='123456')
@@ -1102,10 +1173,140 @@ class CatalogExcelImportTests(TestCase):
         self.assertIn(reverse('App_Quanly:catalog_import_upload'), html)
 
     def test_manager_download_template(self):
+        from openpyxl import load_workbook
+
         self.client.login(username='mgr_imp', password='123456')
         res = self.client.get(reverse('App_Quanly:catalog_import_template'))
         self.assertEqual(res.status_code, 200)
         self.assertIn('spreadsheetml', res['Content-Type'])
+        wb = load_workbook(io.BytesIO(b''.join(res.streaming_content)))
+        self.assertEqual(wb.sheetnames, ['San_pham'])
+        self.assertEqual(
+            list(next(wb.active.values)),
+            ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia'],
+        )
+
+    def _import_compact(self, rows, headers=None):
+        from openpyxl import Workbook
+        from App_Quanly.catalog_excel import import_catalog_from_upload
+
+        wb = Workbook()
+        wb.active.title = 'San_pham'
+        wb.active.append(headers or ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi', 'gia'])
+        for row in rows:
+            wb.active.append(row)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return import_catalog_from_upload(self.tenant, buf)
+
+    def test_compact_import_multiple_units_and_reimport(self):
+        rows = [['Nước', 'Trà đá', 'Ly', 10000], ['Nước', 'Trà đá', 'Chai', 15000]]
+        result = self._import_compact(rows)
+        self.assertTrue(result['ok'], result['errors'])
+        self.assertEqual(result['stats']['categories_created'], 1)
+        self.assertEqual(result['stats']['products_created'], 1)
+        product = Product.objects.get(tenant=self.tenant, name='Trà đá')
+        self.assertEqual(list(product.units.values_list('name', flat=True)), ['Ly', 'Chai'])
+        self.assertTrue(product.store_links.get(store=self.store).is_available)
+        self.assertTrue(product.category.store_links.get(store=self.store).is_visible)
+        result = self._import_compact(rows)
+        self.assertTrue(result['ok'], result['errors'])
+        self.assertEqual(result['stats']['products_created'], 0)
+        self.assertEqual(result['stats']['units_unchanged'], 2)
+        self.assertEqual(product.units.count(), 2)
+
+    def test_compact_update_preserves_existing_settings(self):
+        from App_Catalog.models import StoreCategory, StoreProduct
+
+        cat = Category.objects.create(tenant=self.tenant, name='Nước', description='Giữ lại', is_active=False)
+        product = Product.objects.create(
+            tenant=self.tenant, category=cat, name='Trà đá', description='Mô tả cũ', is_active=False,
+        )
+        unit = ProductUnit.objects.create(product=product, name='Ly', price=10000, is_active=False, sku='TRA', display_order=7)
+        StoreCategory.objects.create(store=self.store, category=cat, is_visible=False)
+        StoreProduct.objects.create(store=self.store, product=product, is_available=False, custom_price=12000)
+        result = self._import_compact([['Nước', 'Trà đá', 'Ly', 15000]])
+        self.assertTrue(result['ok'], result['errors'])
+        cat.refresh_from_db()
+        product.refresh_from_db()
+        unit.refresh_from_db()
+        self.assertEqual(cat.description, 'Giữ lại')
+        self.assertFalse(cat.is_active)
+        self.assertEqual(product.description, 'Mô tả cũ')
+        self.assertFalse(product.is_active)
+        self.assertEqual(unit.price, Decimal('15000'))
+        self.assertFalse(unit.is_active)
+        self.assertEqual(unit.sku, 'TRA')
+        self.assertEqual(unit.display_order, 7)
+        self.assertFalse(cat.store_links.get(store=self.store).is_visible)
+        link = product.store_links.get(store=self.store)
+        self.assertFalse(link.is_available)
+        self.assertEqual(link.custom_price, Decimal('12000'))
+
+    def test_compact_invalid_rows_do_not_write_and_report_source_row(self):
+        invalid_rows = [
+            ['Nước', 'Trà đá', 'Ly', 10000],  # Duplicate unit.
+            ['Nước', 'Trà khác', 'Ly', 'abc'],
+            ['Nước', 'Trà khác', 'Ly', -1],
+            ['Nước', 'Trà khác', 'Ly', 'NaN'],
+            ['Nước', 'Trà khác', 'Ly', 'Infinity'],
+            ['Nước', 'Trà khác', 'Ly', 1000000000000],
+            ['Nước', 'Trà khác', 'Ly', '1.2345'],
+            ['Nước', 'Trà khác', 'Ly', None],
+            ['Nước', 'Trà khác', '', 10000],
+            ['', 'Trà khác', 'Ly', 10000],
+            ['Nước', '', 'Ly', 10000],
+        ]
+        for row in invalid_rows:
+            with self.subTest(row=row):
+                result = self._import_compact([['Nước', 'Trà đá', 'Ly', 10000], row])
+                self.assertFalse(result['ok'])
+                self.assertIn('San_pham dòng 3', ' '.join(result['errors']))
+                self.assertFalse(Category.objects.filter(tenant=self.tenant).exists())
+                self.assertFalse(Product.objects.filter(tenant=self.tenant).exists())
+
+    def test_compact_missing_header_and_empty_file_rejected(self):
+        result = self._import_compact([['Nước', 'Trà đá', 'Ly']], ['ten_danh_muc', 'ten_san_pham', 'ten_don_vi'])
+        self.assertFalse(result['ok'])
+        self.assertIn('San_pham: thiếu cột gia', result['errors'])
+        self.assertFalse(self._import_compact([])['ok'])
+        self.assertFalse(Product.objects.filter(tenant=self.tenant).exists())
+
+    def test_compact_limit_rolls_back_all_rows(self):
+        self.tenant.max_products = 1
+        self.tenant.save(update_fields=['max_products', 'updated_at'])
+        result = self._import_compact([['Nước', 'Trà đá', 'Ly', 10000], ['Món ăn', 'Cơm', 'Phần', 30000]])
+        self.assertFalse(result['ok'])
+        self.assertFalse(Category.objects.filter(tenant=self.tenant).exists())
+        self.assertFalse(Product.objects.filter(tenant=self.tenant).exists())
+
+    def test_compact_does_not_use_other_tenant_catalog(self):
+        other = Tenant.objects.create(name='Khác', public_slug='khac')
+        cat = Category.objects.create(tenant=other, name='Nước')
+        product = Product.objects.create(tenant=other, category=cat, name='Trà đá')
+        unit = ProductUnit.objects.create(product=product, name='Ly', price=9000)
+        result = self._import_compact([['Nước', 'Trà đá', 'Ly', 10000]])
+        self.assertTrue(result['ok'], result['errors'])
+        unit.refresh_from_db()
+        self.assertEqual(unit.price, Decimal('9000'))
+        self.assertEqual(result['stats']['categories_created'], 1)
+        self.assertEqual(result['stats']['products_created'], 1)
+
+    def test_downloaded_template_can_be_uploaded(self):
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('App_Quanly:catalog_import_template'))
+        raw = b''.join(response.streaming_content)
+        preview = self.client.post(reverse('App_Quanly:catalog_import_preview'), {
+            'excel_file': SimpleUploadedFile('mau.xlsx', raw),
+        }).json()
+        self.assertTrue(preview['ok'], preview['errors'])
+        response = self.client.post(reverse('App_Quanly:catalog_import_upload'), {
+            'excel_file': SimpleUploadedFile('mau.xlsx', raw), 'preview_token': preview['preview_token'],
+        }, follow=True)
+        self.assertContains(response, 'Import thành công')
+        self.assertEqual(Product.objects.filter(tenant=self.tenant).count(), 2)
+        self.assertEqual(ProductUnit.objects.filter(product__tenant=self.tenant).count(), 3)
 
     def test_staff_forbidden_template_and_upload(self):
         self.client.login(username='stf_imp', password='123456')
@@ -1129,7 +1330,7 @@ class CatalogExcelImportTests(TestCase):
         self.client.login(username='mgr_imp', password='123456')
         buf = self._build_min_workbook()
         self.client.post(
-            reverse('App_Quanly:catalog_import_upload'),
+            reverse('App_Quanly:catalog_import_preview'),
             {
                 'excel_file': SimpleUploadedFile(
                     't.xlsx',
@@ -1143,13 +1344,18 @@ class CatalogExcelImportTests(TestCase):
 
     def test_manager_import_creates_catalog(self):
         self.client.login(username='mgr_imp', password='123456')
-        buf = self._build_min_workbook()
+        raw = self._build_min_workbook().read()
+        preview = self.client.post(reverse('App_Quanly:catalog_import_preview'), {
+            'excel_file': SimpleUploadedFile('t.xlsx', raw),
+        }).json()
+        self.assertTrue(preview['ok'], preview['errors'])
         res = self.client.post(
             reverse('App_Quanly:catalog_import_upload'),
             {
+                'preview_token': preview['preview_token'],
                 'excel_file': SimpleUploadedFile(
                     't.xlsx',
-                    buf.read(),
+                    raw,
                     content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 ),
             },
@@ -1180,7 +1386,7 @@ class CatalogExcelImportTests(TestCase):
         wb.save(buf)
         raw = buf.getvalue()
         res = self.client.post(
-            reverse('App_Quanly:catalog_import_upload'),
+            reverse('App_Quanly:catalog_import_preview'),
             {
                 'excel_file': SimpleUploadedFile(
                     't.xlsx',
@@ -1189,7 +1395,7 @@ class CatalogExcelImportTests(TestCase):
                 ),
             },
         )
-        self.assertEqual(res.status_code, 302)
+        self.assertFalse(res.json()['ok'])
         self.assertFalse(Category.objects.filter(tenant=self.tenant, name='Trùng').exists())
 
 

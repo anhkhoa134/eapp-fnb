@@ -65,28 +65,9 @@
                 Danh mục sản phẩm
             </h2>
             <div class="d-flex flex-wrap align-items-center gap-2">
-                <a class="btn btn-outline-primary btn-sm" href="{% url 'App_Quanly:catalog_import_template' %}">
-                    <i class="bi bi-download me-1"></i>Tải mẫu Excel
-                </a>
-                <form
-                    class="d-flex flex-wrap align-items-center gap-2"
-                    method="post"
-                    action="{% url 'App_Quanly:catalog_import_upload' %}"
-                    enctype="multipart/form-data"
-                >
-                    {% csrf_token %}
-                    <input
-                        class="form-control form-control-sm"
-                        type="file"
-                        name="excel_file"
-                        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        required
-                        style="max-width: 240px;"
-                    >
-                    <button class="btn btn-outline-secondary btn-sm" type="submit">
-                        <i class="bi bi-upload me-1"></i>Import
-                    </button>
-                </form>
+                <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#catalogImportModal">
+                    <i class="bi bi-upload me-1" aria-hidden="true"></i>Import Excel
+                </button>
                 <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
                     <i class="bi bi-plus-lg me-1"></i>Tạo danh mục
                 </button>
@@ -144,6 +125,8 @@
         {% include 'App_Quanly/_list_pagination.html' %}
     </div>
 </div>
+
+{% include 'App_Quanly/_catalog_import_modal.html' %}
 
 <div class="modal fade crud-modal" id="createCategoryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -279,6 +262,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include 'App_Quanly/_catalog_import_script.html' %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const editForm = document.getElementById('editCategoryForm');

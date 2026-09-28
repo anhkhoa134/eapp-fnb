@@ -56,6 +56,50 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.15);
             transform: translateY(-1px);
         }
+        .top-nav-tabs .nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        .nav-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            min-width: 1.5rem;
+            height: 1.5rem;
+            margin-left: 0.5rem;
+            padding: 0 0.375rem;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+        }
+        .nav-count-tables {
+            color: #fff;
+            background: #e5484d;
+        }
+        .nav-count-qr {
+            color: #713f12;
+            background: #fbbf24;
+        }
+        @media (max-width: 991.98px) {
+            .nav-count-badge {
+                position: absolute;
+                top: -0.2rem;
+                right: -0.2rem;
+                min-width: 1.2rem;
+                height: 1.2rem;
+                margin-left: 0;
+                padding: 0 0.25rem;
+                border-width: 2px;
+                font-size: 0.625rem;
+            }
+        }
 
         body {
             background-color: var(--bg-color);
@@ -86,6 +130,40 @@
         }
         .top-nav-mobile-actions {
             display: none;
+        }
+        .pos-search-group {
+            position: relative;
+        }
+        .pos-search-group .js-pos-search-input {
+            padding-right: 2.75rem;
+        }
+        .js-pos-search-input::-webkit-search-cancel-button {
+            -webkit-appearance: none;
+        }
+        .pos-search-clear {
+            position: absolute;
+            right: 0.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 5;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.25rem;
+            height: 2.25rem;
+            padding: 0;
+            border: 0;
+            border-radius: 50% !important;
+            color: #64748b;
+            background: transparent;
+        }
+        .pos-search-clear:hover {
+            color: #334155;
+            background: #e2e8f0;
+        }
+        .pos-search-clear:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: -2px;
         }
         .top-nav-end-cluster {
             order: 3;
@@ -739,11 +817,14 @@
                 gap: 0.35rem;
                 margin: 0 0.35rem;
             }
-            .top-nav-mobile-actions .btn-icon-nav {
+            /* Mọi icon trên navbar mobile dùng chung một kiểu ô: 44px, bo 14px, viền nhạt */
+            .top-nav-mobile-actions .btn-icon-nav,
+            .top-nav-content .nav-pills .nav-link,
+            .top-nav-tools .nav-link {
                 width: 44px;
                 height: 44px;
-                padding: 0;
-                border-radius: 14px;
+                padding: 0 !important;
+                border-radius: 14px !important;
                 border: 1px solid #e2e8f0;
                 background: #fff;
                 color: #475569;
@@ -752,10 +833,21 @@
                 justify-content: center;
                 flex-shrink: 0;
             }
-            .top-nav-mobile-actions .btn-icon-nav:hover {
+            .top-nav-mobile-actions .btn-icon-nav:hover,
+            .top-nav-content .nav-pills .nav-link:not(.active):hover,
+            .top-nav-tools .nav-link:hover {
                 background: #f8fafc;
                 color: var(--primary-color);
                 border-color: #cbd5e1;
+            }
+            .top-nav-content .nav-pills .nav-link.active {
+                border-color: var(--primary-color);
+                transform: none;
+            }
+            #nav-bell-dot {
+                top: 11px;
+                right: 11px;
+                transform: none !important;
             }
             .top-nav-mobile-actions .btn-icon-nav.active {
                 background: rgba(16, 185, 129, 0.12);
@@ -782,15 +874,6 @@
             .top-account-dropdown {
                 margin-left: 0;
             }
-            .top-nav-content .nav-pills .nav-link {
-                width: 44px;
-                height: 44px;
-                padding: 0 !important;
-                border-radius: 14px !important;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-            }
             .top-nav-content .nav-pills .nav-link i {
                 margin-right: 0 !important;
                 font-size: 1rem;
@@ -800,14 +883,6 @@
                 gap: 0.5rem !important;
             }
             .top-nav-content .navbar-nav .nav-item.me-3 { margin-right: 0 !important; }
-            .top-nav-tools .nav-link {
-                width: 44px;
-                height: 44px;
-                padding: 0 !important;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-            }
             .top-account-dropdown > .nav-link img {
                 margin-right: 0 !important;
             }
@@ -1002,6 +1077,68 @@
         /* Toast positioning */
         .toast-container { z-index: 1060; }
 
+        /* --- Cart: header soft buttons --- */
+        .cart-soft-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            line-height: 1.2;
+            white-space: nowrap;
+            transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s;
+        }
+        .cart-soft-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(16, 185, 129, .25); }
+        .cart-soft-btn.d-none { display: none !important; }
+        .cart-soft-lg { padding: 9px 16px; font-size: 0.9rem; border-radius: 10px; }
+        .cart-soft-danger { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+        .cart-soft-danger:hover { background: #fee2e2; border-color: #f87171; color: #b91c1c; }
+        .cart-soft-danger:focus-visible { box-shadow: 0 0 0 3px rgba(220, 38, 38, .2); }
+        .cart-soft-primary { background: #ecfdf5; border-color: #a7f3d0; color: var(--primary-hover); }
+        .cart-soft-primary:hover { background: var(--primary-color); border-color: var(--primary-color); color: #fff; }
+
+        /* --- Cart: table action buttons --- */
+        .table-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .table-actions.d-none { display: none !important; }
+        .table-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            min-height: 58px;
+            padding: 8px 4px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            background: #f9fafb;
+            color: #374151;
+            font-size: 0.8rem;
+            font-weight: 600;
+            line-height: 1.2;
+            transition: background-color .15s, border-color .15s, color .15s;
+        }
+        .table-action-btn i { font-size: 1.05rem; color: #6b7280; transition: color .15s; }
+        .table-action-btn:hover { background: #fff; border-color: var(--primary-color); color: var(--primary-hover); }
+        .table-action-btn:hover i { color: var(--primary-color); }
+        .table-action-btn.table-action-warning i { color: #d97706; }
+        .table-action-btn.table-action-warning:hover { border-color: #f59e0b; color: #b45309; }
+        .table-action-kitchen {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .table-action-kitchen:disabled { opacity: .55; }
+
         /* --- Flying Animation --- */
         .flying-img {
             position: fixed;
@@ -1036,15 +1173,16 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link fw-bold px-3 rounded-pill" id="tab-tables" data-bs-toggle="pill" data-bs-target="#view-tables" type="button" role="tab">
+                            <button class="nav-link fw-bold px-3 rounded-pill position-relative" id="tab-tables" data-bs-toggle="pill" data-bs-target="#view-tables" type="button" role="tab">
                                 <i class="fa-solid fa-table me-2"></i><span class="nav-label">Chọn bàn</span>
+                                <span class="nav-count-badge nav-count-tables d-none" id="nav-tables-badge">0</span>
                             </button>
                         </li>
                         {% if user.tenant.show_qr_order_feature %}
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fw-bold px-3 rounded-pill position-relative" id="tab-online" data-bs-toggle="pill" data-bs-target="#view-online" type="button" role="tab">
                                 <i class="fa-solid fa-qrcode me-2"></i><span class="nav-label">Đơn QR</span>
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="nav-online-badge">0</span>
+                                <span class="nav-count-badge nav-count-qr d-none" id="nav-online-badge">0</span>
                             </button>
                         </li>
                         {% endif %}
@@ -1062,9 +1200,12 @@
             </div>
             <!-- Search Form in Navbar (desktop) -->
             <form class="d-none d-lg-flex my-lg-0 top-nav-search-desktop" id="posNavSearchFormDesktop" onsubmit="event.preventDefault();">
-                <div class="input-group shadow-sm w-100" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
+                <div class="input-group shadow-sm w-100 pos-search-group" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
                     <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
                     <input class="form-control bg-light border-start-0 js-pos-search-input" type="search" placeholder="Tìm món..." id="searchInputDesktop" autocomplete="off" style="box-shadow: none;">
+                    <button type="button" class="pos-search-clear js-pos-search-clear d-none" aria-label="Xoá tìm kiếm" title="Xoá tìm kiếm" aria-controls="searchInputDesktop">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
                 </div>
             </form>
             <!-- Chuông + account: một cụm luôn dính mép phải (mobile/desktop) -->
@@ -1241,9 +1382,12 @@
         <div class="d-lg-none w-100 border-top bg-white shadow-sm d-none" id="mobileSearchRow">
             <div class="px-3 py-2">
                 <form onsubmit="event.preventDefault();">
-                    <div class="input-group shadow-sm" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
+                    <div class="input-group shadow-sm pos-search-group" style="border-radius: 50px; overflow: hidden; border: 1px solid #e2e8f0;">
                         <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
                         <input class="form-control bg-light border-start-0 js-pos-search-input" type="search" placeholder="Tìm món..." id="searchInputMobile" autocomplete="off" style="box-shadow: none;">
+                        <button type="button" class="pos-search-clear js-pos-search-clear d-none" aria-label="Xoá tìm kiếm" title="Xoá tìm kiếm" aria-controls="searchInputMobile">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        </button>
                     </div>
                 </form>
             </div>
@@ -1343,37 +1487,39 @@
                         <i class="fa-solid fa-cart-shopping text-primary me-2" id="desktopCartIcon"></i>Giỏ hàng
                     </h5>
                     <div class="d-flex align-items-center">
-                        <button class="btn btn-sm btn-outline-danger d-none align-items-center me-2" onclick="clearCart()" id="btn-clear-cart" title="Xóa toàn bộ giỏ hàng">
-                            <i class="fa-solid fa-trash-can me-1"></i>Xóa tất cả
+                        <button type="button" class="cart-soft-btn cart-soft-danger d-none align-items-center me-2" onclick="clearCart()" id="btn-clear-cart" title="Xóa toàn bộ giỏ hàng">
+                            <i class="fa-solid fa-trash-can"></i><span>Xóa tất cả</span>
                         </button>
                         <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#cartOffcanvas" aria-label="Close"></button>
                     </div>
                 </div>
 
                 <!-- Table Management -->
-                <div class="p-3 border-bottom bg-white d-flex justify-content-between align-items-center shadow-sm z-1">
-                    <div>
-                        <span class="text-muted small d-block mb-1">Đang phục vụ:</span>
-                        <span class="fw-bold text-primary fs-5" id="current-order-name">Khách mang về</span>
+                <div class="p-3 border-bottom bg-white shadow-sm z-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-bold text-primary fs-5" id="current-order-name">Khách mang về</span>
+                        </div>
+                        <button type="button" class="cart-soft-btn cart-soft-primary cart-soft-lg" onclick="openTableMap()" id="btn-open-table-map" title="Chọn bàn để phục vụ tại chỗ">
+                            <i class="fa-solid fa-chair"></i><span>Chọn bàn</span>
+                        </button>
                     </div>
-                    <div class="d-flex flex-column gap-1 align-items-end">
-                        <button class="btn btn-outline-primary btn-sm fw-bold px-3" onclick="openTableMap()" id="btn-open-table-map">
-                            <i class="fa-solid fa-chair me-1"></i>Chọn bàn
+                    <div class="table-actions d-none mt-3" id="table-actions">
+                        <button type="button" class="table-action-btn table-action-warning d-none" onclick="openMoveTableModal()" id="btn-move-table" title="Chuyển đơn sang bàn khác">
+                            <i class="fa-solid fa-right-left"></i><span>Chuyển bàn</span>
                         </button>
-                        <button class="btn btn-outline-warning btn-sm fw-bold px-3 d-none" onclick="openMoveTableModal()" id="btn-move-table">
-                            <i class="fa-solid fa-right-left me-1"></i>Chuyển bàn
+                        <button type="button" class="table-action-btn d-none" onclick="printTableBill()" id="btn-print-bill" title="In phiếu tạm tính cho khách xem trước khi thanh toán">
+                            <i class="fa-solid fa-print"></i><span>In tạm tính</span>
                         </button>
-                        <button class="btn btn-outline-secondary btn-sm fw-bold px-3 d-none" onclick="printTableBill()" id="btn-print-bill" title="In phiếu tạm tính cho khách xem trước khi thanh toán">
-                            <i class="fa-solid fa-print me-1"></i>In tạm tính
+                        <button type="button" class="table-action-btn d-none" onclick="selectTakeaway()" id="btn-takeaway" title="Đổi sang đơn mang về">
+                            <i class="fa-solid fa-bag-shopping"></i><span>Mang về</span>
                         </button>
                         {% if user.tenant.show_kitchen_feature %}
-                        <button class="btn btn-danger btn-sm fw-bold px-3 d-none" onclick="sendTableToKitchen()" id="btn-kitchen-send" title="Gửi các món chưa báo bếp">
-                            <i class="fa-solid fa-fire-burner me-1"></i>Báo bếp <span class="badge bg-light text-danger ms-1" id="kitchen-unsent-count">0</span>
+                        <button type="button" class="btn btn-danger fw-bold table-action-kitchen d-none" onclick="sendTableToKitchen()" id="btn-kitchen-send" title="Gửi các món chưa báo bếp">
+                            <i class="fa-solid fa-fire-burner me-2"></i>Báo bếp
+                            <span class="badge rounded-pill bg-white text-danger ms-2" id="kitchen-unsent-count">0</span>
                         </button>
                         {% endif %}
-                        <button class="btn btn-outline-secondary btn-sm fw-bold px-3 d-none" onclick="selectTakeaway()" id="btn-takeaway">
-                            <i class="fa-solid fa-bag-shopping me-1"></i>Đổi sang mang về
-                        </button>
                     </div>
                 </div>
 
@@ -1989,6 +2135,7 @@
             const footerRightCol = document.getElementById('footer-right-col');
             const isTakeaway = currentSelectedTableId === null;
             if (chooseBtn) chooseBtn.classList.toggle('d-none', !isTakeaway);
+            document.getElementById('table-actions')?.classList.toggle('d-none', isTakeaway);
             if (moveBtn) moveBtn.classList.toggle('d-none', isTakeaway);
             document.getElementById('btn-print-bill')?.classList.toggle('d-none', isTakeaway);
             const kitchenBtn = document.getElementById('btn-kitchen-send');
@@ -2420,6 +2567,16 @@
                     </div>
                 `);
             });
+            updateTablesBadge();
+        };
+
+        const updateTablesBadge = () => {
+            const badge = document.getElementById('nav-tables-badge');
+            if (!badge) return;
+            const busyCount = tables.filter((table) => table.status === 'occupied' || table.status === 'pending').length;
+            badge.textContent = busyCount;
+            badge.title = `${busyCount} bàn đang có khách`;
+            badge.classList.toggle('d-none', busyCount === 0);
         };
 
         const updateNotificationBell = () => {
@@ -4302,11 +4459,20 @@
             document.querySelectorAll('.js-pos-search-input').forEach((el) => {
                 if (el !== sourceEl) el.value = currentSearchTerm;
             });
+            document.querySelectorAll('.js-pos-search-clear').forEach((btn) => {
+                btn.classList.toggle('d-none', !currentSearchTerm);
+            });
             renderProducts();
         };
         document.querySelectorAll('.js-pos-search-input').forEach((el) => {
             el.addEventListener('input', (event) => {
                 applyPosSearchTerm(event.target.value, event.target);
+            });
+        });
+        document.querySelectorAll('.js-pos-search-clear').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                applyPosSearchTerm('');
+                document.getElementById(btn.getAttribute('aria-controls'))?.focus();
             });
         });
 
