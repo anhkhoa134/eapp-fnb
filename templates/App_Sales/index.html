@@ -203,9 +203,15 @@
             right: 0;
             left: auto;
             min-width: 320px;
+            /* Cuộn dọc ở mọi cỡ màn hình: menu dài (cửa hàng, giao diện, thông báo, in ấn, lối tắt)
+               không bị cắt trên laptop màn thấp. dvh trừ thanh địa chỉ của trình duyệt điện thoại. */
+            max-height: calc(100vh - 88px);
+            max-height: calc(100dvh - 88px);
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
             border: 1px solid rgba(148, 163, 184, 0.35) !important;
             border-radius: 16px;
-            overflow: hidden;
             box-shadow: 0 22px 40px rgba(15, 23, 42, 0.2) !important;
             background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(12px);
@@ -895,8 +901,6 @@
             .top-account-dropdown .account-menu {
                 min-width: 0;
                 width: min(360px, calc(100vw - 24px));
-                max-height: calc(100vh - 88px);
-                overflow-y: auto;
             }
         }
 
