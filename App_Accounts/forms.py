@@ -137,7 +137,7 @@ class SignupForm(forms.Form):
 
     store_name = forms.CharField(
         label='Tên quán / cửa hàng',
-        max_length=150,
+        max_length=120,
         widget=forms.TextInput(attrs={'placeholder': 'VD: Cà phê Góc Phố', 'autocomplete': 'organization'}),
     )
     username = forms.CharField(

@@ -227,6 +227,15 @@ class KitchenFeatureTests(TestCase):
         self.assertEqual(ticket.items.get().table_cart_item_id, cart_item.id)
         self.assertIsNone(self._send(self.table_1).json()['ticket_id'])
 
+        # Retrying approval must not add the items or send them to the kitchen twice.
+        res = self._post(reverse('App_Sales_API:qr_order_approve', kwargs={'order_id': qr_order.id}))
+        self.assertEqual(res.status_code, 200)
+        qr_order.refresh_from_db()
+        cart_item.refresh_from_db()
+        self.assertEqual(qr_order.status, QROrder.Status.APPROVED)
+        self.assertEqual(cart_item.quantity, 2)
+        self.assertEqual(KitchenTicket.objects.filter(qr_order=qr_order).count(), 1)
+
     # màn hình bếp
     def test_status_flow_completes_ticket_and_reports_to_pos(self):
         self._add_to_table(self.table_1, quantity=2)

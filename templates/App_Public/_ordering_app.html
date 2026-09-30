@@ -1,3 +1,4 @@
+{% load static %}
 {% comment %}
 Giao diện gọi món cho khách, dùng chung:
 - mode "dine_in": quét QR tại bàn (App_Public/qr_ordering.html)
@@ -174,6 +175,7 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
     </div>
 </div>
 
+<script src="{% static 'js/public_order_request.js' %}"></script>
 <script>
 (() => {
     const cfg = JSON.parse(document.getElementById('order-bootstrap-data').textContent || '{}');
@@ -232,6 +234,8 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
         set(key, value) { try { window.localStorage.setItem(key, value); } catch (_) { /* bỏ qua */ } },
         remove(key) { try { window.localStorage.removeItem(key); } catch (_) { /* bỏ qua */ } },
     };
+    const creationRequest = PublicOrderRequest.createTracker(store, `eapp_order_request::${cfg.mode}::${contextKey}`);
+    const creationUnresolved = () => !!creationRequest.current();
 
     const TOAST_ICONS = { success: 'bi-check-circle-fill', warning: 'bi-exclamation-circle-fill', danger: 'bi-x-circle-fill', info: 'bi-bell-fill' };
     const toast = (message, tone = 'info') => {
@@ -284,7 +288,7 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
     const productQtyInCart = (productId) => cart.filter((row) => row.product_id === productId).reduce((sum, row) => sum + row.quantity, 0);
 
     const isPending = () => activeOrder?.status === 'PENDING';
-    const canCompose = () => orderingEnabled && (!isPending() || editing);
+    const canCompose = () => orderingEnabled && !submitting && !creationUnresolved() && (!isPending() || editing);
 
     // ---------- persistence ----------
     const saveCart = () => {
@@ -428,7 +432,9 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
         $('od-cart-total').textContent = fmt(totals.total);
 
         const banner = $('od-editing-banner');
-        banner.innerHTML = editing && activeOrder ? `
+        banner.innerHTML = creationUnresolved() ? `
+            <div class="od-editing-banner"><span>Đang chờ xác nhận lần gửi trước. Bấm “Kiểm tra đơn đã gửi” để tiếp tục an toàn.</span></div>
+        ` : editing && activeOrder ? `
             <div class="od-editing-banner">
                 <span><i class="bi bi-pencil-square me-1"></i>Đang sửa đơn #${activeOrder.id}</span>
                 <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="od-stop-edit">Bỏ sửa</button>
@@ -437,10 +443,15 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
 
         const submit = $('od-submit');
         submit.disabled = !cart.length || submitting;
-        submit.querySelector('span').textContent = editing
+        submit.querySelector('span').textContent = submitting ? 'Đang gửi…' : creationUnresolved() ? 'Kiểm tra đơn đã gửi' : editing
             ? 'Cập nhật đơn'
             : (isTakeaway ? `Đặt món mang đi · ${fmt(totals.total)}` : `Gửi đơn cho quán · ${fmt(totals.total)}`);
         submit.querySelector('i').className = editing ? 'bi bi-arrow-repeat me-1' : 'bi bi-send me-1';
+        const locked = submitting || creationUnresolved();
+        list.querySelectorAll('button').forEach((button) => { button.disabled = locked; });
+        ['od-order-note', 'od-customer-name', 'od-customer-phone'].forEach((id) => {
+            if ($(id)) $(id).disabled = locked;
+        });
 
         const bar = $('od-cartbar');
         $('od-cartbar-count').textContent = totals.qty;
@@ -655,6 +666,10 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
     // ---------- cart ops ----------
     const ensureComposable = () => {
         if (!orderingEnabled) return false;
+        if (submitting || creationUnresolved()) {
+            toast('Vui lòng kiểm tra đơn đã gửi trước khi thay đổi giỏ hàng.', 'info');
+            return false;
+        }
         if (canCompose()) return true;
         if (isPending()) {
             startEditing({ silent: true });
@@ -710,6 +725,7 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
     };
 
     const changeQty = (index, delta) => {
+        if (submitting || creationUnresolved()) return;
         const row = cart[index];
         if (!row) return;
         row.quantity += delta;
@@ -750,7 +766,7 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
 
     const submitOrder = async () => {
         if (submitting || !cart.length) return;
-        if (!validateCustomer()) return;
+        if (!creationUnresolved() && !validateCustomer()) return;
         const payload = {
             ...accessParams(),
             ...readCustomer(),
@@ -780,18 +796,26 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
                 response = await requestJson(`${API_ORDER_BASE}${activeOrder.id}/`, { method: 'PATCH', payload: patchPayload });
                 toast('Đã cập nhật đơn.', 'success');
             } else {
-                response = await requestJson(API_CREATE_URL, { method: 'POST', payload });
+                const attempt = creationRequest.begin(payload, cart);
+                renderCart();
+                response = await requestJson(API_CREATE_URL, { method: 'POST', payload: attempt.payload });
+                if (!response.order?.id || (isTakeaway && !response.access_key)) {
+                    throw new Error('Chưa nhận được xác nhận đơn. Vui lòng bấm kiểm tra lại.');
+                }
                 activeRef = { id: response.order.id, key: response.access_key };
-                toast('Đã gửi đơn! Quán sẽ xác nhận trong ít phút.', 'success');
+                saveActiveRef();
+                toast(response.replayed ? 'Đã tìm thấy đơn của bạn.' : 'Đã gửi đơn! Quán sẽ xác nhận trong ít phút.', 'success');
             }
             editing = false;
             cart = [];
             saveCart();
             $('od-order-note').value = '';
+            creationRequest.clear();
             setActiveOrder(response.order);
             closeCartSheet();
             setTimeout(() => $('od-track')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
         } catch (error) {
+            creationRequest.rejected(error.status);
             toast(error.message, 'danger');
         } finally {
             submitting = false;
@@ -800,6 +824,7 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
     };
 
     const startEditing = ({ silent = false } = {}) => {
+        if (submitting || creationUnresolved()) return;
         if (!isPending()) return;
         cart = (activeOrder.items || []).map((item) => {
             const product = getProduct(item.product_id);
@@ -1027,6 +1052,15 @@ Cần context: order_bootstrap_data, ordering_enabled (hoặc mặc định bậ
     renderChips();
     if (orderingEnabled) {
         loadCart();
+        const pending = creationRequest.current();
+        if (pending) {
+            cart = pending.cart;
+            $('od-order-note').value = pending.payload.note || '';
+            if (isTakeaway) {
+                $('od-customer-name').value = pending.payload.customer_name || '';
+                $('od-customer-phone').value = pending.payload.customer_phone || '';
+            }
+        }
         activeRef = loadActiveRef();
     }
     syncUi();

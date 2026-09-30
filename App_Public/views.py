@@ -1,10 +1,12 @@
+import hashlib
 import json
 import re
 import secrets
 from datetime import timedelta
 from decimal import Decimal
+from uuid import UUID
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -341,6 +343,70 @@ def _reload_order(order_id):
     )
 
 
+def _creation_request_identity(payload, *, scope):
+    raw_id = payload.get('client_request_id')
+    if raw_id is None:
+        # Compatibility for pages/API clients loaded before idempotency support.
+        return None, ''
+    try:
+        request_id = UUID(raw_id) if isinstance(raw_id, str) else None
+    except (ValueError, AttributeError):
+        request_id = None
+    if request_id is None or request_id.version != 4:
+        raise ValueError('Mã yêu cầu đặt món không hợp lệ.')
+    content = json.dumps(scope, sort_keys=True, separators=(',', ':'), ensure_ascii=False, allow_nan=False)
+    return request_id, hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def _creation_response(order, *, replayed=False):
+    payload = {
+        'detail': ('Đã gửi đơn mang đi. Vui lòng chờ quán xác nhận.' if order.is_takeaway
+                   else 'Đã gửi đơn. Vui lòng chờ quán xác nhận.'),
+        'qr_order_id': order.id,
+        'status': order.status,
+        'order': _serialize_qr_order(order),
+        'replayed': replayed,
+    }
+    if order.is_takeaway:
+        payload['access_key'] = order.access_key
+    else:
+        payload['table'] = {'id': order.table_id, 'name': order.table.name, 'code': order.table.code}
+    return JsonResponse(payload, status=200 if replayed else 201)
+
+
+def _replay_creation(*, tenant, request_id, fingerprint):
+    if request_id is None:
+        return None
+    order = QROrder.objects.filter(tenant=tenant, client_request_id=request_id).first()
+    if order is None:
+        return None
+    if order.request_fingerprint != fingerprint:
+        return _json_error('Mã yêu cầu đã được dùng cho nội dung đặt món khác.', 409)
+    return _creation_response(_reload_order(order.pk), replayed=True)
+
+
+def _save_public_order(*, fields, prepared_items, request_id, fingerprint, rate_key=None):
+    try:
+        with transaction.atomic():
+            order = QROrder.objects.create(
+                **fields, client_request_id=request_id, request_fingerprint=fingerprint,
+            )
+            _replace_qr_order_items(qr_order=order, prepared_items=prepared_items)
+            if rate_key is not None:
+                rate_limit.hit(rate_limit.SCOPE_TAKEAWAY_ORDER_IP, rate_key, window=TAKEAWAY_ORDER_WINDOW)
+    except IntegrityError:
+        # A concurrent request may have committed the same key. The unique
+        # constraint serializes that race, and this transaction has rolled back.
+        replay = _replay_creation(tenant=fields['tenant'], request_id=request_id, fingerprint=fingerprint)
+        if replay is not None:
+            return replay
+        raise
+
+    order = _reload_order(order.pk)
+    notify_qr_order_changed(store_id=order.store_id, order_id=order.id, status=order.status, reason='created')
+    return _creation_response(order)
+
+
 @require_GET
 def tenant_catalog(request, public_slug):
     tenant = get_object_or_404(Tenant, public_slug=public_slug, is_active=True)
@@ -455,44 +521,32 @@ def api_public_qr_orders(request):
     table = _get_table_by_credentials(table_code=table_code, token=token)
     if not table:
         return _json_error('QR không hợp lệ hoặc đã hết hiệu lực.', 403)
+    raw_items = payload.get('items') or []
+    try:
+        request_id, fingerprint = _creation_request_identity(payload, scope={
+            'order_type': QROrder.OrderType.DINE_IN, 'table_id': table.id,
+            'store_id': table.store_id, 'note': customer_note, 'items': raw_items,
+        })
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    replay = _replay_creation(tenant=table.tenant, request_id=request_id, fingerprint=fingerprint)
+    if replay is not None:
+        return replay
     if not table.tenant.is_ordering_open():
         return _json_error('Quán tạm ngưng gọi món qua mã QR. Vui lòng gọi nhân viên.', 403)
 
-    raw_items = payload.get('items') or []
     try:
         prepared_items = _prepare_order_items(tenant=table.tenant, store=table.store, raw_items=raw_items)
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
-    with transaction.atomic():
-        qr_order = QROrder.objects.create(
-            tenant=table.tenant,
-            store=table.store,
-            table=table,
-            order_type=QROrder.OrderType.DINE_IN,
-            status=QROrder.Status.PENDING,
-            customer_note=customer_note,
-            created_by_ip=get_client_ip(request) or None,
-        )
-        _replace_qr_order_items(qr_order=qr_order, prepared_items=prepared_items)
-
-    qr_order = _reload_order(qr_order.pk)
-    notify_qr_order_changed(
-        store_id=qr_order.store_id,
-        order_id=qr_order.id,
-        status=qr_order.status,
-        reason='created',
-    )
-
-    return JsonResponse(
-        {
-            'detail': 'Đã gửi đơn. Vui lòng chờ quán xác nhận.',
-            'qr_order_id': qr_order.id,
-            'status': qr_order.status,
-            'table': {'id': qr_order.table_id, 'name': qr_order.table.name, 'code': qr_order.table.code},
-            'order': _serialize_qr_order(qr_order),
+    return _save_public_order(
+        fields={
+            'tenant': table.tenant, 'store': table.store, 'table': table,
+            'order_type': QROrder.OrderType.DINE_IN, 'status': QROrder.Status.PENDING,
+            'customer_note': customer_note, 'created_by_ip': get_client_ip(request) or None,
         },
-        status=201,
+        prepared_items=prepared_items, request_id=request_id, fingerprint=fingerprint,
     )
 
 
@@ -509,8 +563,6 @@ def api_public_takeaway_orders(request):
     ).first()
     if not tenant:
         return _json_error('Không tìm thấy quán.', 404)
-    if not tenant.is_ordering_open():
-        return _json_error(ORDERING_CLOSED_MESSAGE, 403)
 
     store_id = payload.get('store_id')
     store = None
@@ -527,6 +579,20 @@ def api_public_takeaway_orders(request):
     if not PHONE_RE.match(customer_phone):
         return _json_error('Số điện thoại không hợp lệ.', 400)
 
+    try:
+        request_id, fingerprint = _creation_request_identity(payload, scope={
+            'order_type': QROrder.OrderType.TAKEAWAY, 'store_id': store.id,
+            'customer_name': customer_name, 'customer_phone': customer_phone,
+            'note': customer_note, 'items': payload.get('items') or [],
+        })
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    replay = _replay_creation(tenant=tenant, request_id=request_id, fingerprint=fingerprint)
+    if replay is not None:
+        return replay
+    if not tenant.is_ordering_open():
+        return _json_error(ORDERING_CLOSED_MESSAGE, 403)
+
     client_ip = get_client_ip(request)
     rate_key = f'{tenant.id}:{client_ip}'
     if rate_limit.limited_until(
@@ -542,39 +608,15 @@ def api_public_takeaway_orders(request):
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
-    with transaction.atomic():
-        qr_order = QROrder.objects.create(
-            tenant=tenant,
-            store=store,
-            table=None,
-            order_type=QROrder.OrderType.TAKEAWAY,
-            status=QROrder.Status.PENDING,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            customer_note=customer_note,
-            access_key=secrets.token_urlsafe(24),
-            created_by_ip=client_ip or None,
-        )
-        _replace_qr_order_items(qr_order=qr_order, prepared_items=prepared_items)
-    rate_limit.hit(rate_limit.SCOPE_TAKEAWAY_ORDER_IP, rate_key, window=TAKEAWAY_ORDER_WINDOW)
-
-    qr_order = _reload_order(qr_order.pk)
-    notify_qr_order_changed(
-        store_id=qr_order.store_id,
-        order_id=qr_order.id,
-        status=qr_order.status,
-        reason='created',
-    )
-
-    return JsonResponse(
-        {
-            'detail': 'Đã gửi đơn mang đi. Vui lòng chờ quán xác nhận.',
-            'qr_order_id': qr_order.id,
-            'access_key': qr_order.access_key,
-            'status': qr_order.status,
-            'order': _serialize_qr_order(qr_order),
+    return _save_public_order(
+        fields={
+            'tenant': tenant, 'store': store, 'table': None,
+            'order_type': QROrder.OrderType.TAKEAWAY, 'status': QROrder.Status.PENDING,
+            'customer_name': customer_name, 'customer_phone': customer_phone,
+            'customer_note': customer_note, 'access_key': secrets.token_urlsafe(24),
+            'created_by_ip': client_ip or None,
         },
-        status=201,
+        prepared_items=prepared_items, request_id=request_id, fingerprint=fingerprint, rate_key=rate_key,
     )
 
 
@@ -605,7 +647,7 @@ def api_public_qr_order_detail(request, order_id):
 
     with transaction.atomic():
         qr_order = get_object_or_404(
-            QROrder.objects.select_for_update().select_related('table', 'store', 'tenant'),
+            QROrder.objects.select_for_update(of=('self',)).select_related('table', 'store', 'tenant'),
             id=order_id,
             **order_filters,
         )
@@ -652,7 +694,7 @@ def api_public_qr_order_cancel(request, order_id):
 
     with transaction.atomic():
         qr_order = get_object_or_404(
-            QROrder.objects.select_for_update().select_related('table', 'store'),
+            QROrder.objects.select_for_update(of=('self',)).select_related('table', 'store'),
             id=order_id,
             **order_filters,
         )

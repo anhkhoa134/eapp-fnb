@@ -5,7 +5,7 @@ from decimal import Decimal
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.conf import settings
-from django.test import TestCase, override_settings
+from django.test import TransactionTestCase, override_settings
 from django.urls import reverse
 
 from App_Accounts.models import User
@@ -30,7 +30,7 @@ def _ws(path, headers=()):
         }
     }
 )
-class PosWebSocketTests(TestCase):
+class PosWebSocketTests(TransactionTestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(name='WS Tenant', public_slug='ws-tenant')
         self.store_1 = Store.objects.create(tenant=self.tenant, name='Store 1', is_default=True)

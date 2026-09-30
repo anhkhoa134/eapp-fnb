@@ -492,6 +492,25 @@ class PublicTakeawayApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['order']['status'], QROrder.Status.CANCELLED)
 
+    def test_customer_can_edit_pending_takeaway_without_table(self):
+        body = self._create().json()
+        res = self.client.patch(
+            reverse('App_Public_API:qr_orders_detail', kwargs={'order_id': body['qr_order_id']}),
+            data=json.dumps({
+                'access_key': body['access_key'],
+                'note': 'Đổi thành 3 ly',
+                'items': [{'product_id': self.product.id, 'unit_id': self.unit.id, 'quantity': 3}],
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(res.status_code, 200)
+        order = QROrder.objects.get(pk=body['qr_order_id'])
+        self.assertIsNone(order.table_id)
+        self.assertEqual(order.status, QROrder.Status.PENDING)
+        self.assertEqual(order.customer_note, 'Đổi thành 3 ly')
+        self.assertEqual(order.items.get().quantity, 3)
+        self.assertEqual(res.json()['order']['total'], 105000.0)
+
     def test_takeaway_order_rate_limited_per_ip(self):
         from App_Public import views as public_views
 

@@ -90,7 +90,10 @@ def _parse_json_request(request):
 
 def _parse_decimal(raw_value, *, default='0', field='value'):
     try:
-        return Decimal(str(raw_value if raw_value is not None else default))
+        value = Decimal(str(raw_value if raw_value is not None else default))
+        if not value.is_finite():
+            raise ValueError
+        return value
     except (InvalidOperation, TypeError, ValueError):
         raise ValueError(f'{field} không hợp lệ.')
 
@@ -158,9 +161,12 @@ def _table_cart_summary(table: DiningTable):
     }
 
 
-def _get_accessible_table_or_403(user, table_id):
+def _get_accessible_table_or_403(user, table_id, *, lock=False):
+    tables = DiningTable.objects.select_related('store', 'tenant').filter(tenant=user.tenant, is_active=True)
+    if lock:
+        tables = tables.select_for_update(of=('self',))
     table = get_object_or_404(
-        DiningTable.objects.select_related('store', 'tenant').filter(tenant=user.tenant, is_active=True),
+        tables,
         id=table_id,
     )
     if not get_user_accessible_stores(user).filter(id=table.store_id).exists():
@@ -778,6 +784,8 @@ def api_checkout(request):
     request_id = _parse_client_request_id(payload)
     replayed = _find_replayed_order(user.tenant, request_id)
     if replayed:
+        if replayed.store_id != store.id:
+            return _json_error('Mã thanh toán đã được dùng cho giao dịch khác.', 400)
         return _checkout_response(replayed, replayed=True)
 
     items = payload.get('items') or []
@@ -960,6 +968,8 @@ def api_checkout(request):
         # Hai request cùng mã thanh toán chạy song song: trả về đơn của request đã ghi trước.
         replayed = _find_replayed_order(user.tenant, request_id)
         if replayed:
+            if replayed.store_id != store.id:
+                return _json_error('Mã thanh toán đã được dùng cho giao dịch khác.', 400)
             return _checkout_response(replayed, replayed=True)
         raise
 
@@ -1074,9 +1084,10 @@ def api_table_cart(request, table_id):
 @login_required
 @staff_or_manager_required
 @require_POST
+@transaction.atomic
 def api_table_cart_add(request, table_id):
     user = request.user
-    table = _get_accessible_table_or_403(user, table_id)
+    table = _get_accessible_table_or_403(user, table_id, lock=True)
     if not table:
         return _json_error('Không có quyền truy cập bàn này.', 403)
 
@@ -1140,9 +1151,10 @@ def api_table_cart_add(request, table_id):
 @login_required
 @staff_or_manager_required
 @require_POST
+@transaction.atomic
 def api_table_import_takeaway(request, table_id):
     user = request.user
-    table = _get_accessible_table_or_403(user, table_id)
+    table = _get_accessible_table_or_403(user, table_id, lock=True)
     if not table:
         return _json_error('Không có quyền truy cập bàn này.', 403)
 
@@ -1223,6 +1235,7 @@ def api_table_import_takeaway(request, table_id):
 @login_required
 @staff_or_manager_required
 @require_POST
+@transaction.atomic
 def api_table_cart_move_to(request, table_id):
     user = request.user
     from_table = _get_accessible_table_or_403(user, table_id)
@@ -1247,6 +1260,11 @@ def api_table_cart_move_to(request, table_id):
     if to_table.store_id != from_table.store_id:
         return _json_error('Không thể chuyển giỏ giữa hai cửa hàng khác nhau.', 400)
 
+    # Lock both tables in a stable order before reading their carts, including
+    # empty carts, so moving and checkout cannot lose or duplicate items.
+    list(DiningTable.objects.select_for_update().filter(
+        pk__in=[from_table.pk, to_table.pk],
+    ).order_by('pk'))
     items = list(
         TableCartItem.objects.filter(table=from_table)
         .select_related('unit', 'product')
@@ -1335,9 +1353,10 @@ def _log_cart_void(request, item: TableCartItem, removed_quantity: int):
 @login_required
 @staff_or_manager_required
 @require_http_methods(['PATCH', 'DELETE'])
+@transaction.atomic
 def api_table_cart_item(request, table_id, item_id):
     user = request.user
-    table = _get_accessible_table_or_403(user, table_id)
+    table = _get_accessible_table_or_403(user, table_id, lock=True)
     if not table:
         return _json_error('Không có quyền truy cập bàn này.', 403)
 
@@ -1445,6 +1464,8 @@ def api_table_checkout(request, table_id):
     request_id = _parse_client_request_id(payload)
     replayed = _find_replayed_order(user.tenant, request_id)
     if replayed:
+        if replayed.store_id != table.store_id:
+            return _json_error('Mã thanh toán đã được dùng cho giao dịch khác.', 400)
         return _checkout_response(replayed, replayed=True, extra=table_extra)
 
     try:
@@ -1543,6 +1564,8 @@ def api_table_checkout(request, table_id):
     except IntegrityError:
         replayed = _find_replayed_order(user.tenant, request_id)
         if replayed:
+            if replayed.store_id != table.store_id:
+                return _json_error('Mã thanh toán đã được dùng cho giao dịch khác.', 400)
             return _checkout_response(replayed, replayed=True, extra=table_extra)
         raise
 
@@ -1646,7 +1669,11 @@ def api_qr_order_approve(request, order_id):
 
     with transaction.atomic():
         order = get_object_or_404(
-            QROrder.objects.select_for_update().select_related('table', 'store').prefetch_related('items', 'items__toppings'),
+            # The nullable table relation uses an outer join; PostgreSQL must
+            # lock only the QR order, not the nullable side of that join.
+            QROrder.objects.select_for_update(of=('self',))
+            .select_related('table', 'store')
+            .prefetch_related('items', 'items__toppings'),
             id=order_id,
             tenant=user.tenant,
         )
@@ -1672,6 +1699,9 @@ def api_qr_order_approve(request, order_id):
 
 def _approve_dine_in_qr_order(*, order, user, use_kitchen):
     """Đơn tại bàn: đưa món vào giỏ của bàn (và báo bếp nếu bật)."""
+    # Lock the table separately so concurrent approvals don't overwrite cart
+    # quantities, without locking the nullable side of an outer join.
+    order.table = DiningTable.objects.select_for_update().get(pk=order.table_id)
     kitchen_rows = []
     for qr_item in order.items.all():
         if not qr_item.unit_id or not qr_item.product_id:
@@ -1971,12 +2001,13 @@ def api_kitchen_ticket_complete(request, ticket_id):
 @login_required
 @staff_or_manager_required
 @require_POST
+@transaction.atomic
 def api_table_kitchen_send(request, table_id):
     user = request.user
     if not kitchen.kitchen_enabled(user.tenant):
         return _kitchen_disabled_error()
 
-    table = _get_accessible_table_or_403(user, table_id)
+    table = _get_accessible_table_or_403(user, table_id, lock=True)
     if not table:
         return _json_error('Không có quyền truy cập bàn này.', 403)
 

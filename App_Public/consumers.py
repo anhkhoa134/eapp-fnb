@@ -53,6 +53,7 @@ class PublicQROrderConsumer(AsyncJsonWebsocketConsumer):
             access_key=access_key,
             order_type=QROrder.OrderType.TAKEAWAY,
             tenant__is_active=True,
+            store__is_active=True,
         ).exists()
 
     @database_sync_to_async

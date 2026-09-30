@@ -65,3 +65,32 @@ Giới hạn đầu vào: tối đa 100 dòng món, mỗi dòng 1–999 (400 khi
 2. Copy link QR hoặc tải PNG để in dán bàn.
 3. Nếu in hàng loạt, lọc store rồi bấm **In PDF khổ lớn**.
 4. Khi lộ token, dùng **Reset token** và in lại QR.
+
+## Chống gửi trùng khi tạo đơn (migration `0014_qr_order_idempotency`)
+
+Áp dụng cho cả `POST /api/public/qr/orders/` và `POST /api/public/takeaway/orders/`.
+Giao diện gửi `client_request_id` là UUID v4 ngẫu nhiên, lưu cùng nội dung yêu cầu
+và giỏ hàng trong localStorage trước khi gửi. Khi chưa nhận được xác nhận, giỏ được
+giữ nguyên; nút **Kiểm tra đơn đã gửi** gửi lại chính yêu cầu đó, kể cả sau khi tải
+lại trang. Nếu trình duyệt không lưu được dữ liệu khôi phục, chưa gửi request.
+
+- Lần đầu: HTTP `201`, `replayed: false`.
+- Cùng mã và nội dung ban đầu: HTTP `200`, `replayed: true`, cùng `qr_order_id`
+  và cùng `access_key` với đơn mang đi. Trả trạng thái hiện tại nếu quán đã duyệt.
+- Cùng mã nhưng khác nội dung/bàn/cửa hàng/loại đơn: HTTP `409`, không trả dữ liệu
+  đơn trước. Token QR vẫn phải hợp lệ trước khi khôi phục đơn tại bàn.
+- Ràng buộc unique `(tenant, client_request_id)` trong DB ngăn hai worker tạo
+  trùng. Lưu đơn, món và tăng bộ đếm giới hạn đặt mang đi cùng một transaction.
+  Yêu cầu gửi lại không tăng bộ đếm và không phát lại thông báo tạo đơn.
+- Khi đã nhận được đơn, trình duyệt xóa yêu cầu đang chờ; lần đặt mới dùng mã mới.
+  Giữ nguyên mã khi lỗi mạng, HTTP 5xx hoặc 409; lỗi kiểm tra đầu vào có thể sửa
+  rồi gửi yêu cầu mới.
+
+API tiếp tục nhận request không có mã để tương thích trang/API client cũ; các
+request này **không được chống trùng**. Sau triển khai, tải lại trang để dùng mã
+mới. Client tích hợp phải gửi UUID v4 và giữ nguyên mã/nội dung khi retry.
+
+Triển khai: `python manage.py migrate`, `python manage.py collectstatic --noinput`,
+rồi restart Gunicorn và Daphne. Test backend:
+`python manage.py test App_Public.tests_idempotency`; test JavaScript:
+`node --test scripts/tests/public_order_request.test.cjs scripts/tests/public_order_ui.test.cjs`.

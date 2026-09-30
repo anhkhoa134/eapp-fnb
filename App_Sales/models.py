@@ -424,6 +424,8 @@ class QROrder(TimeStampedModel):
         help_text='Hoá đơn POS đã thu tiền cho đơn mang đi.',
     )
     customer_note = models.CharField(max_length=255, blank=True)
+    client_request_id = models.UUIDField('Mã yêu cầu đặt món', null=True, blank=True, editable=False)
+    request_fingerprint = models.CharField(max_length=64, blank=True, editable=False)
     created_by_ip = models.GenericIPAddressField(null=True, blank=True)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -443,6 +445,13 @@ class QROrder(TimeStampedModel):
     resolved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'client_request_id'],
+                condition=models.Q(client_request_id__isnull=False),
+                name='uq_qr_order_tenant_request',
+            ),
+        ]
         indexes = [
             models.Index(fields=['tenant', 'store', 'status', 'created_at']),
             models.Index(fields=['table', 'status', 'created_at']),

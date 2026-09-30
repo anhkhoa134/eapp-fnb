@@ -240,7 +240,7 @@ def create_refund(*, order: Order, amount: Decimal, method: str, reason: str, us
         raise ValidationError('Số tiền hoàn phải lớn hơn 0.')
 
     with transaction.atomic():
-        order = Order.objects.select_for_update().select_related('store', 'customer').get(pk=order.pk)
+        order = Order.objects.select_for_update(of=('self',)).select_related('store', 'customer').get(pk=order.pk)
         if order.status == Order.Status.CANCELLED:
             raise ValidationError('Đơn đã huỷ, không thể hoàn tiền.')
         refundable = order.refundable_amount

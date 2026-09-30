@@ -51,6 +51,10 @@ Thuộc tính: `is_takeaway`, `display_label` (tên bàn, hoặc `"Mang đi · <
 | `PATCH` | `qr/orders/<id>/` | Body có `access_key`, chỉ khi còn `PENDING` |
 | `POST` | `qr/orders/<id>/cancel/` | Body có `access_key`, chỉ khi còn `PENDING` |
 
+Giao diện tạo đơn gửi thêm `client_request_id` (UUID v4) để chống gửi trùng khi
+mất phản hồi mạng. Gửi lại cùng mã/nội dung trả HTTP 200 với cùng đơn và access key;
+dùng lại mã với nội dung khác trả 409. Xem [quy ước chống gửi trùng](1_qr_public_and_qr_admin.md#chống-gửi-trùng-khi-tạo-đơn-migration-0014_qr_order_idempotency).
+
 Kiểm tra đầu vào khi tạo đơn:
 - Tên bắt buộc. SĐT theo mẫu `^(\+?84|0)\d{8,10}$`.
 - Món phải thuộc store, đang bán và danh mục đang hiển thị ở store (giống đơn QR).

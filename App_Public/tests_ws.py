@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.testing import WebsocketCommunicator
-from django.test import TestCase, override_settings
+from django.test import TransactionTestCase, override_settings
 from django.urls import reverse
 
 from App_Accounts.models import User
@@ -28,7 +28,9 @@ def _ws(path, headers=()):
         }
     }
 )
-class PublicQrWebSocketTests(TestCase):
+class PublicQrWebSocketTests(TransactionTestCase):
+    # Channels closes old DB connections; don't wrap the whole class in the
+    # shared transaction used by TestCase (it gets closed on PostgreSQL).
     def setUp(self):
         self.tenant = Tenant.objects.create(name='Public WS Tenant', public_slug='public-ws')
         self.store = Store.objects.create(tenant=self.tenant, name='Store WS', is_default=True)
@@ -96,6 +98,22 @@ class PublicQrWebSocketTests(TestCase):
             connected, _ = await valid.connect()
             self.assertTrue(connected)
             await valid.disconnect()
+
+        async_to_sync(scenario)()
+
+    def test_takeaway_socket_rejects_inactive_store(self):
+        takeaway = QROrder.objects.create(
+            tenant=self.tenant, store=self.store, order_type=QROrder.OrderType.TAKEAWAY,
+            access_key='audit-takeaway-key',
+        )
+        self.store.is_active = False
+        self.store.save(update_fields=['is_active'])
+
+        async def scenario():
+            communicator = _ws(f'/ws/public/qr/order/{takeaway.id}/?access_key={takeaway.access_key}')
+            connected, _ = await communicator.connect()
+            self.assertFalse(connected)
+            await communicator.disconnect()
 
         async_to_sync(scenario)()
 

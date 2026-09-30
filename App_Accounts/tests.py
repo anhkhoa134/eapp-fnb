@@ -128,7 +128,7 @@ class SignupTests(TestCase):
         self.assertIn('username', res.context['form'].errors)
 
     def test_signup_long_store_name_gets_slug_within_limit(self):
-        long_name = 'Quán ' + 'a' * 145
+        long_name = 'Quán ' + 'a' * 115
         self._post_signup(store_name=long_name, username='dai1')
         self.client.logout()
         self._post_signup(store_name=long_name, username='dai2')
@@ -136,6 +136,11 @@ class SignupTests(TestCase):
         self.assertEqual(len(slugs), 2)
         self.assertEqual(len(set(slugs)), 2)
         self.assertTrue(all(len(slug) <= 120 for slug in slugs))
+
+    def test_signup_rejects_store_name_exceeding_database_limit(self):
+        res = self._post_signup(store_name='a' * 121)
+        self.assertIn('store_name', res.context['form'].errors)
+        self.assertFalse(User.objects.exists())
 
     @override_settings(SIGNUP_LIMIT_PER_IP=2, LOGIN_TRUST_X_REAL_IP=False)
     def test_signup_rate_limited_per_ip(self):

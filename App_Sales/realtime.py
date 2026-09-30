@@ -21,17 +21,17 @@ def public_qr_order_group_name(order_id):
 def _safe_group_send(group_name, event):
     global _channel_layer_retry_after
 
-    channel_layer = get_channel_layer()
-    if not channel_layer:
-        return
-
-    using_inmemory = channel_layer.__class__.__name__ == 'InMemoryChannelLayer'
-    if using_inmemory:
-        _channel_layer_retry_after = 0.0
-    elif time.monotonic() < _channel_layer_retry_after:
-        return
-
     try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+
+        using_inmemory = channel_layer.__class__.__name__ == 'InMemoryChannelLayer'
+        if using_inmemory:
+            _channel_layer_retry_after = 0.0
+        elif time.monotonic() < _channel_layer_retry_after:
+            return
+
         async_to_sync(channel_layer.group_send)(group_name, event)
     except Exception:
         _channel_layer_retry_after = time.monotonic() + _CHANNEL_LAYER_BACKOFF_SECONDS
