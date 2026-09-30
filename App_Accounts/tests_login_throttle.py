@@ -1,13 +1,51 @@
 from datetime import timedelta
 
 from django.contrib.admin.sites import site
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from App_Accounts.admin import LoginAttemptAdmin
+from App_Accounts.login_throttle import get_client_ip
 from App_Accounts.models import LoginAttempt, User
 from App_Tenant.models import Store, Tenant, UserStoreAccess
+
+
+@override_settings(LOGIN_TRUST_X_REAL_IP=True)
+class ClientIpTests(SimpleTestCase):
+    def test_trusted_ip_and_identical_proxy_duplicates(self):
+        for header, expected in [
+            ('203.0.113.5', '203.0.113.5'),
+            ('203.0.113.5,203.0.113.5', '203.0.113.5'),
+            (' 203.0.113.5, 203.0.113.5 ', '203.0.113.5'),
+            ('2001:db8::1', '2001:db8::1'),
+            ('2001:db8::1, 2001:0db8::1', '2001:db8::1'),
+        ]:
+            with self.subTest(header=header):
+                request = RequestFactory().get('/', HTTP_X_REAL_IP=header)
+                self.assertEqual(get_client_ip(request), expected)
+
+    def test_invalid_or_ambiguous_header_falls_back_to_peer(self):
+        for header in ['', 'unknown', '203.0.113.5:443', '203.0.113.5, unknown',
+                       '203.0.113.5, 203.0.113.6', 'fe80::1%eth0']:
+            with self.subTest(header=header):
+                request = RequestFactory().get('/', HTTP_X_REAL_IP=header, REMOTE_ADDR='127.0.0.1')
+                self.assertEqual(get_client_ip(request), '127.0.0.1')
+
+    def test_missing_or_invalid_peer_returns_empty_ip(self):
+        for peer in ['', 'unix:', 'unknown', '127.0.0.1,127.0.0.1']:
+            with self.subTest(peer=peer):
+                request = RequestFactory().get('/', REMOTE_ADDR=peer)
+                self.assertEqual(get_client_ip(request), '')
+        self.assertEqual(get_client_ip(None), '')
+
+    @override_settings(LOGIN_TRUST_X_REAL_IP=False)
+    def test_untrusted_proxy_headers_are_ignored(self):
+        request = RequestFactory().get(
+            '/', HTTP_X_REAL_IP='203.0.113.5', HTTP_X_FORWARDED_FOR='203.0.113.6',
+            REMOTE_ADDR='127.0.0.1',
+        )
+        self.assertEqual(get_client_ip(request), '127.0.0.1')
 
 
 @override_settings(LOGIN_FAILURE_LIMIT=3, LOGIN_LOCKOUT_MINUTES=15, LOGIN_TRUST_X_REAL_IP=False)

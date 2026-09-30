@@ -1,6 +1,7 @@
 """Khoá tạm đăng nhập theo username + IP sau nhiều lần sai (BL-002)."""
 
 from datetime import timedelta
+from ipaddress import ip_address
 
 from django.conf import settings
 from django.db import transaction
@@ -21,14 +22,32 @@ def normalize_username(username) -> str:
     return (username or '').strip().lower()[:150]
 
 
+def _normalize_ip(raw) -> str:
+    raw = (raw or '').strip()
+    # Scoped IPv6 addresses are not suitable for the database's inet column.
+    if '%' in raw:
+        return ''
+    try:
+        return str(ip_address(raw))
+    except ValueError:
+        return ''
+
+
 def get_client_ip(request) -> str:
+    """Return one valid IP, or empty when the request has no usable address."""
     if request is None:
         return ''
     if settings.LOGIN_TRUST_X_REAL_IP:
-        real_ip = (request.META.get('HTTP_X_REAL_IP') or '').strip()
-        if real_ip:
-            return real_ip[:45]
-    return (request.META.get('REMOTE_ADDR') or '')[:45]
+        # Proxies can emit the same X-Real-IP header more than once; the server
+        # combines them with commas. Accept identical IPs, but don't guess when
+        # the header contains conflicting addresses or malformed values.
+        real_ips = {
+            _normalize_ip(value)
+            for value in (request.META.get('HTTP_X_REAL_IP') or '').split(',')
+        }
+        if len(real_ips) == 1 and '' not in real_ips:
+            return real_ips.pop()
+    return _normalize_ip(request.META.get('REMOTE_ADDR'))
 
 
 def locked_until(username, ip_address):

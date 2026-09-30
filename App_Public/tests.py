@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from App_Accounts.models import User
@@ -110,7 +110,7 @@ class PublicQrApiTests(TestCase):
             display_order=1,
         )
 
-    def _create_pending_order(self, note='Gọi thêm đá riêng'):
+    def _create_pending_order(self, note='Gọi thêm đá riêng', **request_headers):
         url = reverse('App_Public_API:qr_orders_create')
         payload = {
             'table_code': self.table.code,
@@ -126,7 +126,7 @@ class PublicQrApiTests(TestCase):
                 }
             ],
         }
-        res = self.client.post(url, data=json.dumps(payload), content_type='application/json')
+        res = self.client.post(url, data=json.dumps(payload), content_type='application/json', **request_headers)
         self.assertEqual(res.status_code, 201)
         return res.json()['qr_order_id']
 
@@ -142,6 +142,18 @@ class PublicQrApiTests(TestCase):
         self.assertEqual(order.items.first().quantity, 2)
         self.assertEqual(order.items.first().line_total, Decimal('94000'))
         self.assertEqual(QROrderItemTopping.objects.filter(qr_order_item=order.items.first()).count(), 1)
+
+    @override_settings(LOGIN_TRUST_X_REAL_IP=True)
+    def test_public_qr_create_with_duplicate_proxy_ip(self):
+        order_id = self._create_pending_order(HTTP_X_REAL_IP='203.0.113.5,203.0.113.5')
+        order = QROrder.objects.get(pk=order_id)
+        self.assertEqual(order.created_by_ip, '203.0.113.5')
+        self.assertEqual(order.items.count(), 1)
+
+    @override_settings(LOGIN_TRUST_X_REAL_IP=True)
+    def test_public_qr_create_with_unusable_ip(self):
+        order_id = self._create_pending_order(HTTP_X_REAL_IP='unknown', REMOTE_ADDR='')
+        self.assertIsNone(QROrder.objects.get(pk=order_id).created_by_ip)
 
     def test_public_qr_rejects_create_when_qr_feature_disabled(self):
         self.tenant.show_qr_order_feature = False
@@ -445,6 +457,18 @@ class PublicTakeawayApiTests(TestCase):
         self.assertEqual(order.customer_phone, '0901234567')
         self.assertEqual(body['access_key'], order.access_key)
         self.assertEqual(body['order']['total'], 70000.0)
+
+    @override_settings(LOGIN_TRUST_X_REAL_IP=True)
+    def test_create_takeaway_with_duplicate_proxy_ip(self):
+        res = self.client.post(
+            reverse('App_Public_API:takeaway_orders_create'),
+            data=json.dumps(self._payload()),
+            content_type='application/json',
+            HTTP_X_REAL_IP='203.0.113.5,203.0.113.5',
+        )
+        self.assertEqual(res.status_code, 201)
+        order = QROrder.objects.get(pk=res.json()['qr_order_id'])
+        self.assertEqual(order.created_by_ip, '203.0.113.5')
 
     def test_create_takeaway_requires_valid_phone_and_name(self):
         self.assertEqual(self._create(customer_phone='12ab').status_code, 400)
