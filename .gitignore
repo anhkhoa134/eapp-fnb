@@ -56,3 +56,10 @@ venv.bak/
 *.swp
 *.swo
 .DS_Store
+
+# Local/Coolify env files stay out of git; only templates are tracked
+.env
+.env.*
+!.env.example
+!.env.coolify.example
+!Project/.env.example
