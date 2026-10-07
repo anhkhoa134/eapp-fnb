@@ -123,7 +123,9 @@ JAZZMIN_SETTINGS = {
 }
 
 MIDDLEWARE = [
+    'Project.health.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     # Trước CommonMiddleware để APPEND_SLASH (404→301) chạy trước khi đổi 404→redirect.
     'App_Core.middleware.NotFoundRedirectMiddleware',
@@ -217,6 +219,11 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    # not Manifest: PWA manifest/tests use the plain icon names (production served unhashed files)
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 

@@ -1,23 +1,12 @@
-# eApp FnB — dependency đang dùng thực tế (pin theo virtualenv env_10_web, Python 3.10).
-# Khi nâng cấp: cập nhật đồng thời docs/setup/2_tech_stack.md.
-
-# Core
-Django==5.0.7
-
-# ASGI / WebSocket realtime (INSTALLED_APPS: daphne, channels; CHANNEL_LAYERS: channels_redis)
+# Versions = production (VPS 2 env_10_web, Python 3.10), plus WhiteNoise for static files in the container.
+Django==5.2.17
 channels==4.3.0
 channels-redis==4.3.0
 daphne==4.2.1
-
-# Quản lý: import Excel, ảnh sản phẩm, QR bàn (PNG) và in PDF
-openpyxl==3.1.5
-Pillow==10.4.0
+openpyxl==3.1.2
+Pillow==12.3.0
 qrcode==8.2
-reportlab==4.0.8
-
-# Production: WSGI server + driver PostgreSQL (ENVIRONMENT=prod)
-gunicorn==21.2.0
+reportlab==4.4.3
 psycopg2-binary==2.9.9
-
-# Tuỳ chọn: giao diện Django Admin (settings tự bật nếu đã cài)
 django-jazzmin==3.0.1
+whitenoise==6.12.0
