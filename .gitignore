@@ -63,3 +63,10 @@ venv.bak/
 !.env.example
 !.env.coolify.example
 !Project/.env.example
+
+# Junk & secrets (common rules for all sites)
+*.sqlite3-wal
+*.sqlite3-shm
+*@gmail.com.json
+*@gmail.com
+*service-account*.json
