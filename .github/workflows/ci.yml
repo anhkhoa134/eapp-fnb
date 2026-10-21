@@ -1,0 +1,79 @@
+# CI tối giản cho app Django trong hệ sinh thái eApp.
+# Bản gốc dùng chung: Drive "5. Self-hosted-infrastructure/GitHub-Actions/django-ci.yml" (README cùng thư mục).
+# Mỗi repo CHỈ sửa khối giữa "app env" bên dưới; phần còn lại giữ y hệt bản gốc để đồng bộ bằng sync-ci.py.
+# Coolify vẫn tự deploy khi push main: CI báo lỗi, không chặn deploy.
+name: CI
+
+on:
+  pull_request:
+    paths-ignore: ["**.md", "docs/**"]
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # >>> app env
+  PYTHON_VERSION: "3.10"
+  PIP_INSTALL_ARGS: ""
+  APT_PACKAGES: ""
+  COLLECTSTATIC: "0"
+  SPARSE_CHECKOUT: ""
+  # dev + không đặt POSTGRES_DB = SQLite. Trên Postgres 2 test websocket (BlockedTenantWebSocketTests:
+  # inactive tenant / expired subscription) lỗi "connection already closed" — cần sửa test trước khi chuyển.
+  ENVIRONMENT: dev
+  SECRET_KEY: ci-only-not-a-real-secret-key-0123456789abcdefghijklmn
+  # WebsocketCommunicator không gửi Origin; AllowedHostsOriginValidator chỉ cho qua khi có "*"
+  ALLOWED_HOSTS: "*"
+  # <<< app env
+
+jobs:
+  django:
+    # Mặc định ubuntu-24.04 (ubuntu-latest đang lên 26.04: setup-python/apt có thể chưa có bản cho Python cũ).
+    # Đổi runner không cần sửa file: biến repo CI_RUNS_ON (JSON), VD '["self-hosted","vps3"]'.
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-24.04"') }}
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["127.0.0.1:5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ${{ env.SPARSE_CHECKOUT }}
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - if: env.APT_PACKAGES != ''
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends $APT_PACKAGES
+      - run: pip install -r requirements.txt $PIP_INSTALL_ARGS
+      - name: Lỗ hổng thư viện (chỉ báo; theo dõi chính bằng Dependabot alerts)
+        continue-on-error: true
+        run: |
+          pip freeze --exclude-editable > "$RUNNER_TEMP/installed.txt"
+          pip install -q pip-audit==2.10.1
+          pip-audit -r "$RUNNER_TEMP/installed.txt" --no-deps --disable-pip --progress-spinner off
+      - name: Django system check
+        run: python manage.py check
+      - name: Không thiếu migration (chỉ app trong repo, bỏ qua thư viện bên thứ ba)
+        run: |
+          apps=$(python manage.py shell -c "import os; from django.apps import apps; print(' '.join(a.label for a in apps.get_app_configs() if a.path.startswith(os.getcwd()) and 'site-packages' not in a.path))" | tail -n 1)
+          echo "apps: $apps"
+          python manage.py makemigrations --check --dry-run $apps
+      - if: env.COLLECTSTATIC == '1'
+        run: python manage.py collectstatic --noinput
+      - name: Test
+        run: python manage.py test --noinput
