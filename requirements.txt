@@ -1,12 +1,12 @@
 # Versions = production (VPS 2 env_10_web, Python 3.10), plus WhiteNoise for static files in the container.
-Django==5.2.17
+Django==5.2.18
 channels==4.3.0
 channels-redis==4.3.0
 # redis-py as in production: with 8.x the channel layer read times out every ~5 s (WebSocket drops)
 redis==5.0.1
-daphne==4.2.1
+daphne==4.2.3
 openpyxl==3.1.2
-Pillow==12.3.0
+Pillow==13.0.0
 qrcode==8.2
 reportlab==4.4.3
 psycopg2-binary==2.9.9
