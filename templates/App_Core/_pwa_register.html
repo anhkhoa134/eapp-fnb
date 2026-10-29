@@ -1,6 +1,8 @@
 <script>
 (function () {
     let deferredInstallPrompt = null;
+    let installBusy = false;
+    let installed = false;
 
     const isStandalone = function () {
         return (
@@ -26,11 +28,13 @@
     const setInstallItemsVisible = function (visible) {
         getInstallItems().forEach(function (item) {
             item.classList.toggle('d-none', !visible);
+            const label = item.querySelector('[data-pwa-install-label]');
+            if (label) label.textContent = deferredInstallPrompt ? 'Cài ứng dụng' : 'Hướng dẫn cài đặt';
         });
     };
 
     const canShowInstallAction = function () {
-        if (isStandalone()) return false;
+        if (installed || installBusy || isStandalone()) return false;
         return Boolean(deferredInstallPrompt) || isIosSafari();
     };
 
@@ -75,28 +79,27 @@
         }
     };
 
-    const handleInstallClick = function (event) {
+    const handleInstallClick = async function (event) {
         event.preventDefault();
-        if (isStandalone()) {
-            refreshInstallAction();
-            return;
-        }
-
+        if (installed || installBusy || isStandalone()) { refreshInstallAction(); return; }
         if (deferredInstallPrompt) {
             const promptEvent = deferredInstallPrompt;
             deferredInstallPrompt = null;
-            promptEvent.prompt();
-            if (promptEvent.userChoice && typeof promptEvent.userChoice.finally === 'function') {
-                promptEvent.userChoice.finally(refreshInstallAction);
-            } else {
+            installBusy = true;
+            refreshInstallAction();
+            try {
+                await promptEvent.prompt();
+                const choice = await promptEvent.userChoice;
+                if (choice?.outcome === 'accepted') { installed = true; deferredInstallPrompt = null; }
+            } catch (error) {
+                console.warn('Không thể mở hộp thoại cài đặt:', error);
+            } finally {
+                installBusy = false;
                 refreshInstallAction();
             }
             return;
         }
-
-        if (isIosSafari()) {
-            showIosInstallGuide();
-        }
+        if (isIosSafari()) showIosInstallGuide();
     };
 
     const bindInstallActions = function () {
@@ -119,11 +122,13 @@
 
     window.addEventListener('beforeinstallprompt', function (event) {
         event.preventDefault();
+        if (installed || isStandalone()) return;
         deferredInstallPrompt = event;
         refreshInstallAction();
     });
 
     window.addEventListener('appinstalled', function () {
+        installed = true;
         deferredInstallPrompt = null;
         refreshInstallAction();
     });

@@ -5,6 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <meta name="description" content="eApp FnB — Phần mềm quản lý nhà hàng, quán cafe, order tại bàn qua QR code chuyên nghiệp.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="eApp FnB — Giải pháp quản lý nhà hàng & quán cafe">
+    <meta property="og:description" content="eApp FnB — Phần mềm quản lý nhà hàng, quán cafe, order tại bàn qua QR code chuyên nghiệp.">
+    <meta property="og:site_name" content="eApp FnB">
+    <meta property="og:url" content="{{ request.build_absolute_uri|default:'' }}">
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/seo/E-App.webp' %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="eApp FnB — Giải pháp quản lý nhà hàng & quán cafe">
+    <meta name="twitter:description" content="eApp FnB — Phần mềm quản lý nhà hàng, quán cafe, order tại bàn qua QR code chuyên nghiệp.">
+    <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/seo/E-App.webp' %}">
     <link rel="icon" type="image/x-icon" href="{% static 'pwa/icons/fnb-favicon.ico' %}">
     {% include 'App_Core/_pwa_head.html' %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -143,8 +154,73 @@
             background: linear-gradient(140deg, rgba(16, 185, 129, 0.18), rgba(59, 130, 246, 0.18));
             color: #0f172a;
         }
-    </style>
+    
+/* Account Live & Reload Status Indicator */
+.account-live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    transition: all 0.2s ease;
+}
+.account-live-indicator.live {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.28);
+}
+.account-live-indicator.offline {
+    background-color: rgba(148, 163, 184, 0.15);
+    color: #64748b;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+.account-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.account-live-indicator.live .account-live-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: account-live-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+.account-live-indicator.offline .account-live-dot {
+    background-color: #94a3b8;
+    box-shadow: none;
+    animation: none;
+}
+@keyframes account-live-pulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+@keyframes account-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.account-spin {
+    animation: account-spin 0.8s linear infinite;
+    display: inline-block;
+}
+
+</style>
     {% block extra_css %}{% endblock %}
+    {% include 'App_Core/_dropdown_assets.html' %}
 </head>
 <body class="bg-light {% block body_class %}{% endblock %}">
 <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
@@ -199,7 +275,19 @@
 
                     <li class="js-pwa-install-action d-none">
                         <button class="dropdown-item account-action mx-2" type="button">
-                            <span class="account-icon-pill"><i class="bi bi-download"></i></span>Cài ứng dụng
+                            <span class="account-icon-pill"><i class="bi bi-download"></i></span><span data-pwa-install-label>Cài ứng dụng</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="dropdown-item account-action mx-2 d-flex align-items-center justify-content-between gap-2" id="accountReloadBtn" onclick="handleAccountReload(this)">
+                            <span class="d-inline-flex align-items-center gap-2">
+                                <span class="account-icon-pill"><i class="bi bi-arrow-clockwise account-reload-icon"></i></span>
+                                <span>Tải lại</span>
+                            </span>
+                            <span class="account-live-indicator live" id="accountLiveStatus" title="Hệ thống đang kết nối trực tiếp">
+                                <span class="account-live-dot" aria-hidden="true"></span>
+                                <span class="account-live-text">Live</span>
+                            </span>
                         </button>
                     </li>
 

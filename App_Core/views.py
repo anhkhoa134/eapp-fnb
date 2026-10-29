@@ -48,7 +48,7 @@ def _abs_static(request, relative_path: str) -> str:
 # và cookie phải riêng để không lẫn khi cài app hoặc khi chạy dev chung host.
 PWA_APP_ID = '/'  # Giữ nguyên: đổi id làm app đã cài trên máy người dùng thành "app khác".
 PWA_CACHE_PREFIX = 'eapp-fnb-'
-PWA_CACHE_NAME = f'{PWA_CACHE_PREFIX}v3'
+PWA_CACHE_NAME = f'{PWA_CACHE_PREFIX}v4'
 PWA_ICON_SIZES = (72, 96, 128, 144, 152, 180, 192, 384, 512)
 PWA_MASKABLE_SIZES = (192, 512)
 
@@ -126,6 +126,9 @@ const PRECACHE_URLS = [
   '/offline/',
   '/manifest.webmanifest',
   '/static/__ICON_192__',
+  '/static/css/dropdowns.css',
+  '/static/css/dropdowns-fnb.css',
+  '/static/js/dropdowns.js',
 ];
 
 self.addEventListener('install', (event) => {

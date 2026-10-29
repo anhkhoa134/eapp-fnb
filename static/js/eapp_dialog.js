@@ -166,3 +166,37 @@
         });
     });
 })();
+
+
+// Account Live & Reload Status Handler
+function updateAccountLiveState() {
+    const isOnline = navigator.onLine;
+    const indicators = document.querySelectorAll('.account-live-indicator');
+    indicators.forEach(indicator => {
+        const text = indicator.querySelector('.account-live-text');
+        if (isOnline) {
+            indicator.classList.remove('offline');
+            indicator.classList.add('live');
+            if (text) text.textContent = 'Live';
+            indicator.setAttribute('title', 'Hệ thống đang kết nối trực tiếp');
+        } else {
+            indicator.classList.remove('live');
+            indicator.classList.add('offline');
+            if (text) text.textContent = 'Offline';
+            indicator.setAttribute('title', 'Mất kết nối Internet hoặc máy chủ ngoại tuyến');
+        }
+    });
+}
+window.addEventListener('online', updateAccountLiveState);
+window.addEventListener('offline', updateAccountLiveState);
+document.addEventListener('DOMContentLoaded', updateAccountLiveState);
+
+function handleAccountReload(btn) {
+    const icon = btn ? (btn.querySelector('.account-reload-icon') || btn.querySelector('i')) : null;
+    if (icon) {
+        icon.classList.add('account-spin');
+    }
+    setTimeout(() => {
+        window.location.reload();
+    }, 150);
+}
