@@ -448,9 +448,11 @@
         <button type="button" class="k-icon-btn" id="kitchenFullscreen" title="Toàn màn hình" aria-label="Toàn màn hình">
             <i class="bi bi-arrows-fullscreen"></i>
         </button>
+        {% if not user.is_kitchen %}
         <a class="k-pos-btn" href="{% url 'App_Sales:pos' %}" title="Về màn hình bán hàng">
             <i class="bi bi-arrow-left"></i>Về POS
         </a>
+        {% endif %}
     </div>
 </div>
 

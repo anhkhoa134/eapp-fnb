@@ -30,7 +30,7 @@ from reportlab.pdfgen import canvas
 
 from App_Accounts.models import User
 from App_Accounts.forms import POSPasswordChangeForm
-from App_Accounts.permissions import manager_required, staff_or_manager_required
+from App_Accounts.permissions import kitchen_access_required, manager_required, staff_or_manager_required
 from App_Catalog.models import (
     Category,
     Ingredient,
@@ -575,6 +575,7 @@ def _filter_orders(request, tenant, *, report_errors=True):
             | Q(customer__name__icontains=selected_q)
             | Q(customer__phone__icontains=selected_q)
             | Q(promotion_snapshot_name__icontains=selected_q)
+            | Q(payment_reference__icontains=selected_q)
         )
     try:
         start_dt, end_dt = _parse_date_bounds(filters['date_from'], filters['date_to'])
@@ -1989,6 +1990,9 @@ def qr_table_list_create(request):
             'page_obj': page_obj,
             'query_string': _list_query_without_keys(request, 'page'),
             'open_create_modal': open_create_modal,
+            'table_areas': sorted(
+                set(DiningTable.objects.filter(tenant=tenant).exclude(area='').values_list('area', flat=True))
+            ),
         },
     )
 
@@ -2130,7 +2134,7 @@ def qr_tables_store_pdf(request):
 def staff_list_create(request):
     tenant = _tenant_or_404(request.user)
     staffs_qs = (
-        User.objects.filter(tenant=tenant, role=User.Role.STAFF)
+        User.objects.filter(tenant=tenant, role__in=User.EMPLOYEE_ROLES)
         .prefetch_related('store_accesses__store')
         .order_by('username')
     )
@@ -2165,7 +2169,7 @@ def staff_list_create(request):
             username=username,
             password=password,
             tenant=tenant,
-            role=User.Role.STAFF,
+            role=form.cleaned_data['role'],
             is_staff=False,
         )
 
@@ -2207,7 +2211,7 @@ def _sync_staff_store_access(*, staff_user, selected_stores, default_store):
 @manager_required
 def staff_edit(request, pk):
     tenant = _tenant_or_404(request.user)
-    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
+    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role__in=User.EMPLOYEE_ROLES)
     if request.method != 'POST':
         return redirect('App_Quanly:staffs')
 
@@ -2221,12 +2225,13 @@ def staff_edit(request, pk):
             default_store=default_store,
         )
         staff_user.is_active = form.cleaned_data['is_active']
-        staff_user.save(update_fields=['is_active'])
+        staff_user.role = form.cleaned_data['role']
+        staff_user.save(update_fields=['is_active', 'role'])
         messages.success(request, f'Đã cập nhật nhân viên "{staff_user.username}".')
         return redirect('App_Quanly:staffs')
 
     staffs_qs = (
-        User.objects.filter(tenant=tenant, role=User.Role.STAFF)
+        User.objects.filter(tenant=tenant, role__in=User.EMPLOYEE_ROLES)
         .prefetch_related('store_accesses__store')
         .order_by('username')
     )
@@ -2250,7 +2255,7 @@ def staff_edit(request, pk):
 @require_POST
 def staff_delete(request, pk):
     tenant = _tenant_or_404(request.user)
-    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
+    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role__in=User.EMPLOYEE_ROLES)
     username = staff_user.username
     try:
         staff_user.delete()
@@ -2269,7 +2274,7 @@ def staff_delete(request, pk):
 @manager_required
 def staff_password_reset(request, pk):
     tenant = _tenant_or_404(request.user)
-    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role=User.Role.STAFF)
+    staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role__in=User.EMPLOYEE_ROLES)
     if request.method == 'POST':
         form = StaffPasswordResetForm(staff_user, request.POST)
         if form.is_valid():
@@ -2402,13 +2407,13 @@ def feature_settings(request):
     )
 
 
-@staff_or_manager_required
+@kitchen_access_required
 def account_settings(request):
     user = request.user
     if not user.tenant_id:
         raise Http404('Tài khoản chưa được gán doanh nghiệp')
 
-    role_label = 'Quản lý' if user.role == User.Role.MANAGER else 'Nhân viên'
+    role_label = user.get_role_display()
     tenant_obj = Tenant.objects.select_related('subscription_plan').get(pk=user.tenant_id)
 
     form_action = request.POST.get('form_action') if request.method == 'POST' else None

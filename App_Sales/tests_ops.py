@@ -472,3 +472,138 @@ class QaReportSalesTests(OpsTestBase):
         self.assertContains(page, 'Nguyễn Thị Khách')
         api = self.client.get(reverse('App_Sales_API:customers'), {'q': 'khach'}).json()
         self.assertEqual([row['name'] for row in api['customers']], ['Nguyễn Thị Khách'])
+
+    def test_card_payment_reference_saved_printed_and_searchable(self):
+        self.login(self.staff)
+        response = self.post_json(
+            reverse('App_Sales_API:checkout'),
+            {
+                'store_id': self.store.id,
+                'payment_method': 'card',
+                'customer_paid': '0',
+                'payment_reference': '  FT2610  889 ',
+                'items': [{'product_id': self.product.id, 'unit_id': self.unit.id, 'quantity': 1}],
+            },
+        )
+        order = Order.objects.get(pk=response.json()['order_id'])
+        self.assertEqual(order.payment_reference, 'FT2610 889')
+        self.assertContains(self.client.get(reverse('App_Sales:order_receipt', args=[order.id])), 'FT2610 889')
+        self.login(self.manager)
+        page = self.client.get(reverse('App_Quanly:orders'), {'q': 'FT2610'})
+        self.assertEqual(page.context['total_orders'], 1)
+
+        # Tiền mặt không lưu mã giao dịch.
+        self.login(self.staff)
+        cash = self.checkout_takeaway()
+        self.assertEqual(cash.payment_reference, '')
+
+    def test_split_and_merge_tables(self):
+        """UX-5: tách một số món sang bàn khác, gộp cả bàn vào bàn đang có khách."""
+        self.login(self.staff)
+        self.add_to_table(quantity=2)
+        espresso = Product.objects.create(tenant=self.tenant, name='Espresso')
+        espresso_unit = ProductUnit.objects.create(product=espresso, name='Ly', price=Decimal('25000'))
+        StoreProduct.objects.create(store=self.store, product=espresso, is_available=True)
+        self.post_json(
+            reverse('App_Sales_API:table_cart_add', args=[self.table.id]),
+            {'product_id': espresso.id, 'unit_id': espresso_unit.id, 'quantity': 1},
+        )
+        table_2 = DiningTable.objects.create(tenant=self.tenant, store=self.store, code='B02', name='Bàn 02')
+        move_url = reverse('App_Sales_API:table_cart_move_to', args=[self.table.id])
+        espresso_line = TableCartItem.objects.get(table=self.table, product=espresso)
+
+        self.assertEqual(self.post_json(move_url, {'to_table_id': table_2.id, 'item_ids': []}).status_code, 400)
+        split = self.post_json(move_url, {'to_table_id': table_2.id, 'item_ids': [espresso_line.id]}).json()
+        self.assertTrue(split['partial'])
+        self.assertEqual(list(TableCartItem.objects.filter(table=self.table).values_list('product_id', flat=True)), [self.product.id])
+        self.assertEqual(list(TableCartItem.objects.filter(table=table_2).values_list('product_id', flat=True)), [espresso.id])
+
+        merge = self.post_json(move_url, {'to_table_id': table_2.id}).json()
+        self.assertTrue(merge['merged'])
+        self.assertFalse(merge['partial'])
+        self.assertFalse(TableCartItem.objects.filter(table=self.table).exists())
+        self.assertEqual(TableCartItem.objects.filter(table=table_2).count(), 2)
+        messages = list(
+            AuditLog.objects.filter(action=AuditLog.Action.TABLE_MOVE).order_by('id').values_list('message', flat=True)
+        )
+        self.assertTrue(messages[0].startswith('Tách 1 món'))
+        self.assertTrue(messages[1].startswith('Gộp 1 món'))
+
+
+    def test_split_bill_pays_selected_lines_only(self):
+        """UX-5: chia hoá đơn — thanh toán riêng một phần món của bàn."""
+        self.login(self.staff)
+        self.add_to_table(quantity=2)
+        tea = Product.objects.create(tenant=self.tenant, name='Trà đá')
+        tea_unit = ProductUnit.objects.create(product=tea, name='Ly', price=Decimal('5000'))
+        StoreProduct.objects.create(store=self.store, product=tea, is_available=True)
+        self.post_json(
+            reverse('App_Sales_API:table_cart_add', args=[self.table.id]),
+            {'product_id': tea.id, 'unit_id': tea_unit.id, 'quantity': 1},
+        )
+        tea_line = TableCartItem.objects.get(table=self.table, product=tea)
+        url = reverse('App_Sales_API:table_checkout', args=[self.table.id])
+
+        response = self.post_json(url, {'payment_method': 'cash', 'customer_paid': '5000', 'item_ids': [tea_line.id]})
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(response.json()['partial'])
+        self.assertEqual(response.json()['table_status'], 'occupied')
+        order = Order.objects.get(pk=response.json()['order_id'])
+        self.assertEqual(order.total_amount, Decimal('5000'))
+        self.assertEqual(list(TableCartItem.objects.filter(table=self.table).values_list('product_id', flat=True)), [self.product.id])
+
+        rest = self.post_json(url, {'payment_method': 'cash', 'customer_paid': '60000'})
+        self.assertEqual(rest.status_code, 201, rest.content)
+        self.assertEqual(rest.json()['table_status'], 'empty')
+        self.assertFalse(TableCartItem.objects.filter(table=self.table).exists())
+
+class KitchenRoleTests(OpsTestBase):
+    """UX-5: vai trò Bếp chỉ dùng màn hình bếp."""
+
+    def setUp(self):
+        super().setUp()
+        self.cook = User.objects.create_user(username='ops_cook', password='123456', tenant=self.tenant, role=User.Role.KITCHEN)
+        UserStoreAccess.objects.create(user=self.cook, store=self.store, is_default=True)
+
+    def test_kitchen_role_limited_to_kitchen_screen(self):
+        self.login(self.staff)
+        self.add_to_table(quantity=1)
+        self.post_json(reverse('App_Sales_API:table_kitchen_send', args=[self.table.id]), {})
+
+        self.login(self.cook)
+        self.assertRedirects(self.client.get(reverse('App_Sales:pos')), reverse('App_Sales:kitchen'))
+        page = self.client.get(reverse('App_Sales:kitchen'))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'Về POS')
+        tickets = self.client.get(reverse('App_Sales_API:kitchen_tickets'), {'store_id': self.store.id}).json()
+        item_id = tickets['tickets'][0]['items'][0]['id']
+        done = self.post_json(reverse('App_Sales_API:kitchen_item_status', args=[item_id]), {'status': 'DONE'})
+        self.assertEqual(done.status_code, 200)
+
+        self.assertEqual(self.client.get(reverse('App_Sales:orders_today')).status_code, 403)
+        self.assertEqual(self.post_json(reverse('App_Sales_API:checkout'), {}).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Sales_API:tables'), {'store_id': self.store.id}).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Quanly:account')).status_code, 200)
+
+    def test_manager_creates_kitchen_account_counted_in_staff_quota(self):
+        self.login(self.manager)
+        payload = {
+            'username': 'bep2',
+            'password1': 'Bep-mat-khau-2026',
+            'password2': 'Bep-mat-khau-2026',
+            'role': User.Role.KITCHEN,
+            'store_ids': [self.store.id],
+            'default_store': self.store.id,
+        }
+        # Gói mặc định 2 nhân viên: 1 thu ngân + 1 bếp đã đủ hạn mức.
+        self.assertEqual(self.tenant.staff_user_count(), 2)
+        self.client.post(reverse('App_Quanly:staffs'), payload)
+        self.assertFalse(User.objects.filter(username__endswith='bep2').exists())
+
+        Tenant.objects.filter(pk=self.tenant.pk).update(max_staff_users=5)
+        self.client.post(reverse('App_Quanly:staffs'), payload)
+        created = User.objects.get(username__endswith='bep2')
+        self.assertEqual(created.role, User.Role.KITCHEN)
+        self.assertEqual(self.tenant.staff_user_count(), 3)
+        self.assertContains(self.client.get(reverse('App_Quanly:staffs')), 'Bếp / pha chế')
+

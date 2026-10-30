@@ -931,8 +931,9 @@ def next_table_code(store):
 class DiningTableForm(forms.ModelForm):
     class Meta:
         model = DiningTable
-        fields = ['store', 'code', 'name', 'is_active']
+        fields = ['store', 'area', 'code', 'name', 'is_active']
         widgets = {
+            'area': forms.TextInput(attrs={'placeholder': 'VD: Tầng 1, Sân vườn (tuỳ chọn)', 'list': 'table-area-options'}),
             'code': forms.TextInput(attrs={'placeholder': 'Để trống để tự tạo, VD: TT-01'}),
             'name': forms.TextInput(attrs={'placeholder': 'VD: Bàn 01'}),
         }
@@ -987,6 +988,15 @@ class StaffCreateForm(forms.Form):
         label='Xác nhận mật khẩu',
         widget=forms.PasswordInput(attrs={'placeholder': 'Nhập lại mật khẩu'}),
     )
+    role = forms.ChoiceField(
+        label='Vai trò',
+        choices=[
+            (User.Role.STAFF, 'Thu ngân / phục vụ (POS, bếp)'),
+            (User.Role.KITCHEN, 'Bếp / pha chế (chỉ màn hình bếp)'),
+        ],
+        initial=User.Role.STAFF,
+        required=False,
+    )
     store_ids = forms.ModelMultipleChoiceField(
         queryset=Store.objects.none(),
         required=True,
@@ -1011,6 +1021,9 @@ class StaffCreateForm(forms.Form):
         self.username_prefix = f'{tenant.public_slug}_' if tenant else ''
         self.fields['username'].widget.attrs['maxlength'] = 150 - len(self.username_prefix)
         _apply_bootstrap_classes(self)
+
+    def clean_role(self):
+        return self.cleaned_data.get('role') or User.Role.STAFF
 
     def clean_username(self):
         username = (self.cleaned_data.get('username') or '').strip()
@@ -1055,6 +1068,15 @@ class StaffCreateForm(forms.Form):
 
 
 class StaffEditForm(forms.Form):
+    role = forms.ChoiceField(
+        label='Vai trò',
+        choices=[
+            (User.Role.STAFF, 'Thu ngân / phục vụ (POS, bếp)'),
+            (User.Role.KITCHEN, 'Bếp / pha chế (chỉ màn hình bếp)'),
+        ],
+        initial=User.Role.STAFF,
+        required=False,
+    )
     store_ids = forms.ModelMultipleChoiceField(
         queryset=Store.objects.none(),
         required=True,
@@ -1083,9 +1105,14 @@ class StaffEditForm(forms.Form):
             stores = Store.objects.none()
         self.fields['store_ids'].queryset = stores
         self.fields['default_store'].queryset = stores
+        self.fields['role'].initial = user.role if user is not None else User.Role.STAFF
         if user is not None and not self.is_bound:
             self.fields['is_active'].initial = user.is_active
         _apply_bootstrap_classes(self)
+
+    def clean_role(self):
+        # Không gửi vai trò (form cũ) thì giữ nguyên vai trò hiện tại.
+        return self.cleaned_data.get('role') or (self.user.role if self.user is not None else User.Role.STAFF)
 
     def clean(self):
         cleaned = super().clean()

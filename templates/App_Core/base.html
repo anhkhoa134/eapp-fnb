@@ -257,6 +257,8 @@
                                     <div class="small text-muted">
                                         {% if user.is_manager %}
                                         <span class="account-role-pill manager"><i class="bi bi-shield-check"></i>Quản lý</span>
+                                        {% elif user.is_kitchen %}
+                                        <span class="account-role-pill staff"><i class="bi bi-fire"></i>Bếp / pha chế</span>
                                         {% else %}
                                         <span class="account-role-pill staff"><i class="bi bi-person-badge"></i>Nhân viên</span>
                                         {% endif %}
@@ -301,11 +303,13 @@
                             <span class="account-icon-pill"><i class="bi bi-person-vcard"></i></span>Thông tin tài khoản
                         </a>
                     </li>
+                    {% if not user.is_kitchen %}
                     <li>
                         <a class="dropdown-item account-action mx-2" href="{% if user.is_manager %}{% url 'App_Quanly:orders' %}{% else %}{% url 'App_Sales:orders_today' %}{% endif %}">
                             <span class="account-icon-pill"><i class="bi bi-receipt-cutoff"></i></span>Lịch sử đơn
                         </a>
                     </li>
+                    {% endif %}
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>
                     <li class="pb-2">

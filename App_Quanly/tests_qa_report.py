@@ -135,3 +135,18 @@ class FormLabelTests(QaReportBase):
         response = self.client.post(reverse('App_Quanly:products'), {'name': 'Món A', 'is_active': 'on'}, follow=True)
         self.assertContains(response, 'chưa hiện ở POS')
         self.assertContains(response, 'Chưa hiện ở POS / menu QR')
+
+
+class TableAreaTests(QaReportBase):
+    def test_area_saved_and_returned_by_pos_api(self):
+        form = DiningTableForm(
+            {'store': self.store.id, 'area': '  Tầng   1 ', 'code': 'T1-01', 'name': 'Bàn 1', 'is_active': 'on'},
+            tenant=self.tenant,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        table = form.save(commit=False)
+        table.tenant = self.tenant
+        table.save()
+        self.assertEqual(table.area, 'Tầng 1')
+        payload = self.client.get(reverse('App_Sales_API:tables'), {'store_id': self.store.id}).json()
+        self.assertEqual(payload['tables'][0]['area'], 'Tầng 1')

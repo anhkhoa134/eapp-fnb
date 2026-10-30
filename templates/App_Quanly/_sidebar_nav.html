@@ -110,10 +110,12 @@
                 <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
             </a>
             {% endif %}
+{% if not user.is_kitchen %}
             <a class="admin-nav-link" href="{% url 'App_Sales:pos' %}" target="_blank" rel="noopener" title="Về POS" data-quanly-tip="Về POS">
                 <i class="bi bi-arrow-left-circle" aria-hidden="true"></i><span class="admin-nav-label">Về POS</span>
                 <i class="bi bi-box-arrow-up-right ms-auto" aria-hidden="true"></i>
             </a>
+            {% endif %}
         </div>
     </div>
 </div>

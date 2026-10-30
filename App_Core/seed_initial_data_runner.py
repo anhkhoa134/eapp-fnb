@@ -470,6 +470,7 @@ def run_seed_initial_data(
                 code=code,
                 defaults={
                     'name': f'Bàn {idx:02d}',
+                    'area': 'Trong nhà' if idx <= 8 else 'Sân vườn',
                     'display_order': idx,
                     'is_active': True,
                 },

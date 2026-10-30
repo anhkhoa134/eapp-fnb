@@ -22,3 +22,4 @@ def role_required(roles):
 
 manager_required = role_required([User.Role.MANAGER])
 staff_or_manager_required = role_required([User.Role.MANAGER, User.Role.STAFF])
+kitchen_access_required = role_required([User.Role.MANAGER, User.Role.STAFF, User.Role.KITCHEN])

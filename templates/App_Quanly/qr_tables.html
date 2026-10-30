@@ -50,7 +50,7 @@
                         <td class="js-drag-handle" title="Kéo để sắp xếp (trong cùng cửa hàng)"><i class="bi bi-grip-vertical" aria-hidden="true"></i></td>
                         <td>
                             <div class="fw-semibold">{{ row.table.name }}</div>
-                            <div class="small text-muted">Mã: {{ row.table.code }}</div>
+                            <div class="small text-muted">Mã: {{ row.table.code }}{% if row.table.area %} · {{ row.table.area }}{% endif %}</div>
                             <div class="small text-muted text-break">Token: {{ row.table.qr_token }}</div>
                         </td>
                         <td>{{ row.table.store.name }}</td>
@@ -75,6 +75,7 @@
                                 data-action="{% url 'App_Quanly:qr_table_edit' row.table.id %}"
                                 data-table-name="{{ row.table.name|escape }}"
                                 data-table-code="{{ row.table.code|escape }}"
+                                data-table-area="{{ row.table.area|escape }}"
                                 data-table-store-id="{{ row.table.store_id }}"
                                     data-table-active="{% if row.table.is_active %}1{% else %}0{% endif %}"
                                     data-delete-action="{% url 'App_Quanly:qr_table_delete' row.table.id %}"
@@ -125,6 +126,11 @@
                             {{ form.store }}
                             {{ form.store.errors }}
                         </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.area.id_for_label }}">Khu vực / tầng</label>
+                            {{ form.area }}
+                            {{ form.area.errors }}
+                        </div>
                         <div>
                             <label class="form-label fw-semibold" for="{{ form.code.id_for_label }}">Mã bàn</label>
                             {{ form.code }}
@@ -171,6 +177,10 @@
                                 <option value="{{ store.id }}">{{ store.name }}</option>
                                 {% endfor %}
                             </select>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-table-area">Khu vực / tầng</label>
+                            <input class="form-control" id="edit-table-area" name="area" maxlength="60" list="table-area-options" placeholder="VD: Tầng 1, Sân vườn (tuỳ chọn)">
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-table-code">Mã bàn</label>
@@ -241,6 +251,9 @@
         </div>
     </div>
 </div>
+<datalist id="table-area-options">
+    {% for area in table_areas %}<option value="{{ area }}">{% endfor %}
+</datalist>
 {% endblock %}
 
 {% block extra_js %}
@@ -266,6 +279,7 @@
             const editTableStore = document.getElementById('edit-table-store');
             const editTableCode = document.getElementById('edit-table-code');
             const editTableName = document.getElementById('edit-table-name');
+            const editTableArea = document.getElementById('edit-table-area');
             const editTableActive = document.getElementById('edit-table-active');
             const deleteTableForm = document.getElementById('deleteTableForm');
             const deleteTableName = document.getElementById('deleteTableName');
@@ -276,6 +290,7 @@
                     if (editTableStore) editTableStore.value = button.dataset.tableStoreId || '';
                     if (editTableCode) editTableCode.value = button.dataset.tableCode || '';
                     if (editTableName) editTableName.value = button.dataset.tableName || '';
+                    if (editTableArea) editTableArea.value = button.dataset.tableArea || '';
                     if (editTableActive) editTableActive.checked = button.dataset.tableActive === '1';
                     if (deleteTableForm) deleteTableForm.action = button.dataset.deleteAction || '';
                     if (deleteTableName) deleteTableName.textContent = button.dataset.deleteName || '';

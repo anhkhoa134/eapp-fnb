@@ -201,3 +201,39 @@ class PwaIdentityTests(TestCase):
         page = self.client.get(reverse('App_Accounts:login'))
         self.assertContains(page, 'pwa/icons/fnb-favicon.ico')
         self.assertContains(page, 'images/logo/eapp.webp')
+
+
+class CleanupQaDataTests(TestCase):
+    def test_dry_run_lists_then_apply_disables_and_rotates_table_token(self):
+        from decimal import Decimal
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from App_Sales.models import DiningTable, Promotion
+
+        tenant = Tenant.objects.create(name='Demo', public_slug='demo-cleanup')
+        store = Store.objects.create(tenant=tenant, name='CN Trung Tâm', is_default=True)
+        promo = Promotion.objects.create(
+            tenant=tenant, name='QA-TEST KM 5K', discount_type='fixed', discount_value=Decimal('5000')
+        )
+        real_promo = Promotion.objects.create(
+            tenant=tenant, name='Giảm 10%', discount_type='percent', discount_value=Decimal('10')
+        )
+        table = DiningTable.objects.create(tenant=tenant, store=store, code='QA-TEST-01', name='QA-TEST Bàn 1')
+        old_token = table.qr_token
+
+        out = StringIO()
+        call_command('cleanup_qa_data', tenant='demo-cleanup', stdout=out)
+        self.assertIn('QA-TEST KM 5K', out.getvalue())
+        promo.refresh_from_db()
+        self.assertTrue(promo.is_active)
+
+        call_command('cleanup_qa_data', tenant='demo-cleanup', apply=True, stdout=StringIO())
+        promo.refresh_from_db()
+        real_promo.refresh_from_db()
+        table.refresh_from_db()
+        self.assertFalse(promo.is_active)
+        self.assertTrue(real_promo.is_active)
+        self.assertFalse(table.is_active)
+        self.assertNotEqual(table.qr_token, old_token)

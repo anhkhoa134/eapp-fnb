@@ -7,6 +7,11 @@ class User(AbstractUser):
     class Role(models.TextChoices):
         MANAGER = 'MANAGER', 'Quản lý'
         STAFF = 'STAFF', 'Nhân viên'
+        # Chỉ vào được màn hình bếp (không bán hàng, không xem doanh thu).
+        KITCHEN = 'KITCHEN', 'Bếp / pha chế'
+
+    # Vai trò nhân viên do quản lý tạo (đếm vào hạn mức nhân viên của gói).
+    EMPLOYEE_ROLES = (Role.STAFF, Role.KITCHEN)
 
     is_active = models.BooleanField('Đang hoạt động', default=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STAFF)
@@ -38,6 +43,10 @@ class User(AbstractUser):
     @property
     def is_manager(self):
         return self.role == self.Role.MANAGER
+
+    @property
+    def is_kitchen(self):
+        return self.role == self.Role.KITCHEN
 
     @property
     def is_staff_user(self):

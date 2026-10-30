@@ -100,7 +100,7 @@
             </div>
             <div class="col-12 col-md-5 col-lg-4">
                 <label class="form-label small text-muted">Tìm kiếm</label>
-                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Mã đơn, khách hàng, thu ngân, cửa hàng...">
+                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Mã đơn, mã giao dịch, khách hàng, thu ngân...">
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label small text-muted">Từ ngày</label>
@@ -352,6 +352,7 @@
                         <div class="fw-semibold">
                             {% if order.payment_method == 'cash' %}Tiền mặt{% else %}Thẻ/QR{% endif %}
                         </div>
+                        {% if order.payment_reference %}<div class="small text-muted">Mã GD: {{ order.payment_reference }}</div>{% endif %}
                     </div>
                     <div class="col-sm-6 col-lg-4">
                         <span class="text-muted">Trạng thái</span>

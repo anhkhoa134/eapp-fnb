@@ -1566,6 +1566,7 @@
                                 <span class="text-warning small fw-bold ms-2"><i class="fa-solid fa-circle text-warning pulse-warning-indicator rounded-circle me-1" style="font-size: 10px;"></i>Có đơn từ QR</span>
                             </div>
                         </div>
+                        <div class="category-filter mb-3 d-none" id="table-area-filter" role="group" aria-label="Lọc theo khu vực"></div>
                         <div class="row g-4" id="tables-container">
                             <!-- Tables injected via JS -->
                         </div>
@@ -1629,8 +1630,11 @@
                         </button>
                     </div>
                     <div class="table-actions d-none mt-3" id="table-actions">
-                        <button type="button" class="table-action-btn table-action-warning d-none" onclick="openMoveTableModal()" id="btn-move-table" title="Chuyển đơn sang bàn khác">
-                            <i class="fa-solid fa-right-left"></i><span>Chuyển bàn</span>
+                        <button type="button" class="table-action-btn table-action-warning d-none" onclick="openMoveTableModal()" id="btn-move-table" title="Chuyển, gộp hoặc tách bàn">
+                            <i class="fa-solid fa-right-left"></i><span>Chuyển / gộp / tách</span>
+                        </button>
+                        <button type="button" class="table-action-btn d-none" onclick="openSplitBillModal()" id="btn-split-bill" title="Thanh toán riêng một phần món (khách trả riêng)">
+                            <i class="fa-solid fa-receipt"></i><span>Chia hoá đơn</span>
                         </button>
                         <button type="button" class="table-action-btn d-none" onclick="printTableBill()" id="btn-print-bill" title="In phiếu tạm tính cho khách xem trước khi thanh toán">
                             <i class="fa-solid fa-print"></i><span>In tạm tính</span>
@@ -1810,6 +1814,10 @@
                                     </div>
                                     <div id="payment-card-bank-details" class="text-center small"></div>
                                 </div>
+                                <label class="form-label text-muted mt-3 mb-1" for="payment-reference-input">Mã giao dịch (tuỳ chọn)</label>
+                                <input type="text" class="form-control" id="payment-reference-input" maxlength="64" autocomplete="off"
+                                       placeholder="VD: 4 số cuối thẻ hoặc mã chuyển khoản" aria-describedby="payment-reference-help">
+                                <div class="form-text" id="payment-reference-help">In trên hoá đơn và lưu ở lịch sử đơn để đối soát sao kê.</div>
                             </div>
 
                             <div class="mb-3" id="quick-cash-wrapper">
@@ -1872,25 +1880,58 @@
         </div>
     </div>
 
+    <!-- SPLIT BILL MODAL -->
+    <div class="modal fade" id="splitBillModal" tabindex="-1" aria-hidden="true" aria-labelledby="splitBillTitle">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="splitBillTitle"><i class="fa-solid fa-receipt text-primary me-2"></i>Chia hoá đơn</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-2">Chọn các món khách này trả. Món còn lại vẫn ở bàn để thanh toán sau.</p>
+                    <div id="splitBillItems" role="group" aria-label="Món cần thanh toán"></div>
+                    <div class="d-flex justify-content-between fw-bold mt-3 pt-2 border-top">
+                        <span>Tạm tính phần đã chọn</span><span id="splitBillTotal">0 đ</span>
+                    </div>
+                    <div class="text-danger small mt-2 d-none" id="splitBillError"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary fw-bold" onclick="confirmSplitBill()">
+                        <i class="fa-solid fa-money-bill-wave me-1"></i>Thanh toán phần này
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MOVE TABLE MODAL -->
     <div class="modal fade" id="moveTableModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
                     <h5 class="modal-title fw-bold">
-                        <i class="fa-solid fa-right-left text-warning me-2"></i>Chuyển sang bàn khác
+                        <i class="fa-solid fa-right-left text-warning me-2"></i>Chuyển / gộp / tách bàn
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="text-muted small mb-2">Giỏ hiện tại sẽ được chuyển toàn bộ sang bàn mới (bàn cũ sẽ rỗng).</div>
+                    <div class="btn-group w-100 mb-3" role="group" aria-label="Cách chuyển">
+                        <input type="radio" class="btn-check" name="moveTableMode" id="moveModeAll" value="all" checked>
+                        <label class="btn btn-outline-warning text-dark fw-semibold" for="moveModeAll">Cả bàn</label>
+                        <input type="radio" class="btn-check" name="moveTableMode" id="moveModeSplit" value="split">
+                        <label class="btn btn-outline-warning text-dark fw-semibold" for="moveModeSplit">Tách một số món</label>
+                    </div>
                     <label class="form-label fw-semibold mb-1" for="moveTableSelect">Chọn bàn đích</label>
                     <select id="moveTableSelect" class="form-select"></select>
+                    <div class="small mt-2" id="moveTableHint"></div>
+                    <div class="mt-3 d-none" id="moveTableItems" role="group" aria-label="Món cần tách"></div>
                     <div class="text-danger small mt-2 d-none" id="moveTableError"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="button" class="btn btn-warning text-dark fw-bold" onclick="confirmMoveTable()">
+                    <button type="button" class="btn btn-warning text-dark fw-bold" onclick="confirmMoveTable()" id="moveTableSubmit">
                         <i class="fa-solid fa-arrow-right-arrow-left me-1"></i>Chuyển bàn
                     </button>
                 </div>
@@ -2290,6 +2331,7 @@
             if (chooseBtn) chooseBtn.classList.toggle('d-none', !isTakeaway);
             document.getElementById('table-actions')?.classList.toggle('d-none', isTakeaway);
             if (moveBtn) moveBtn.classList.toggle('d-none', isTakeaway);
+            document.getElementById('btn-split-bill')?.classList.toggle('d-none', isTakeaway || cart.filter((item) => item.tableItemId).length < 2);
             document.getElementById('btn-print-bill')?.classList.toggle('d-none', isTakeaway);
             const kitchenBtn = document.getElementById('btn-kitchen-send');
             if (kitchenBtn) kitchenBtn.classList.toggle('d-none', isTakeaway || !hasKitchenFeature);
@@ -2706,10 +2748,36 @@
             });
         };
 
+        // Lọc bàn theo khu vực / tầng (chỉ hiện khi quán chia từ 2 khu vực trở lên).
+        let currentTableArea = 'all';
+        const renderTableAreaFilter = () => {
+            const box = document.getElementById('table-area-filter');
+            if (!box) return;
+            const areas = [...new Set(tables.map((table) => table.area || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
+            if (areas.length < 2) {
+                box.classList.add('d-none');
+                currentTableArea = 'all';
+                return;
+            }
+            if (currentTableArea !== 'all' && !areas.includes(currentTableArea)) currentTableArea = 'all';
+            const hasUnassigned = tables.some((table) => !table.area);
+            const options = [['all', 'Tất cả'], ...areas.map((area) => [area, area]), ...(hasUnassigned ? [['', 'Khác']] : [])];
+            box.innerHTML = options.map(([value, label], index) => `
+                <input type="radio" class="btn-check" name="tableAreaFilter" id="table-area-${index}" autocomplete="off" ${value === currentTableArea ? 'checked' : ''} data-area="${escapeHtml(value)}">
+                <label class="btn" for="table-area-${index}">${escapeHtml(label)}</label>`).join('');
+            box.querySelectorAll('input[name="tableAreaFilter"]').forEach((input) => input.addEventListener('change', () => {
+                currentTableArea = input.dataset.area;
+                renderTables();
+            }));
+            box.classList.remove('d-none');
+        };
+
         const renderTables = () => {
             const container = document.getElementById('tables-container');
             container.innerHTML = '';
-            tables.forEach((table) => {
+            renderTableAreaFilter();
+            const visibleTables = currentTableArea === 'all' ? tables : tables.filter((table) => (table.area || '') === currentTableArea);
+            visibleTables.forEach((table) => {
                 const isActive = currentSelectedTableId === table.id;
                 const stateClass = table.status || 'empty';
                 const icon = stateClass === 'pending' ? 'fa-mobile-screen fs-3' : stateClass === 'occupied' ? 'fa-bell-concierge fs-3' : 'fa-chair';
@@ -2730,6 +2798,7 @@
                             ${badgeHtml}
                             <div class="table-icon"><i class="fa-solid ${icon}"></i></div>
                             <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: 0.5px;">${escapeHtml(table.name)}</h5>
+                            ${table.area ? `<div class="small text-muted">${escapeHtml(table.area)}</div>` : ''}
                             ${amountHtml}
                         </div>
                     </div>
@@ -2943,6 +3012,10 @@
 
             document.getElementById('cart-total-qty').textContent = totalQty;
             syncKitchenSendButton();
+            document.getElementById('btn-split-bill')?.classList.toggle(
+                'd-none',
+                currentSelectedTableId === null || cart.filter((item) => item.tableItemId).length < 2
+            );
             document.getElementById('cart-total-price').textContent = formatCurrency(cartSubtotalAmount);
             document.getElementById('mobile-qty').textContent = totalQty;
             document.getElementById('mobile-total').textContent = formatCurrency(cartSubtotalAmount);
@@ -4506,18 +4579,24 @@
             }
         };
 
-        const openPaymentModal = async () => {
+        // Chia hoá đơn: danh sách tableItemId được thanh toán ở lần này (null = cả bàn).
+        let splitBillItemIds = null;
+        const openPaymentModal = async (itemIds = null) => {
             if (!cart.length) return;
             if (!paymentModalInstance) paymentModalInstance = new bootstrap.Modal(document.getElementById('paymentModal'));
-            cartSubtotalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            splitBillItemIds = Array.isArray(itemIds) && itemIds.length ? itemIds : null;
+            const payItems = splitBillItemIds ? cart.filter((item) => splitBillItemIds.includes(item.tableItemId)) : cart;
+            cartSubtotalAmount = payItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
             selectedPromotion = null;
             currentDiscountAmount = 0;
             currentDiscountSource = 'none';
             currentTierDiscountAmount = 0;
             currentTierDiscountPercent = 0;
             const modalItemsContainer = document.getElementById('modal-cart-items');
-            modalItemsContainer.innerHTML = '';
-            cart.forEach((item) => {
+            modalItemsContainer.innerHTML = splitBillItemIds
+                ? `<div class="alert alert-info py-2 small mb-3"><i class="fa-solid fa-receipt me-1"></i>Chia hoá đơn: thanh toán ${payItems.length}/${cart.length} dòng món.</div>`
+                : '';
+            payItems.forEach((item) => {
                 const tops = toppingText(item.toppings || []);
                 const toppingHtml = tops ? `<div class="text-muted" style="font-size:0.75rem;"><i class="fa-solid fa-circle-plus me-1"></i>${escapeHtml(tops)}</div>` : '';
                 modalItemsContainer.insertAdjacentHTML('beforeend', `
@@ -4536,6 +4615,8 @@
                 `);
             });
             paymentRequestId = newPaymentRequestId();
+            const referenceInput = document.getElementById('payment-reference-input');
+            if (referenceInput) referenceInput.value = '';
             totalAmountDue = cartSubtotalAmount + renderTaxRow(cartSubtotalAmount);
             document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
             document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
@@ -4585,6 +4666,47 @@
             }
         };
 
+        const splitBillSelected = () => Array.from(document.querySelectorAll('.js-split-item:checked')).map((input) => Number(input.value));
+        const updateSplitBillTotal = () => {
+            const ids = splitBillSelected();
+            const total = cart.filter((item) => ids.includes(item.tableItemId)).reduce((sum, item) => sum + item.price * item.qty, 0);
+            document.getElementById('splitBillTotal').textContent = formatCurrency(total);
+        };
+        const openSplitBillModal = () => {
+            if (currentSelectedTableId === null) return;
+            const box = document.getElementById('splitBillItems');
+            box.innerHTML = cart
+                .filter((item) => item.tableItemId)
+                .map((item) => `
+                    <div class="form-check py-1">
+                        <input class="form-check-input js-split-item" type="checkbox" value="${item.tableItemId}" id="splitItem${item.tableItemId}">
+                        <label class="form-check-label d-flex justify-content-between gap-2 w-100" for="splitItem${item.tableItemId}">
+                            <span>${item.qty}× ${escapeHtml(item.name)}${item.size ? ` (${escapeHtml(item.size)})` : ''}</span>
+                            <span class="text-muted">${formatCurrency(item.price * item.qty)}</span>
+                        </label>
+                    </div>`)
+                .join('');
+            box.querySelectorAll('.js-split-item').forEach((input) => input.addEventListener('change', updateSplitBillTotal));
+            document.getElementById('splitBillError').classList.add('d-none');
+            updateSplitBillTotal();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('splitBillModal')).show();
+        };
+        const confirmSplitBill = () => {
+            const ids = splitBillSelected();
+            const err = document.getElementById('splitBillError');
+            const allIds = cart.filter((item) => item.tableItemId).map((item) => item.tableItemId);
+            if (!ids.length) {
+                err.textContent = 'Chọn ít nhất 1 món.';
+                err.classList.remove('d-none');
+                return;
+            }
+            bootstrap.Modal.getInstance(document.getElementById('splitBillModal'))?.hide();
+            // Chọn hết = thanh toán cả bàn như bình thường.
+            openPaymentModal(ids.length === allIds.length ? null : ids);
+        };
+        window.openSplitBillModal = openSplitBillModal;
+        window.confirmSplitBill = confirmSplitBill;
+
         let moveTableModalInstance = null;
         const openMoveTableModal = () => {
             if (currentSelectedTableId === null) return;
@@ -4601,7 +4723,8 @@
             const candidates = tables.filter((t) => Number(t.id) !== currentId);
             candidates.forEach((t) => {
                 const pending = onlineOrders.some((o) => Number(o.table_id) === Number(t.id));
-                const label = `${t.name}${pending ? ' (có đơn QR chờ duyệt)' : ''}`;
+                const busy = t.status === 'occupied';
+                const label = `${t.name}${pending ? ' (có đơn QR chờ duyệt)' : busy ? ` (đang có ${t.item_count || 0} món, sẽ gộp)` : ' (trống)'}`;
                 const opt = document.createElement('option');
                 opt.value = String(t.id);
                 opt.textContent = label;
@@ -4609,11 +4732,43 @@
                 select.appendChild(opt);
             });
 
+            const itemsBox = document.getElementById('moveTableItems');
+            itemsBox.innerHTML = cart
+                .filter((item) => item.tableItemId)
+                .map((item) => `
+                    <div class="form-check">
+                        <input class="form-check-input js-move-item" type="checkbox" value="${item.tableItemId}" id="moveItem${item.tableItemId}">
+                        <label class="form-check-label" for="moveItem${item.tableItemId}">
+                            ${item.qty}× ${escapeHtml(item.name)}${item.size ? ` (${escapeHtml(item.size)})` : ''}
+                            <span class="text-muted">· ${formatCurrency(item.price * item.qty)}</span>
+                        </label>
+                    </div>`)
+                .join('');
+            document.getElementById('moveModeAll').checked = true;
+            syncMoveTableMode();
+
             if (!moveTableModalInstance) {
                 moveTableModalInstance = new bootstrap.Modal(document.getElementById('moveTableModal'));
             }
             moveTableModalInstance.show();
         };
+
+        const getMoveTableMode = () => document.querySelector('input[name="moveTableMode"]:checked')?.value || 'all';
+        const syncMoveTableMode = () => {
+            const split = getMoveTableMode() === 'split';
+            document.getElementById('moveTableItems').classList.toggle('d-none', !split);
+            const target = tables.find((t) => Number(t.id) === Number(document.getElementById('moveTableSelect').value));
+            const busy = target?.status === 'occupied';
+            document.getElementById('moveTableHint').textContent = split
+                ? 'Chọn các món cần tách; món còn lại ở bàn hiện tại.'
+                : busy
+                    ? `Toàn bộ món sẽ gộp vào ${target.name} (món trùng được cộng số lượng). Bàn hiện tại sẽ trống.`
+                    : 'Toàn bộ món chuyển sang bàn mới, bàn hiện tại sẽ trống.';
+            const submit = document.getElementById('moveTableSubmit');
+            submit.lastChild.textContent = split ? 'Tách món' : busy ? 'Gộp bàn' : 'Chuyển bàn';
+        };
+        document.querySelectorAll('input[name="moveTableMode"]').forEach((input) => input.addEventListener('change', syncMoveTableMode));
+        document.getElementById('moveTableSelect')?.addEventListener('change', syncMoveTableMode);
 
         const confirmMoveTable = async () => {
             const select = document.getElementById('moveTableSelect');
@@ -4621,6 +4776,13 @@
             if (!select || currentSelectedTableId === null) return;
             const toTableId = parseInt(select.value || '0', 10) || null;
             if (!toTableId) return;
+            const split = getMoveTableMode() === 'split';
+            const itemIds = Array.from(document.querySelectorAll('.js-move-item:checked')).map((input) => Number(input.value));
+            if (split && !itemIds.length) {
+                err.textContent = 'Chọn ít nhất 1 món để tách.';
+                err.classList.remove('d-none');
+                return;
+            }
 
             const pending = onlineOrders.some((o) => Number(o.table_id) === Number(toTableId));
             if (pending) {
@@ -4629,10 +4791,18 @@
             }
 
             try {
-                await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/move-to/`, {
+                const result = await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/move-to/`, {
                     method: 'POST',
-                    body: JSON.stringify({ to_table_id: toTableId }),
+                    body: JSON.stringify(split ? { to_table_id: toTableId, item_ids: itemIds } : { to_table_id: toTableId }),
                 });
+                if (result.partial) {
+                    // Tách bàn: ở lại bàn hiện tại với các món còn lại.
+                    await Promise.all([loadTableCart(currentSelectedTableId), loadTablesFromApi()]);
+                    renderTables();
+                    if (moveTableModalInstance) moveTableModalInstance.hide();
+                    showToast(result.detail, 'success');
+                    return;
+                }
                 currentSelectedTableId = toTableId;
                 lastTableContextId = null;
                 const table = getCurrentTable();
@@ -4641,7 +4811,7 @@
                 renderTables();
                 syncOrderContextUi();
                 if (moveTableModalInstance) moveTableModalInstance.hide();
-                showToast(`Đã chuyển giỏ sang ${table?.name || 'bàn mới'}.`, 'success');
+                showToast(result.merged ? result.detail : `Đã chuyển giỏ sang ${table?.name || 'bàn mới'}.`, 'success');
             } catch (error) {
                 if (err) {
                     err.textContent = error.message || 'Không thể chuyển bàn.';
@@ -4677,10 +4847,13 @@
                             payment_method: paymentMethod,
                             client_request_id: paymentRequestId,
                             customer_paid: received,
+                            payment_reference: paymentMethod === 'card' ? (document.getElementById('payment-reference-input')?.value || '').trim() : '',
                             customer_id: hasCustomerFeature && selectedCustomer ? selectedCustomer.id : null,
                             promotion_id: hasPromotionFeature && selectedPromotion ? selectedPromotion.id : null,
+                            ...(splitBillItemIds ? { item_ids: splitBillItemIds } : {}),
                         }),
                     });
+                    splitBillItemIds = null;
                     // Đơn đã tạo xong: lỗi khi tải lại danh sách không được báo thành "thanh toán thất bại".
                     await Promise.all([loadTablesFromApi(), loadOnlineOrdersFromApi(), loadTableCart(currentSelectedTableId)]).catch(() => null);
                 } else {
@@ -4691,6 +4864,7 @@
                             payment_method: paymentMethod,
                             client_request_id: paymentRequestId,
                             customer_paid: received,
+                            payment_reference: paymentMethod === 'card' ? (document.getElementById('payment-reference-input')?.value || '').trim() : '',
                             customer_id: hasCustomerFeature && selectedCustomer ? selectedCustomer.id : null,
                             promotion_id: hasPromotionFeature && selectedPromotion ? selectedPromotion.id : null,
                             qr_order_id: collectingQrOrder ? collectingQrOrder.id : null,

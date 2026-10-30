@@ -288,7 +288,7 @@ class Tenant(TimeStampedModel):
     def staff_user_count(self) -> int:
         from App_Accounts.models import User
 
-        return User.objects.filter(tenant_id=self.pk, role=User.Role.STAFF).count()
+        return User.objects.filter(tenant_id=self.pk, role__in=User.EMPLOYEE_ROLES).count()
 
     def product_count(self) -> int:
         from App_Catalog.models import Product

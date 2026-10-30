@@ -19,7 +19,7 @@ from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from App_Accounts.permissions import staff_or_manager_required
+from App_Accounts.permissions import kitchen_access_required, staff_or_manager_required
 from App_Core.audit import Action, log_action
 from App_Core.templatetags.number_format import thousand_sep
 from App_Sales import kitchen, shifts
@@ -399,8 +399,11 @@ def _upsert_table_cart_item(
 
 
 @login_required
-@staff_or_manager_required
+@kitchen_access_required
 def pos_page(request):
+    if request.user.is_kitchen:
+        # Tài khoản bếp đăng nhập xong vào thẳng màn hình bếp (POS không dành cho vai trò này).
+        return redirect('App_Sales:kitchen')
     stores = list(get_user_accessible_stores(request.user))
     default_store = get_accessible_store_or_default(request.user)
     return render(
@@ -682,14 +685,17 @@ def _find_replayed_order(tenant, request_id):
 
 
 def _parse_payment_fields(payload):
-    """Trả về (payment_method, customer_paid). Thuế không nhận từ client: lấy theo cấu hình doanh nghiệp."""
+    """Trả về (payment_method, customer_paid, payment_reference). Thuế không nhận từ client: lấy theo cấu hình doanh nghiệp."""
     payment_method = payload.get('payment_method') or Order.PaymentMethod.CASH
     if payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
         raise ValueError('Phương thức thanh toán không hợp lệ.')
     customer_paid = _parse_decimal(payload.get('customer_paid', '0'), field='customer_paid')
     if customer_paid < 0 or customer_paid > MAX_MONEY_AMOUNT:
         raise ValueError('Số tiền khách đưa không hợp lệ.')
-    return payment_method, customer_paid
+    payment_reference = ''
+    if payment_method == Order.PaymentMethod.CARD:
+        payment_reference = ' '.join(str(payload.get('payment_reference') or '').split())[:64]
+    return payment_method, customer_paid, payment_reference
 
 
 def _resolve_checkout_discounts(*, tenant, store, payload, subtotal):
@@ -817,7 +823,7 @@ def api_checkout(request):
         return _json_error('Giỏ hàng trống.', 400)
     try:
         validate_order_lines(items)
-        payment_method, customer_paid = _parse_payment_fields(payload)
+        payment_method, customer_paid, payment_reference = _parse_payment_fields(payload)
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
@@ -924,6 +930,7 @@ def api_checkout(request):
                 total_amount=total_amount,
                 customer_paid=customer_paid,
                 change_amount=customer_paid - total_amount,
+                payment_reference=payment_reference,
                 client_request_id=request_id,
                 **_snapshot_promotion_fields(promotion),
                 **_snapshot_tier_discount_fields(totals),
@@ -1070,6 +1077,7 @@ def api_tables(request):
                 'id': table.id,
                 'code': table.code,
                 'name': table.name,
+                'area': table.area,
                 'status': status,
                 'pending_count': pending_count,
                 'item_count': item_count,
@@ -1285,17 +1293,32 @@ def api_table_cart_move_to(request, table_id):
     if to_table.store_id != from_table.store_id:
         return _json_error('Không thể chuyển giỏ giữa hai cửa hàng khác nhau.', 400)
 
+    # Tách bàn: chỉ chuyển các dòng món được chọn (cả dòng). Không gửi item_ids = chuyển cả bàn.
+    selected_ids = None
+    if payload.get('item_ids') is not None:
+        raw_ids = payload.get('item_ids')
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return _json_error('Chọn ít nhất 1 món để tách sang bàn khác.', 400)
+        try:
+            selected_ids = {int(raw_id) for raw_id in raw_ids}
+        except (TypeError, ValueError):
+            return _json_error('Danh sách món không hợp lệ.', 400)
+
     # Lock both tables in a stable order before reading their carts, including
     # empty carts, so moving and checkout cannot lose or duplicate items.
     list(DiningTable.objects.select_for_update().filter(
         pk__in=[from_table.pk, to_table.pk],
     ).order_by('pk'))
-    items = list(
-        TableCartItem.objects.filter(table=from_table)
-        .select_related('unit', 'product')
-        .prefetch_related('toppings')
-        .order_by('id')
-    )
+    items_qs = TableCartItem.objects.filter(table=from_table)
+    if selected_ids is not None:
+        items_qs = items_qs.filter(id__in=selected_ids)
+    items = list(items_qs.select_related('unit', 'product').prefetch_related('toppings').order_by('id'))
+    if selected_ids is not None and len(items) != len(selected_ids):
+        return _json_error('Có món đã chọn không còn trong giỏ bàn, vui lòng tải lại.', 400)
+    partial = selected_ids is not None and TableCartItem.objects.filter(table=from_table).exclude(
+        id__in=selected_ids
+    ).exists()
+    merging = TableCartItem.objects.filter(table=to_table).exists()
     if not items:
         return JsonResponse(
             {
@@ -1335,21 +1358,33 @@ def api_table_cart_move_to(request, table_id):
             )
             kitchen.move_kitchen_links(source_item=item, target_item=target_item)
 
-        kitchen.move_open_tickets_to_table(from_table=from_table, to_table=to_table)
-        TableCartItem.objects.filter(table=from_table).delete()
+        if partial:
+            # Phiếu bếp vẫn mang tên bàn cũ; từng món đã báo bếp đi theo dòng giỏ qua move_kitchen_links.
+            TableCartItem.objects.filter(id__in=[item.id for item in items]).delete()
+        else:
+            kitchen.move_open_tickets_to_table(from_table=from_table, to_table=to_table)
+            TableCartItem.objects.filter(table=from_table).delete()
 
+    if partial:
+        verb, detail = 'Tách', f'Đã tách {len(items)} món sang {to_table.name}.'
+    elif merging:
+        verb, detail = 'Gộp', f'Đã gộp {from_table.name} vào {to_table.name}.'
+    else:
+        verb, detail = 'Chuyển', 'Đã chuyển giỏ sang bàn khác.'
     log_action(
         Action.TABLE_MOVE,
         request=request,
         store_id=from_table.store_id,
         obj=from_table,
-        message=f'Chuyển {len(items)} món từ {from_table.name} sang {to_table.name}',
-        extra={'from_table_id': from_table.id, 'to_table_id': to_table.id},
+        message=f'{verb} {len(items)} món từ {from_table.name} sang {to_table.name}',
+        extra={'from_table_id': from_table.id, 'to_table_id': to_table.id, 'partial': partial, 'merge': merging},
     )
 
     return JsonResponse(
         {
-            'detail': 'Đã chuyển giỏ sang bàn khác.',
+            'detail': detail,
+            'partial': partial,
+            'merged': merging,
             'from_table': {'id': from_table.id, 'name': from_table.name},
             'to_table': {'id': to_table.id, 'name': to_table.name},
             'summary': _table_cart_summary(to_table),
@@ -1514,21 +1549,41 @@ def api_table_checkout(request, table_id):
         return _checkout_response(replayed, replayed=True, extra=table_extra)
 
     try:
-        payment_method, customer_paid = _parse_payment_fields(payload)
+        payment_method, customer_paid, payment_reference = _parse_payment_fields(payload)
     except ValueError as exc:
         return _json_error(str(exc), 400)
+
+    # Chia hoá đơn: chỉ thanh toán các dòng món được chọn, phần còn lại ở lại bàn.
+    selected_ids = None
+    if payload.get('item_ids') is not None:
+        raw_ids = payload.get('item_ids')
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return _json_error('Chọn ít nhất 1 món để thanh toán.', 400)
+        try:
+            selected_ids = {int(raw_id) for raw_id in raw_ids}
+        except (TypeError, ValueError):
+            return _json_error('Danh sách món không hợp lệ.', 400)
 
     try:
         with transaction.atomic():
             # Khoá bàn: hai máy (hoặc bấm đúp) thanh toán cùng bàn thì request sau chờ, rồi thấy giỏ đã trống.
             DiningTable.objects.select_for_update().filter(pk=table.pk).first()
-            cart_items = list(
-                TableCartItem.objects.filter(table=table)
-                .select_related('product', 'unit')
-                .prefetch_related('toppings')
-            )
+            cart_qs = TableCartItem.objects.filter(table=table)
+            if selected_ids is not None:
+                cart_qs = cart_qs.filter(id__in=selected_ids)
+            cart_items = list(cart_qs.select_related('product', 'unit').prefetch_related('toppings'))
             if not cart_items:
                 return _json_error('Bàn này chưa có món để thanh toán.', 400)
+            if selected_ids is not None and len(cart_items) != len(selected_ids):
+                return _json_error('Có món đã chọn không còn trong giỏ bàn, vui lòng tải lại.', 400)
+            paid_ids = [item.id for item in cart_items]
+            partial = TableCartItem.objects.filter(table=table).exclude(id__in=paid_ids).exists()
+            if partial:
+                table_extra = {
+                    'detail': f'Đã thanh toán {len(paid_ids)} món, bàn còn món chưa thanh toán.',
+                    'table_status': 'occupied',
+                    'partial': True,
+                }
 
             subtotal = Decimal('0')
             for item in cart_items:
@@ -1568,6 +1623,7 @@ def api_table_checkout(request, table_id):
                 total_amount=total_amount,
                 customer_paid=customer_paid,
                 change_amount=customer_paid - total_amount,
+                payment_reference=payment_reference,
                 client_request_id=request_id,
                 **_snapshot_promotion_fields(promotion),
                 **_snapshot_tier_discount_fields(totals),
@@ -1600,9 +1656,11 @@ def api_table_checkout(request, table_id):
             kitchen_ticket = None
             if kitchen.kitchen_enabled(user.tenant):
                 # Món đã thanh toán mà chưa báo bếp thì tự báo để bếp không bỏ sót.
-                kitchen_ticket = kitchen.send_table_cart_to_kitchen(table=table, user=user, order=order)
+                kitchen_ticket = kitchen.send_table_cart_to_kitchen(
+                    table=table, user=user, order=order, item_ids=paid_ids
+                )
 
-            TableCartItem.objects.filter(table=table).delete()
+            TableCartItem.objects.filter(id__in=paid_ids).delete()
 
             if customer:
                 recompute_customer_stats(customer)
@@ -1929,7 +1987,7 @@ def _kitchen_disabled_error():
 
 
 @login_required
-@staff_or_manager_required
+@kitchen_access_required
 def kitchen_page(request):
     if not kitchen.kitchen_enabled(request.user.tenant):
         raise PermissionDenied('Tính năng màn hình bếp đang tắt. Quản lý có thể bật ở Cấu hình tính năng.')
@@ -1948,7 +2006,7 @@ def kitchen_page(request):
 
 
 @login_required
-@staff_or_manager_required
+@kitchen_access_required
 @require_GET
 def api_kitchen_tickets(request):
     user = request.user
@@ -1998,7 +2056,7 @@ def _get_kitchen_ticket_for_user(user, ticket_id, *, lock=False):
 
 
 @login_required
-@staff_or_manager_required
+@kitchen_access_required
 @require_POST
 def api_kitchen_item_status(request, item_id):
     user = request.user
@@ -2049,7 +2107,7 @@ def api_kitchen_item_status(request, item_id):
 
 
 @login_required
-@staff_or_manager_required
+@kitchen_access_required
 @require_POST
 def api_kitchen_ticket_complete(request, ticket_id):
     user = request.user
@@ -2232,7 +2290,7 @@ def table_bill_print(request, table_id):
 
 
 @login_required
-@staff_or_manager_required
+@kitchen_access_required
 @require_GET
 @xframe_options_sameorigin
 def kitchen_ticket_print(request, ticket_id):

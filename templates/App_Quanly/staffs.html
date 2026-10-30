@@ -36,6 +36,7 @@
                 <thead>
                     <tr>
                         <th>Tài khoản</th>
+                        <th>Vai trò</th>
                         <th>Trạng thái</th>
                         <th>Cửa hàng được cấp quyền</th>
                         <th class="text-end">Thao tác</th>
@@ -45,6 +46,13 @@
                     {% for staff in page_obj %}
                     <tr>
                         <td class="fw-semibold">{{ staff.username }}</td>
+                        <td>
+                            {% if staff.is_kitchen %}
+                            <span class="payment-pill pill-tag"><i class="bi bi-fire" aria-hidden="true"></i>Bếp / pha chế</span>
+                            {% else %}
+                            <span class="payment-pill pill-tag"><i class="bi bi-cash-register" aria-hidden="true"></i>Thu ngân / phục vụ</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if staff.is_active %}
                             <span class="payment-pill status-active"><i class="bi bi-check-circle" aria-hidden="true"></i>Hoạt động</span>
@@ -70,6 +78,7 @@
                                     data-bs-target="#editStaffModal"
                                     data-edit-url="{% url 'App_Quanly:staff_edit' staff.id %}"
                                     data-username="{{ staff.username|escape }}"
+                                    data-role="{{ staff.role }}"
                                     data-store-ids="{% for a in staff.store_accesses.all %}{{ a.store_id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                                     data-default-store-id="{% for a in staff.store_accesses.all %}{% if a.is_default %}{{ a.store_id }}{% endif %}{% endfor %}"
                                         data-is-active="{% if staff.is_active %}1{% else %}0{% endif %}"
@@ -148,6 +157,12 @@
                             {{ form.password2.errors }}
                         </div>
                         <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.role.id_for_label }}">Vai trò</label>
+                            {{ form.role }}
+                            <div class="form-text">Tài khoản bếp đăng nhập vào thẳng màn hình bếp, không bán hàng và không xem doanh thu.</div>
+                            {{ form.role.errors }}
+                        </div>
+                        <div class="full">
                             <div class="form-section-title">Cấp quyền cửa hàng</div>
                             <div class="check-grid">
                                 {% for checkbox in form.store_ids %}
@@ -189,6 +204,11 @@
                         {{ edit_form.is_active.errors }}
                     </div>
                     <div class="crud-form-grid">
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ edit_form.role.id_for_label }}">Vai trò</label>
+                            {{ edit_form.role }}
+                            {{ edit_form.role.errors }}
+                        </div>
                         <div class="full">
                             <label class="form-label fw-semibold" for="{{ edit_form.default_store.id_for_label }}">Cửa hàng mặc định</label>
                             {{ edit_form.default_store }}
@@ -303,6 +323,8 @@
                 });
                 const sel = editForm.querySelector('select[name="default_store"]');
                 if (sel) sel.value = button.dataset.defaultStoreId || '';
+                const roleSelect = editForm.querySelector('select[name="role"]');
+                if (roleSelect) roleSelect.value = button.dataset.role || 'STAFF';
                 const ia = editForm.querySelector('input[name="is_active"]');
                 if (ia) ia.checked = button.dataset.isActive === '1';
                 if (deleteForm) deleteForm.action = button.dataset.deleteUrl || '';

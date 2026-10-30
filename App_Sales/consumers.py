@@ -48,7 +48,7 @@ class PosStoreConsumer(AsyncJsonWebsocketConsumer):
         except User.DoesNotExist:
             return False
 
-        if user.role not in {User.Role.MANAGER, User.Role.STAFF}:
+        if user.role not in {User.Role.MANAGER, User.Role.STAFF, User.Role.KITCHEN}:
             return False
 
         if tenant_block_reason(user.tenant) is not None:

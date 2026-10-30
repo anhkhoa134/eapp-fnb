@@ -1,6 +1,8 @@
 {% load static %}
 <link rel="stylesheet" href="{% static 'css/dropdowns.css' %}">
 <link rel="stylesheet" href="{% static 'css/dropdowns-fnb.css' %}">
-<link rel="stylesheet" href="{% static 'css/eapp_forms.css' %}">
+{# Chỉ style lỗi form / ô chọn tệp: nạp không chặn hiển thị trang. #}
+<link rel="stylesheet" href="{% static 'css/eapp_forms.css' %}" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="{% static 'css/eapp_forms.css' %}"></noscript>
 <script defer src="{% static 'js/dropdowns.js' %}"></script>
 <script defer src="{% static 'js/eapp_forms.js' %}"></script>

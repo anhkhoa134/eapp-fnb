@@ -75,6 +75,8 @@ class Order(TimeStampedModel):
     total_amount = models.DecimalField(max_digits=14, decimal_places=2)
     customer_paid = models.DecimalField(max_digits=14, decimal_places=2)
     change_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    # Mã giao dịch thẻ / chuyển khoản QR (tuỳ chọn) để đối soát với sao kê ngân hàng.
+    payment_reference = models.CharField('Mã giao dịch', max_length=64, blank=True)
     table_name = models.CharField('Bàn', max_length=120, blank=True)
     refunded_amount = models.DecimalField('Đã hoàn tiền', max_digits=14, decimal_places=2, default=0)
     print_count = models.PositiveIntegerField('Số lần in hoá đơn', default=0)
@@ -371,6 +373,8 @@ class DiningTable(TimeStampedModel):
     )
     code = models.CharField('Mã bàn', max_length=40)
     name = models.CharField('Tên bàn', max_length=120)
+    # Nhóm bàn để lọc nhanh trên POS (VD "Tầng 1", "Sân vườn"); để trống nếu quán nhỏ.
+    area = models.CharField('Khu vực / tầng', max_length=60, blank=True)
     qr_token = models.CharField(max_length=64, unique=True, default=generate_qr_token, editable=False)
     is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
@@ -397,6 +401,7 @@ class DiningTable(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         self.code = (self.code or '').strip().upper()
+        self.area = ' '.join((self.area or '').split())
         if not self.qr_token:
             self.qr_token = generate_qr_token()
         self.full_clean()

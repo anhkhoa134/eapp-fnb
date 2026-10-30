@@ -21,6 +21,8 @@ def _home_for(user):
             return reverse('admin:index'), 'Về trang quản trị'
         if getattr(user, 'is_manager', False):
             return reverse('App_Quanly:dashboard'), 'Về trang quản lý'
+        if getattr(user, 'is_kitchen', False):
+            return reverse('App_Sales:kitchen'), 'Về màn hình bếp'
         return reverse('App_Sales:pos'), 'Về màn hình bán hàng'
     return reverse('App_Accounts:login'), 'Đăng nhập'
 

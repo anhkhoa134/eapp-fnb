@@ -39,6 +39,7 @@
 <hr class="sep solid">
 <div class="row total-row"><span>TỔNG CỘNG</span><span>{{ order.total_amount|thousand_sep }} đ</span></div>
 <div class="row"><span>Phương thức</span><span class="bold">{{ order.get_payment_method_display }}</span></div>
+{% if order.payment_reference %}<div class="row"><span>Mã giao dịch</span><span>{{ order.payment_reference }}</span></div>{% endif %}
 <div class="row"><span>{% if order.payment_method == 'cash' %}Khách đưa{% else %}Đã thanh toán{% endif %}</span><span>{{ order.customer_paid|thousand_sep }} đ</span></div>
 {% if order.payment_method == 'cash' %}
 <div class="row"><span>Tiền thừa trả khách</span><span>{{ order.change_amount|thousand_sep }} đ</span></div>
