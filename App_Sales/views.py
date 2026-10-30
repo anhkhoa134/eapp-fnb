@@ -3,6 +3,7 @@ import re
 from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -13,14 +14,16 @@ from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.templatetags.static import static
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from App_Accounts.permissions import staff_or_manager_required
 from App_Core.audit import Action, log_action
+from App_Core.templatetags.number_format import thousand_sep
 from App_Sales import kitchen, shifts
-from App_Catalog.models import Product, ProductTopping, ProductUnit
+from App_Catalog.models import PLACEHOLDER_PRODUCT_IMAGE, Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, parse_topping_ids, resolve_product_topping_links
 from App_Sales.models import (
     Customer,
@@ -44,6 +47,7 @@ from App_Sales.services import (
     calculate_order_totals,
     calculate_points_for_amount,
     calculate_promotion_discount,
+    customer_search_q,
     get_customer_tier_setting,
     get_accessible_store_or_default,
     get_available_promotions,
@@ -74,7 +78,7 @@ def _orders_today_query_string(request):
 def _pos_product_image_url(request, product):
     raw = product.get_catalog_image_url()
     if not raw:
-        return 'https://placehold.co/600x600/png?text=Product'
+        return request.build_absolute_uri(static(PLACEHOLDER_PRODUCT_IMAGE))
     if raw.startswith('http'):
         return raw
     return request.build_absolute_uri(raw)
@@ -406,6 +410,9 @@ def pos_page(request):
             'stores': stores,
             'default_store_id': default_store.id if default_store else None,
             'default_store_name': default_store.name if default_store else '',
+            'pos_flash_messages': [
+                {'text': str(message), 'tags': message.tags} for message in messages.get_messages(request)
+            ],
         },
     )
 
@@ -547,7 +554,7 @@ def api_products(request):
             {
                 'id': product.id,
                 'name': product.name,
-                'description': (product.description or '').strip(),
+                'description': product.display_description,
                 'category': product.category.name if product.category else 'Khác',
                 'category_id': str(product.category_id or ''),
                 'image': _pos_product_image_url(request, product),
@@ -592,7 +599,7 @@ def api_customers(request):
         has_customers = Customer.objects.filter(tenant=user.tenant).exists()
         customers = Customer.objects.filter(tenant=user.tenant, is_active=True)
         if q:
-            customers = customers.filter(Q(name__icontains=q) | Q(phone__icontains=q))
+            customers = customers.filter(customer_search_q(q))
         rows = [_serialize_customer(row) for row in customers.order_by('name', 'id')[:12]]
         return JsonResponse({'customers': rows, 'has_customers': has_customers})
 
@@ -707,6 +714,23 @@ def _resolve_checkout_discounts(*, tenant, store, payload, subtotal):
         if not promotion:
             raise ValueError('Khuyến mãi không hợp lệ hoặc không đủ điều kiện áp dụng.')
     return customer, promotion
+
+
+def _log_checkout(request, order):
+    method = 'tiền mặt' if order.payment_method == Order.PaymentMethod.CASH else 'thẻ/QR'
+    place = order.table_name or ('mang về' if order.sale_channel == Order.SaleChannel.TAKEAWAY else '')
+    log_action(
+        Action.ORDER_CHECKOUT,
+        request=request,
+        store_id=order.store_id,
+        obj=order,
+        object_type='Đơn bán',
+        message=(
+            f'Thanh toán đơn {order.order_code}{f" ({place})" if place else ""}: '
+            f'{thousand_sep(order.total_amount)} đ, {method}'
+        ),
+        extra={'order_id': order.id, 'total_amount': str(order.total_amount), 'payment_method': order.payment_method},
+    )
 
 
 def _checkout_response(order, *, kitchen_ticket_id=None, status=200, replayed=False, extra=None):
@@ -982,6 +1006,7 @@ def api_checkout(request):
         )
 
     order = Order.objects.select_related('customer').get(pk=order.pk)
+    _log_checkout(request, order)
     return _checkout_response(order, kitchen_ticket_id=kitchen_ticket.id if kitchen_ticket else None, status=201)
 
 
@@ -1332,20 +1357,34 @@ def api_table_cart_move_to(request, table_id):
     )
 
 
-def _log_cart_void(request, item: TableCartItem, removed_quantity: int):
+VOID_REASON_REQUIRED_MESSAGE = 'Món đã báo bếp: vui lòng nhập lý do huỷ.'
+
+
+def _void_reason(payload) -> str:
+    return str((payload or {}).get('reason') or '').strip()[:200]
+
+
+def _void_reason_missing(item: TableCartItem, new_quantity: int, reason: str) -> bool:
+    """Huỷ bớt phần đã báo bếp (bếp có thể đã nấu) thì phải có lý do để đối soát."""
+    return item.kitchen_sent_quantity > max(new_quantity, 0) and not reason
+
+
+def _log_cart_void(request, item: TableCartItem, removed_quantity: int, reason: str = ''):
     sent_note = ' (đã báo bếp)' if item.kitchen_sent_quantity > 0 else ''
+    reason_note = f'. Lý do: {reason}' if reason else ''
     log_action(
         Action.CART_VOID,
         request=request,
         store_id=item.store_id,
         object_type='Món trong giỏ bàn',
-        message=f'{item.table.name}: huỷ {item.snapshot_product_name} x{removed_quantity}{sent_note}',
+        message=f'{item.table.name}: huỷ {item.snapshot_product_name} x{removed_quantity}{sent_note}{reason_note}',
         extra={
             'table_id': item.table_id,
             'product_id': item.product_id,
             'quantity': removed_quantity,
             'kitchen_sent_quantity': item.kitchen_sent_quantity,
             'unit_price': str(item.unit_price_snapshot),
+            'reason': reason,
         },
     )
 
@@ -1367,8 +1406,11 @@ def api_table_cart_item(request, table_id, item_id):
     )
 
     if request.method == 'DELETE':
+        reason = _void_reason(_parse_json_request(request))
+        if _void_reason_missing(item, 0, reason):
+            return JsonResponse({'detail': VOID_REASON_REQUIRED_MESSAGE, 'code': 'reason_required'}, status=400)
         with transaction.atomic():
-            _log_cart_void(request, item, item.quantity)
+            _log_cart_void(request, item, item.quantity, reason)
             kitchen.sync_kitchen_on_quantity_decrease(item, 0)
             item.delete()
         return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
@@ -1376,6 +1418,7 @@ def api_table_cart_item(request, table_id, item_id):
     payload = _parse_json_request(request)
     if payload is None:
         return _json_error('Payload JSON không hợp lệ.', 400)
+    reason = _void_reason(payload)
 
     note = payload.get('note')
     quantity = payload.get('quantity')
@@ -1389,6 +1432,8 @@ def api_table_cart_item(request, table_id, item_id):
             return _json_error('Số lượng không hợp lệ.', 400)
         if quantity > MAX_ITEM_QUANTITY:
             return _json_error(f'Số lượng mỗi món tối đa {MAX_ITEM_QUANTITY}.', 400)
+        if _void_reason_missing(item, quantity, reason):
+            return JsonResponse({'detail': VOID_REASON_REQUIRED_MESSAGE, 'code': 'reason_required'}, status=400)
 
     new_topping_rows = None
     if topping_ids is not None:
@@ -1410,7 +1455,7 @@ def api_table_cart_item(request, table_id, item_id):
 
     if quantity is not None and quantity <= 0:
         with transaction.atomic():
-            _log_cart_void(request, item, item.quantity)
+            _log_cart_void(request, item, item.quantity, reason)
             kitchen.sync_kitchen_on_quantity_decrease(item, 0)
             item.delete()
         return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
@@ -1443,7 +1488,7 @@ def api_table_cart_item(request, table_id, item_id):
         else:
             item.save(update_fields=update_fields)
         if voided_quantity:
-            _log_cart_void(request, item, voided_quantity)
+            _log_cart_void(request, item, voided_quantity, reason)
     return JsonResponse({'item': _serialize_table_cart_item(item), 'summary': _table_cart_summary(table)})
 
 
@@ -1570,6 +1615,7 @@ def api_table_checkout(request, table_id):
         raise
 
     order = Order.objects.select_related('customer').get(pk=order.pk)
+    _log_checkout(request, order)
     return _checkout_response(
         order,
         kitchen_ticket_id=kitchen_ticket.id if kitchen_ticket else None,
@@ -1693,6 +1739,14 @@ def api_qr_order_approve(request, order_id):
             _approve_takeaway_qr_order(order=order, user=user, use_kitchen=use_kitchen)
         else:
             _approve_dine_in_qr_order(order=order, user=user, use_kitchen=use_kitchen)
+        log_action(
+            Action.QR_APPROVE,
+            request=request,
+            store_id=order.store_id,
+            obj=order,
+            object_type='Đơn QR',
+            message=f'Duyệt đơn QR #{order.id} ({order.table.name if order.table_id else "mang đi"})',
+        )
 
     return _qr_order_approved_response(order)
 
@@ -1887,6 +1941,8 @@ def kitchen_page(request):
         {
             'stores': stores,
             'default_store_id': default_store.id if default_store else None,
+            # Giờ trên phiếu hiển thị theo giờ cửa hàng, không theo múi giờ của máy/trình duyệt ở bếp.
+            'store_time_zone': settings.TIME_ZONE,
         },
     )
 
@@ -1972,7 +2028,19 @@ def api_kitchen_item_status(request, item_id):
             return _json_error('Không có quyền cập nhật phiếu bếp của cửa hàng này.', 403)
         if kitchen_item.status == KitchenTicketItem.Status.CANCELLED:
             return _json_error('Món này đã bị huỷ.', 400)
+        previous_status = kitchen_item.status
         kitchen.set_kitchen_item_status(kitchen_item, status)
+        if previous_status != status:
+            log_action(
+                Action.KITCHEN_STATUS,
+                request=request,
+                store_id=kitchen_item.ticket.store_id,
+                obj=kitchen_item,
+                message=(
+                    f'Bếp: {kitchen_item.snapshot_product_name} x{kitchen_item.quantity} '
+                    f'({kitchen_item.ticket.table_name}) → {kitchen_item.get_status_display()}'
+                ),
+            )
         ticket = KitchenTicket.objects.select_related('order', 'created_by').prefetch_related('items').get(
             id=kitchen_item.ticket_id
         )
@@ -1992,7 +2060,15 @@ def api_kitchen_ticket_complete(request, ticket_id):
         ticket = _get_kitchen_ticket_for_user(user, ticket_id, lock=True)
         if not ticket:
             return _json_error('Không có quyền cập nhật phiếu bếp của cửa hàng này.', 403)
-        kitchen.complete_kitchen_ticket(ticket)
+        completed = kitchen.complete_kitchen_ticket(ticket)
+        if completed:
+            log_action(
+                Action.KITCHEN_STATUS,
+                request=request,
+                store_id=ticket.store_id,
+                obj=ticket,
+                message=f'Bếp: xong cả phiếu #{ticket.id} ({ticket.table_name}, {completed} món)',
+            )
         ticket = KitchenTicket.objects.select_related('order', 'created_by').prefetch_related('items').get(id=ticket.id)
 
     return JsonResponse({'ticket': kitchen.serialize_kitchen_ticket(ticket)})
@@ -2036,10 +2112,11 @@ def _is_autoprint(request) -> bool:
 def _register_print(request, obj) -> int:
     """
     Lần in thật (autoprint=1) thì tăng bộ đếm. Trả về số thứ tự bản in lại (>= 2) để in dấu
-    "Bản in lại", hoặc 0 nếu là bản in đầu tiên. Xem trước không tăng bộ đếm.
+    "Bản in lại", hoặc 0 nếu là bản in đầu tiên. Xem trước không tăng bộ đếm và không đóng dấu
+    (trước đây mở xem hoá đơn vừa in tự động đã hiện "BẢN IN LẠI (lần 2)"); thanh công cụ báo số lần đã in.
     """
     if not _is_autoprint(request):
-        return obj.print_count + 1 if obj.print_count else 0
+        return 0
     type(obj).objects.filter(pk=obj.pk).update(print_count=F('print_count') + 1)
     obj.refresh_from_db(fields=['print_count'])
     return obj.print_count if obj.print_count > 1 else 0
@@ -2059,7 +2136,7 @@ def _print_row(*, name, unit, toppings, quantity, unit_price, note=''):
 
 def _get_accessible_order_or_403(user, order_id):
     order = get_object_or_404(
-        Order.objects.select_related('store', 'cashier', 'customer'),
+        Order.objects.select_related('store', 'cashier', 'customer', 'tenant'),
         id=order_id,
         tenant=user.tenant,
     )
@@ -2102,9 +2179,11 @@ def order_receipt_print(request, order_id):
         {
             'order': order,
             'store': order.store,
+            'brand_name': order.tenant.name,
             'rows': rows,
             'refunds': order.refunds.order_by('created_at', 'id'),
             'reprint_no': reprint_no,
+            'printed_count': 0 if _is_autoprint(request) else order.print_count,
         },
     )
 
@@ -2182,6 +2261,7 @@ def kitchen_ticket_print(request, ticket_id):
                 item.quantity for item in items if item.status != KitchenTicketItem.Status.CANCELLED
             ),
             'reprint_no': reprint_no,
+            'printed_count': 0 if _is_autoprint(request) else ticket.print_count,
         },
     )
 
@@ -2191,10 +2271,25 @@ def kitchen_ticket_print(request, ticket_id):
 SHIFTS_PER_PAGE = 15
 
 
-def _parse_money(raw) -> Decimal:
-    """Nhận '1.500.000', '1500000', '1 500 000' -> Decimal. Chuỗi rỗng = 0."""
-    digits = re.sub(r'[^0-9]', '', str(raw or ''))
-    return Decimal(digits or '0')
+MAX_SHIFT_CASH = Decimal('10000000000')
+
+
+def _parse_money(raw, *, label='Số tiền') -> Decimal:
+    """Nhận '1.500.000', '1500000', '1 500 000' -> Decimal. Chuỗi rỗng = 0.
+
+    Chữ hoặc số âm báo lỗi thay vì ép về 0 / bỏ dấu ('abc' -> 0đ, '-500' -> 500đ).
+    """
+    text = str(raw or '').strip()
+    if not text:
+        return Decimal('0')
+    if text.startswith('-'):
+        raise ValidationError(f'{label} không được âm.')
+    if not re.fullmatch(r'[0-9][0-9.,\s]*(đ|₫|vnđ|vnd)?', text, flags=re.IGNORECASE):
+        raise ValidationError(f'{label} chỉ được nhập số (VD: 500.000).')
+    amount = Decimal(re.sub(r'[^0-9]', '', text) or '0')
+    if amount > MAX_SHIFT_CASH:
+        raise ValidationError(f'{label} quá lớn, vui lòng kiểm tra lại.')
+    return amount
 
 
 def _serialize_shift(shift: Shift | None):
@@ -2232,7 +2327,7 @@ def shifts_page(request):
                 opened = shifts.open_shift(
                     store=store,
                     user=user,
-                    opening_cash=_parse_money(request.POST.get('opening_cash')),
+                    opening_cash=_parse_money(request.POST.get('opening_cash'), label='Tiền đầu ca'),
                     note=note,
                 )
                 messages.success(request, f'Đã mở ca #{opened.id} tại {store.name}.')
@@ -2245,7 +2340,7 @@ def shifts_page(request):
                 closed = shifts.close_shift(
                     shift=current,
                     user=user,
-                    counted_cash=_parse_money(request.POST.get('counted_cash')),
+                    counted_cash=_parse_money(request.POST.get('counted_cash'), label='Tiền mặt thực đếm'),
                     note=note,
                 )
                 messages.success(request, f'Đã chốt ca #{closed.id}.')

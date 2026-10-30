@@ -12,6 +12,7 @@ urlpatterns = [
     path('account/', views.account_settings, name='account'),
     path('settings/features/', views.feature_settings, name='feature_settings'),
     path('orders/', views.order_history, name='orders'),
+    path('orders/export/', views.orders_export, name='orders_export'),
     path('orders/<int:pk>/delete/', views.order_delete, name='order_delete'),
     path('orders/<int:pk>/refund/', views.order_refund, name='order_refund'),
     path('audit-log/', views.audit_log, name='audit_log'),

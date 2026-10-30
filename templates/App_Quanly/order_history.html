@@ -115,6 +115,16 @@
                 <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:orders' %}">
                     <i class="bi bi-x-lg me-1"></i>Xóa bộ lọc
                 </a>
+                <div class="btn-group">
+                    <a class="btn btn-outline-success" href="{% url 'App_Quanly:orders_export' %}?{{ query_string }}{% if query_string %}&amp;{% endif %}format=xlsx">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Xuất Excel
+                    </a>
+                    <button type="button" class="btn btn-outline-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Định dạng khác"></button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{% url 'App_Quanly:orders_export' %}?{{ query_string }}{% if query_string %}&amp;{% endif %}format=xlsx"><i class="bi bi-file-earmark-excel me-2"></i>Excel (.xlsx): đơn, theo món, theo thu ngân</a></li>
+                        <li><a class="dropdown-item" href="{% url 'App_Quanly:orders_export' %}?{{ query_string }}{% if query_string %}&amp;{% endif %}format=csv"><i class="bi bi-filetype-csv me-2"></i>CSV: danh sách đơn</a></li>
+                    </ul>
+                </div>
             </div>
         </form>
     </div>
@@ -175,7 +185,7 @@
                     <tr>
                         {% if row.kind == 'sale' %}
                         {% with order=row.order %}
-                        <td class="fw-semibold">{{ order.order_code }}</td>
+                        <td class="fw-semibold text-nowrap">{{ order.order_code }}</td>
                         <td>{{ order.store.name }}</td>
                         <td>{{ order.cashier.username }}</td>
                         <td>
@@ -232,25 +242,35 @@
                                 <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#orderDetailModal-sale-{{ order.id }}">
                                     <i class="bi bi-eye"></i> Chi tiết
                                 </button>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" data-print-url="{% url 'App_Sales:order_receipt' order.id %}" title="In hoá đơn" aria-label="In hoá đơn">
-                                    <i class="bi bi-printer"></i>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-print-url="{% url 'App_Sales:order_receipt' order.id %}" title="In hoá đơn">
+                                    <i class="bi bi-printer" aria-hidden="true"></i> In
                                 </button>
                                 {% if user.is_manager and order.refundable_amount %}
-                                <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#orderRefundModal-sale-{{ order.id }}" title="Hoàn tiền" aria-label="Hoàn tiền">
-                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                <button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#orderRefundModal-sale-{{ order.id }}" title="Hoàn tiền">
+                                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Hoàn tiền
                                 </button>
                                 {% endif %}
                                 {% if user.is_manager %}
-                                <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal-sale-{{ order.id }}">
-                                    <i class="bi bi-trash"></i> Xóa
-                                </button>
+                                {# Xoá đơn làm mất số liệu doanh thu: để trong menu "Khác", không đặt cạnh nút Hoàn tiền. #}
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Thao tác khác">
+                                        <i class="bi bi-three-dots" aria-hidden="true"></i><span class="visually-hidden">Thao tác khác</span>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal-sale-{{ order.id }}">
+                                                <i class="bi bi-trash me-2" aria-hidden="true"></i>Xóa đơn{% if order.status != 'cancelled' %} (mất số liệu doanh thu){% endif %}
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                                 {% endif %}
                             </div>
                         </td>
                         {% endwith %}
                         {% else %}
                         {% with q=row.qr %}
-                        <td class="fw-semibold">QR-{{ q.id }}</td>
+                        <td class="fw-semibold text-nowrap">QR-{{ q.id }}</td>
                         <td>{{ q.store.name }}</td>
                         <td>{% if q.rejected_by %}{{ q.rejected_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
                         <td><span class="text-muted small">—</span></td>
@@ -429,11 +449,8 @@
 <div class="modal fade crud-modal" id="orderRefundModal-sale-{{ order.id }}" tabindex="-1" aria-labelledby="orderRefundLabel-sale-{{ order.id }}" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <form method="post" action="{% url 'App_Quanly:order_refund' order.id %}" class="js-refund-form"
-                  data-confirm="Thao tác hoàn tiền được ghi vào nhật ký và không hoàn tác được."
-                  data-confirm-title="Hoàn tiền đơn {{ order.order_code }}?"
-                  data-confirm-ok="Hoàn tiền"
-                  data-confirm-variant="warning">
+            {# Modal này đã là bước xác nhận (bắt buộc lý do): không hỏi lại lần 2. #}
+            <form method="post" action="{% url 'App_Quanly:order_refund' order.id %}" class="js-refund-form">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <div class="modal-header">
@@ -446,6 +463,7 @@
                     <p class="small text-muted mb-3">
                         Tổng đơn {{ order.total_amount|thousand_sep }} đ{% if order.refunded_amount %}, đã hoàn {{ order.refunded_amount|thousand_sep }} đ{% endif %}.
                         Có thể hoàn tối đa <strong>{{ order.refundable_amount|thousand_sep }} đ</strong>.
+                        Hoàn tiền được ghi vào nhật ký và không hoàn tác được.
                     </p>
                     <div class="mb-3">
                         <div class="form-check">

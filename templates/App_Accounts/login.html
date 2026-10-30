@@ -6,6 +6,33 @@
 {% block body_class %}auth-page{% endblock %}
 {% block container_class %}container-fluid py-4 py-md-5 auth-wrap{% endblock %}
 
+{% block head_extra %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "Organization",
+            "name": "eApp",
+            "url": "https://eapp.vn/",
+            "logo": "{{ request.scheme }}://{{ request.get_host }}{% static 'images/logo/eapp.webp' %}"
+        },
+        {
+            "@type": "SoftwareApplication",
+            "name": "eApp FnB",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web, Android, iOS (PWA)",
+            "inLanguage": "vi",
+            "url": "{{ request.scheme }}://{{ request.get_host }}{% url 'App_Accounts:login' %}",
+            "description": "Phần mềm bán hàng POS và quản lý quán cà phê, nhà hàng: gọi món QR tại bàn, màn hình bếp, khuyến mãi, khách hàng thân thiết, nhiều chi nhánh.",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "VND", "description": "Gói miễn phí khi đăng ký"},
+            "publisher": {"@type": "Organization", "name": "eApp", "url": "https://eapp.vn/"}
+        }
+    ]
+}
+</script>
+{% endblock %}
+
 {% block extra_css %}
 {% include 'App_Accounts/_auth_styles.html' %}
 {% endblock %}

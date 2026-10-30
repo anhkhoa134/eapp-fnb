@@ -125,6 +125,8 @@ JAZZMIN_SETTINGS = {
 MIDDLEWARE = [
     'Project.health.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # CSP + Permissions-Policy (báo cáo QA 29/10/2026, BUG-20).
+    'App_Core.security_headers.SecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     # Trước CommonMiddleware để APPEND_SLASH (404→301) chạy trước khi đổi 404→redirect.

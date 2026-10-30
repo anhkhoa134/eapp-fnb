@@ -7,14 +7,44 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from App_Accounts.models import User
-from App_Catalog.models import Category, Ingredient, Product, ProductTopping, ProductUnit, Topping
+from App_Catalog.models import (
+    Category,
+    Ingredient,
+    Product,
+    ProductTopping,
+    ProductUnit,
+    Topping,
+    validate_price_vnd,
+)
 from App_Catalog.product_image_utils import MAX_UPLOAD_BYTES, apply_product_image_upload, clear_product_uploaded_images
 from App_Sales.models import Customer, CustomerTierSetting, DiningTable, Promotion
 from App_Tenant.models import MAX_TAX_PERCENT, Store, Tenant
 
 
+DJANGO_BLANK_LABEL = '---------'
+
+
+def _blank_choice_label(field):
+    label = str(field.label or '').strip()
+    return f'— Chọn {label[:1].lower()}{label[1:]} —' if label else '— Chọn —'
+
+
+def _replace_blank_choice_label(field):
+    """Thay '---------' mặc định của Django bằng nhãn tiếng Việt."""
+    if isinstance(field, forms.ModelChoiceField):
+        if field.empty_label == DJANGO_BLANK_LABEL:
+            field.empty_label = _blank_choice_label(field)
+        return
+    if isinstance(field, forms.ChoiceField):
+        choices = list(field.choices)
+        if choices and choices[0][1] == DJANGO_BLANK_LABEL:
+            choices[0] = (choices[0][0], _blank_choice_label(field))
+            field.choices = choices
+
+
 def _apply_bootstrap_classes(form):
     for field in form.fields.values():
+        _replace_blank_choice_label(field)
         widget = field.widget
         existing_class = widget.attrs.get('class', '')
 
@@ -265,6 +295,16 @@ class CategoryForm(forms.ModelForm):
             self.instance.tenant = tenant
         super()._post_clean()
 
+    def clean_name(self):
+        name = (self.cleaned_data.get('name') or '').strip()
+        tenant = self.tenant or getattr(self.instance, 'tenant', None)
+        if name and tenant is not None:
+            # So sánh ở Python: iexact của SQLite không phân biệt hoa/thường với chữ có dấu ("Đồ" / "đồ").
+            others = Category.objects.filter(tenant=tenant).exclude(pk=self.instance.pk).values_list('name', flat=True)
+            if any(other.strip().casefold() == name.casefold() for other in others):
+                raise ValidationError(f'Đã có danh mục "{name}". Hãy dùng tên khác.')
+        return name
+
     def clean(self):
         cleaned = super().clean()
         tenant = self.tenant
@@ -370,6 +410,8 @@ class ProductUnitForm(forms.ModelForm):
     class Meta:
         model = ProductUnit
         fields = ['name', 'price', 'sku', 'is_active']
+        # "35.000" (có dấu chấm nghìn) vẫn hiểu là 35.000đ khi JS định dạng giá không chạy.
+        field_classes = {'price': ThousandSeparatedDecimalField}
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Ly M'}),
             'price': forms.TextInput(attrs={'placeholder': 'VD: 35000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
@@ -396,6 +438,7 @@ class ProductUnitForm(forms.ModelForm):
         price = self.cleaned_data.get('price')
         if price is None:
             return price
+        validate_price_vnd(price, allow_zero=False, label='Giá bán')
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
@@ -410,6 +453,8 @@ class ToppingForm(forms.ModelForm):
     class Meta:
         model = Topping
         fields = ['name', 'price', 'is_active']
+        # "35.000" (có dấu chấm nghìn) vẫn hiểu là 35.000đ khi JS định dạng giá không chạy.
+        field_classes = {'price': ThousandSeparatedDecimalField}
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Trân châu'}),
             'price': forms.TextInput(attrs={'placeholder': 'VD: 7000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
@@ -437,6 +482,7 @@ class ToppingForm(forms.ModelForm):
         price = self.cleaned_data.get('price')
         if price is None:
             return Decimal('0')
+        validate_price_vnd(price, allow_zero=True, label='Giá topping')
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
@@ -489,6 +535,8 @@ class ProductToppingForm(forms.ModelForm):
     class Meta:
         model = ProductTopping
         fields = ['product', 'topping', 'price', 'is_active']
+        # "35.000" (có dấu chấm nghìn) vẫn hiểu là 35.000đ khi JS định dạng giá không chạy.
+        field_classes = {'price': ThousandSeparatedDecimalField}
         widgets = {
             'price': forms.TextInput(attrs={'placeholder': 'VD: 7000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
         }
@@ -518,6 +566,7 @@ class ProductToppingForm(forms.ModelForm):
         price = self.cleaned_data.get('price')
         if price is None:
             return price
+        validate_price_vnd(price, allow_zero=True, label='Giá topping')
         return price.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
@@ -551,14 +600,19 @@ class CustomerForm(forms.ModelForm):
         if tenant is not None and not self.instance.tenant_id:
             self.instance.tenant = tenant
         super()._post_clean()
+        # clean_phone() đã báo lỗi thì Customer.clean() (phone rỗng) báo thêm "Vui lòng nhập…": giữ 1 lỗi mỗi ô.
+        for errors in self._errors.values():
+            del errors[1:]
 
     def clean_phone(self):
         raw = (self.cleaned_data.get('phone') or '').strip()
         if not raw:
             raise ValidationError('Vui lòng nhập số điện thoại.')
+        if any(not (ch.isdigit() or ch in '+ -.()') for ch in raw):
+            raise ValidationError('Số điện thoại chỉ gồm chữ số, VD: 0901234567 hoặc +84901234567.')
         digits = ''.join(ch for ch in raw if ch.isdigit())
-        if len(digits) < 8:
-            raise ValidationError('Số điện thoại quá ngắn hoặc không hợp lệ.')
+        if len(digits) < 8 or len(digits) > 15:
+            raise ValidationError('Số điện thoại không hợp lệ: cần 10 số, bắt đầu bằng 0 hoặc +84.')
         # Form không có field tenant nên Django bỏ qua UniqueConstraint(tenant, phone) -> tự kiểm tra.
         tenant = getattr(self, 'tenant', None)
         if tenant is not None:
@@ -685,6 +739,11 @@ class PromotionForm(forms.ModelForm):
             'valid_to',
             'is_active',
         ]
+        # "100.000" (có dấu chấm nghìn) hiểu là 100.000đ, không phải 100 với 3 chữ số thập phân.
+        field_classes = {
+            'min_order_amount': ThousandSeparatedDecimalField,
+            'max_discount_amount': ThousandSeparatedDecimalField,
+        }
         labels = {
             'name': 'Tên khuyến mãi',
             'discount_type': 'Loại giảm',
@@ -859,12 +918,22 @@ class StorePaymentForm(forms.ModelForm):
         return instance
 
 
+def next_table_code(store):
+    """Mã bàn kế tiếp có tiền tố cửa hàng: TT-01, TT-02… (bỏ qua mã đã dùng)."""
+    prefix = store.table_code_prefix
+    used = set(DiningTable.objects.filter(store=store).values_list('code', flat=True))
+    index = DiningTable.objects.filter(store=store).count() + 1
+    while f'{prefix}-{index:02d}' in used:
+        index += 1
+    return f'{prefix}-{index:02d}'
+
+
 class DiningTableForm(forms.ModelForm):
     class Meta:
         model = DiningTable
         fields = ['store', 'code', 'name', 'is_active']
         widgets = {
-            'code': forms.TextInput(attrs={'placeholder': 'VD: A-01'}),
+            'code': forms.TextInput(attrs={'placeholder': 'Để trống để tự tạo, VD: TT-01'}),
             'name': forms.TextInput(attrs={'placeholder': 'VD: Bàn 01'}),
         }
 
@@ -875,7 +944,8 @@ class DiningTableForm(forms.ModelForm):
             self.fields['store'].queryset = Store.objects.filter(tenant=tenant, is_active=True).order_by('name')
         else:
             self.fields['store'].queryset = Store.objects.none()
-        self.fields['code'].help_text = 'Mã bàn sẽ tự chuyển sang chữ in hoa.'
+        self.fields['code'].required = False
+        self.fields['code'].help_text = 'Để trống để tự tạo mã theo cửa hàng (VD: TT-13). Mã tự chuyển sang chữ in hoa.'
         _apply_bootstrap_classes(self)
 
     def _post_clean(self):
@@ -890,6 +960,15 @@ class DiningTableForm(forms.ModelForm):
         store = cleaned.get('store')
         if tenant and store and store.tenant_id != tenant.id:
             self.add_error('store', 'Cửa hàng không thuộc doanh nghiệp hiện tại.')
+        code = (cleaned.get('code') or '').strip().upper()
+        if store and not code:
+            code = next_table_code(store)
+            cleaned['code'] = code
+        if store and code:
+            duplicate = DiningTable.objects.filter(store=store, code=code).exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                # Gắn lỗi vào ô Mã bàn (UniqueConstraint chỉ báo lỗi chung đầu form).
+                self.add_error('code', f'Mã bàn "{code}" đã tồn tại ở {store.name}.')
         return cleaned
 
 

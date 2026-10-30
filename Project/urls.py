@@ -10,6 +10,9 @@ urlpatterns = [
     path('manifest.webmanifest', core_views.manifest_view, name='pwa_manifest'),
     path('sw.js', core_views.service_worker_view, name='pwa_service_worker'),
     path('offline/', core_views.offline_view, name='pwa_offline'),
+    path('robots.txt', core_views.robots_txt_view, name='pwa_robots'),
+    path('sitemap.xml', core_views.sitemap_xml_view, name='pwa_sitemap'),
+    path('llms.txt', core_views.llms_txt_view, name='pwa_llms'),
     path(
         f'{settings.REAL_ADMIN_PATH}demo-seed-reset/',
         admin.site.admin_view(demo_seed_reset_confirm),
@@ -28,3 +31,4 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 handler404 = 'App_Core.views.redirect_not_found'
+handler403 = 'App_Core.views.permission_denied_view'

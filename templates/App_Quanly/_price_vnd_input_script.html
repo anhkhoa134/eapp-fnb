@@ -3,14 +3,17 @@
     function parsePriceToInt(str) {
         const s = String(str ?? '').trim().replace(/\s/g, '');
         if (!s) return null;
-        const dotParts = s.split('.');
+        // Giữ dấu âm: trước đây "-5000" bị bỏ dấu thành 5.000đ; để server báo lỗi "không được âm".
+        const sign = s.startsWith('-') ? -1 : 1;
+        const body = sign < 0 ? s.slice(1) : s;
+        const dotParts = body.split('.');
         if (dotParts.length === 2 && /^\d+$/.test(dotParts[0]) && /^\d{1,2}$/.test(dotParts[1])) {
-            return Math.round(Number(`${dotParts[0]}.${dotParts[1]}`));
+            return sign * Math.round(Number(`${dotParts[0]}.${dotParts[1]}`));
         }
-        const digits = s.replace(/\D/g, '');
+        const digits = body.replace(/\D/g, '');
         if (!digits) return null;
         const n = parseInt(digits, 10);
-        return Number.isFinite(n) ? n : null;
+        return Number.isFinite(n) ? sign * n : null;
     }
 
     function formatVndInt(n) {
@@ -44,6 +47,7 @@
 
             const form = el.closest('form');
             const onInput = () => {
+                if (el.value.trim() === '-') return;
                 const n = parsePriceToInt(el.value);
                 el.value = n === null ? '' : formatVndInt(n);
             };

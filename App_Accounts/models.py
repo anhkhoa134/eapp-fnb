@@ -5,8 +5,8 @@ from django.db.models import Q
 
 class User(AbstractUser):
     class Role(models.TextChoices):
-        MANAGER = 'MANAGER', 'Manager'
-        STAFF = 'STAFF', 'Staff'
+        MANAGER = 'MANAGER', 'Quản lý'
+        STAFF = 'STAFF', 'Nhân viên'
 
     is_active = models.BooleanField('Đang hoạt động', default=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STAFF)

@@ -359,24 +359,24 @@
     .quanly-status-icon {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        width: 2rem;
-        height: 2rem;
-        padding: 0;
+        gap: 0.3rem;
+        min-height: 1.75rem;
+        padding: 0.15rem 0.6rem 0.15rem 0.45rem;
         box-sizing: border-box;
         flex-shrink: 0;
-        border-radius: 50%;
+        border-radius: 999px;
         line-height: 1;
         border: 1px solid transparent;
         cursor: default;
+        font-size: 0.78rem;
+        font-weight: 700;
+        white-space: nowrap;
     }
     .quanly-status-icon > .bi {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 1.2rem;
-        height: 1.2rem;
-        font-size: 1.1rem;
+        font-size: 0.95rem;
         line-height: 1;
     }
     .quanly-status-icon:focus-visible {
@@ -824,12 +824,15 @@
             closeBtn.type = 'button';
             closeBtn.className = `${tone.closeClass} me-2 m-auto`;
             closeBtn.setAttribute('data-bs-dismiss', 'toast');
-            closeBtn.setAttribute('aria-label', 'Close');
+            closeBtn.setAttribute('aria-label', 'Đóng');
             row.appendChild(body);
             row.appendChild(closeBtn);
             toastEl.appendChild(row);
             container.appendChild(toastEl);
-            bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3200 }).show();
+            // Lỗi / cảnh báo cần đọc kỹ: giữ lâu hơn, thêm thời gian theo độ dài nội dung.
+            const baseDelay = key === 'success' || key === 'info' ? 3500 : 7000;
+            const delay = baseDelay + Math.min(6000, String(message || '').length * 40);
+            bootstrap.Toast.getOrCreateInstance(toastEl, { delay }).show();
         };
         window.showQuanlyToast = showQuanlyToast;
 

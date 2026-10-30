@@ -16,8 +16,8 @@
         <div class="admin-section-title">Điều hướng</div>
         <div class="d-flex flex-column gap-1">
             {% if user.is_manager %}
-            <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}" title="Dashboard" data-quanly-tip="Dashboard">
-                <i class="bi bi-speedometer2" aria-hidden="true"></i><span class="admin-nav-label">Dashboard</span>
+            <a class="admin-nav-link {% if request.path == '/quanly/' %}active{% endif %}" href="{% url 'App_Quanly:dashboard' %}" title="Tổng quan" data-quanly-tip="Tổng quan">
+                <i class="bi bi-speedometer2" aria-hidden="true"></i><span class="admin-nav-label">Tổng quan</span>
             </a>
             <a class="admin-nav-link {% if '/quanly/orders/' in request.path %}active{% endif %}" href="{% url 'App_Quanly:orders' %}" title="Lịch sử đơn" data-quanly-tip="Lịch sử đơn">
                 <i class="bi bi-receipt-cutoff" aria-hidden="true"></i><span class="admin-nav-label">Lịch sử đơn</span>

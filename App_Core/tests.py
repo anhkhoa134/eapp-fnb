@@ -29,33 +29,79 @@ class NotFoundRedirectTests(TestCase):
             password='123456',
         )
 
-    def test_404_redirects_unauthenticated_user_to_login(self):
-        response = self.client.get('/khong-ton-tai/')
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('App_Accounts:login'))
+    def assertStyledNotFound(self, response, home_url):
+        self.assertEqual(response.status_code, 404)
+        self.assertTemplateUsed(response, 'App_Core/error.html')
+        self.assertContains(response, 'Không tìm thấy trang', status_code=404)
+        self.assertContains(response, f'href="{home_url}"', status_code=404)
+        # Không còn flash message "Không tìm thấy trang. Đã chuyển về…" cộng dồn sang trang sau.
+        self.assertEqual(list(response.context['messages']), [])
 
-    def test_404_redirects_manager_to_dashboard(self):
+    def test_404_unauthenticated_user_gets_styled_page_with_login_link(self):
+        self.assertStyledNotFound(self.client.get('/khong-ton-tai/'), reverse('App_Accounts:login'))
+
+    def test_404_manager_gets_styled_page_with_dashboard_link(self):
         self.client.force_login(self.manager)
-        response = self.client.get('/khong-ton-tai/')
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('App_Quanly:dashboard'))
+        self.assertStyledNotFound(self.client.get('/khong-ton-tai/'), reverse('App_Quanly:dashboard'))
 
-    def test_404_redirects_staff_to_pos(self):
+    def test_404_staff_gets_styled_page_with_pos_link(self):
         self.client.force_login(self.staff)
-        response = self.client.get('/khong-ton-tai/')
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('App_Sales:pos'))
+        self.assertStyledNotFound(self.client.get('/khong-ton-tai/'), reverse('App_Sales:pos'))
 
-    def test_404_redirects_superuser_to_admin(self):
+    def test_404_superuser_gets_styled_page_with_admin_link(self):
         self.client.force_login(self.superuser)
-        response = self.client.get('/khong-ton-tai/')
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('admin:index'))
+        self.assertStyledNotFound(self.client.get('/khong-ton-tai/'), reverse('admin:index'))
+
+    def test_404_missing_receipt_is_real_404(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse('App_Sales:order_receipt', args=[999999]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_403_staff_on_manager_page_gets_styled_page(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse('App_Quanly:products'))
+        self.assertEqual(response.status_code, 403)
+        self.assertTemplateUsed(response, 'App_Core/error.html')
+        self.assertContains(response, 'Không có quyền truy cập', status_code=403)
+        self.assertContains(response, '<html lang="vi">', status_code=403)
+        self.assertContains(response, f'href="{reverse("App_Sales:pos")}"', status_code=403)
+
+    def test_405_html_gets_styled_page(self):
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('App_Quanly:order_delete', args=[1]))
+        self.assertEqual(response.status_code, 405)
+        self.assertTemplateUsed(response, 'App_Core/error.html')
+        self.assertIn('POST', response['Allow'])
 
     def test_404_unknown_api_returns_json_payload(self):
         response = self.client.get('/api/khong-ton-tai/')
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json().get('detail'), 'Đường dẫn không tồn tại.')
+
+
+class SeoAndSecurityHeaderTests(TestCase):
+    def test_robots_sitemap_llms_are_public(self):
+        robots = self.client.get('/robots.txt')
+        self.assertEqual(robots.status_code, 200)
+        self.assertIn('Disallow: /quanly/', robots.content.decode())
+        self.assertIn('Sitemap: http://testserver/sitemap.xml', robots.content.decode())
+        sitemap = self.client.get('/sitemap.xml')
+        self.assertEqual(sitemap.status_code, 200)
+        self.assertIn('<loc>http://testserver/accounts/login/</loc>', sitemap.content.decode())
+        llms = self.client.get('/llms.txt')
+        self.assertEqual(llms.status_code, 200)
+        self.assertIn('# eApp FnB', llms.content.decode())
+
+    def test_login_page_has_csp_permissions_policy_and_seo_tags(self):
+        response = self.client.get(reverse('App_Accounts:login'))
+        csp = response['Content-Security-Policy']
+        self.assertIn("default-src 'self'", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn('https://cdn.jsdelivr.net', csp)
+        self.assertIn('camera=()', response['Permissions-Policy'])
+        self.assertContains(response, '<link rel="canonical" href="http://testserver/accounts/login/">')
+        self.assertContains(response, '"@type": "SoftwareApplication"')
+        self.assertContains(response, 'integrity="sha384-')
 
 
 class ResetDemoDataTests(TestCase):

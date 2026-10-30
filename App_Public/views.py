@@ -10,20 +10,20 @@ from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.templatetags.static import static
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from App_Accounts import rate_limit
 from App_Accounts.login_throttle import get_client_ip
-from App_Catalog.models import Product, ProductTopping, ProductUnit
+from App_Catalog.models import PLACEHOLDER_PRODUCT_IMAGE, Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, resolve_product_topping_links
 from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
 from App_Sales.realtime import notify_qr_order_changed
 from App_Sales.services import get_effective_unit_price, parse_item_quantity, validate_order_lines
 from App_Tenant.models import Store, Tenant
 
-PLACEHOLDER_PRODUCT_IMAGE = 'https://placehold.co/600x600/png?text=Product'
 TAKEAWAY_ORDER_LIMIT_PER_IP = 10
 TAKEAWAY_ORDER_WINDOW = timedelta(minutes=30)
 PHONE_RE = re.compile(r'^(\+?84|0)\d{8,10}$')
@@ -56,7 +56,7 @@ def _normalize_phone(raw) -> str:
 def _product_image_url(request, product):
     raw = product.get_catalog_image_url()
     if not raw:
-        return PLACEHOLDER_PRODUCT_IMAGE
+        return request.build_absolute_uri(static(PLACEHOLDER_PRODUCT_IMAGE))
     if raw.startswith('http'):
         return raw
     return request.build_absolute_uri(raw)
@@ -322,7 +322,7 @@ def _build_products_payload(*, tenant, store, request):
             {
                 'id': product.id,
                 'name': product.name,
-                'description': (product.description or '').strip(),
+                'description': product.display_description,
                 'image': _product_image_url(request, product),
                 'category_id': str(product.category_id or ''),
                 'category_name': product.category.name if product.category else 'Khác',

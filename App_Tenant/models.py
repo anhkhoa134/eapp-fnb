@@ -340,6 +340,8 @@ class Store(TimeStampedModel):
         indexes = [
             models.Index(fields=['tenant', 'is_active']),
         ]
+        verbose_name = 'Cửa hàng'
+        verbose_name_plural = 'Cửa hàng'
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -363,6 +365,21 @@ class Store(TimeStampedModel):
         if self.payment_qr:
             self.payment_qr.delete(save=False)
         super().delete(*args, **kwargs)
+
+    @property
+    def table_code_prefix(self) -> str:
+        """Tiền tố mã bàn lấy từ tên cửa hàng: "CN Trung Tâm" -> "TT", "Chi nhánh Gò Vấp" -> "GV".
+
+        Trước đây seed lấy 3 ký tự đầu của slug nên mọi chi nhánh "CN …" đều ra mã "CN--01".
+        """
+        words = [w for w in slugify(self.name.replace('đ', 'd').replace('Đ', 'D')).split('-') if w]
+        while len(words) > 1 and words[0] in {'cn', 'chi', 'nhanh'}:
+            words = words[1:]
+        if len(words) > 1:
+            prefix = ''.join(word[0] for word in words)[:4]
+        else:
+            prefix = words[0][:3] if words else ''
+        return prefix.upper() or 'BAN'
 
     def __str__(self):
         return f'{self.tenant.name} - {self.name}'

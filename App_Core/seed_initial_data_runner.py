@@ -274,42 +274,53 @@ def run_seed_initial_data(
     product_templates = [
         {
             'name': 'Cà phê Sữa đá',
+            'description': 'Cà phê phin đậm vị pha sữa đặc, uống kèm đá.',
             'category': 'Cà phê',
             'image_url': 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=300&q=80',
             'units': [('S', Decimal('29000')), ('M', Decimal('35000')), ('L', Decimal('39000'))],
         },
         {
             'name': 'Trà Đào Cam Sả',
+            'description': 'Trà đen ủ lạnh với đào miếng, cam tươi và sả thơm.',
             'category': 'Nước uống',
             'image_url': 'https://images.unsplash.com/photo-1499638673689-79a0b5115d87?auto=format&fit=crop&w=300&q=80',
             'units': [('M', Decimal('45000')), ('L', Decimal('55000'))],
         },
         {
             'name': 'Bạc Xỉu',
+            'description': 'Nhiều sữa ít cà phê, béo nhẹ, dễ uống.',
             'category': 'Cà phê',
             'image_url': 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=300&q=80',
             'units': [('M', Decimal('35000')), ('L', Decimal('42000'))],
         },
         {
             'name': 'Trà Sữa Trân Châu',
+            'description': 'Trà sữa đậm vị với trân châu đen dai mềm.',
             'category': 'Trà sữa',
-            'image_url': 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=300&q=80',
+            # Wikimedia Commons, CC0: File:Pearl Milk Tea in Chun Shui Tang (cropped).jpg (ảnh cũ là gà rán).
+            'image_url': (
+                'https://commons.wikimedia.org/wiki/Special:FilePath/'
+                'Pearl_Milk_Tea_in_Chun_Shui_Tang_(cropped).jpg?width=500'
+            ),
             'units': [('M', Decimal('50000')), ('L', Decimal('60000'))],
         },
         {
             'name': 'Phở Bò Kobe',
+            'description': 'Phở nước dùng hầm xương 12 tiếng, bò Kobe tái mềm.',
             'category': 'Đồ ăn',
             'image_url': 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=300&q=80',
             'units': [('Thường', Decimal('85000')), ('Đặc biệt', Decimal('110000'))],
         },
         {
             'name': 'Bánh Mì Thịt Nướng',
+            'description': 'Bánh mì giòn, thịt nướng sả, đồ chua và rau thơm.',
             'category': 'Đồ ăn',
             'image_url': 'https://images.unsplash.com/photo-1509722747041-616f39b57569?auto=format&fit=crop&w=300&q=80',
             'units': [('Thường', Decimal('25000'))],
         },
         {
             'name': 'Cơm Tấm Sườn Bì',
+            'description': 'Cơm tấm sườn nướng than, bì, đồ chua và nước mắm.',
             'category': 'Đồ ăn',
             # Wikimedia Commons, CC0: File:Cơm tấm SG (cơm sườn) ng27th9n2020 (2).jpg
             'image_url': (
@@ -320,20 +331,28 @@ def run_seed_initial_data(
         },
         {
             'name': 'Gỏi Cuốn Tôm Thịt',
+            'description': 'Tôm, thịt luộc, bún và rau sống cuốn bánh tráng, chấm tương.',
             'category': 'Đồ ăn',
-            'image_url': 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=300&q=80',
+            # Wikimedia Commons, CC0: File:Gỏi cuốn.jpg (ảnh cũ là cà ri tôm).
+            'image_url': 'https://commons.wikimedia.org/wiki/Special:FilePath/G%E1%BB%8Fi_cu%E1%BB%91n.jpg?width=500',
             'units': [('Phần', Decimal('30000'))],
         },
         {
             'name': 'Combo Sáng Ăn Chắc',
+            'description': 'Bánh mì ốp la kèm 1 ly cà phê sữa đá.',
             'category': 'Combo',
             'image_url': 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=300&q=80',
             'units': [('Combo', Decimal('65000'))],
         },
         {
             'name': 'Combo Trưa Vui Vẻ',
+            'description': 'Bún chả lá lốt kèm 1 ly trà đào.',
             'category': 'Combo',
-            'image_url': 'https://images.unsplash.com/photo-1615719413546-198b25453f85?auto=format&fit=crop&w=300&q=80',
+            # Wikimedia Commons, CC0: File:Bun Cha La Lot Zlaty Klas 2025.jpg (ảnh cũ là pizza).
+            'image_url': (
+                'https://commons.wikimedia.org/wiki/Special:FilePath/'
+                'Bun_Cha_La_Lot_Zlaty_Klas_2025.jpg?width=500'
+            ),
             'units': [('Combo', Decimal('89000'))],
         },
     ]
@@ -353,14 +372,14 @@ def run_seed_initial_data(
             name=product_name,
             defaults={
                 'category': category,
-                'description': f'Sản phẩm {product_name}',
+                'description': row['description'],
                 'image_url': image_url,
                 'is_active': True,
             },
         )
         clear_product_uploaded_images(product)
         product.category = category
-        product.description = f'Sản phẩm {product_name}'
+        product.description = row['description']
         product.image_url = image_url
         product.is_active = True
         product.save()
@@ -444,7 +463,7 @@ def run_seed_initial_data(
 
     for store in store_map.values():
         for idx in range(1, 13):
-            code = f'{store.slug[:3].upper()}-{idx:02d}'
+            code = f'{store.table_code_prefix}-{idx:02d}'
             DiningTable.objects.update_or_create(
                 tenant=tenant,
                 store=store,

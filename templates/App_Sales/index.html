@@ -19,9 +19,9 @@
     <link rel="icon" type="image/x-icon" href="{% static 'pwa/icons/fnb-favicon.ico' %}">
     {% include 'App_Core/_pwa_head.html' %}
     <!-- Bootstrap 5.3 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     <!-- Font Awesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha384-blOohCVdhjmtROpu8+CfTnUWham9nkX7P7OZQMst+RUnhtoY/9qemFAkIKOYxDI3" crossorigin="anonymous">
     <style>
         :root {
             --primary-color: #10b981; /* Mint Green / Xanh lá */
@@ -103,12 +103,12 @@
                 position: absolute;
                 top: -0.2rem;
                 right: -0.2rem;
-                min-width: 1.2rem;
-                height: 1.2rem;
+                min-width: 1.4rem;
+                height: 1.4rem;
                 margin-left: 0;
-                padding: 0 0.25rem;
+                padding: 0 0.3rem;
                 border-width: 2px;
-                font-size: 0.625rem;
+                font-size: 0.75rem;
             }
         }
 
@@ -182,6 +182,37 @@
             align-items: center;
             gap: 0.35rem;
             flex-shrink: 0;
+        }
+        .pos-store-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-height: 36px;
+            max-width: 220px;
+            padding: 0.3rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid #a7f3d0;
+            background: #ecfdf5;
+            color: #047857;
+            font-size: 0.85rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .pos-store-chip-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        button.pos-store-chip:hover,
+        button.pos-store-chip:focus-visible {
+            background: #d1fae5;
+        }
+        @media (max-width: 575.98px) {
+            /* Màn hình hẹp: chỉ còn icon để thanh trên không xuống dòng; tên cửa hàng xem trong menu. */
+            .pos-store-chip { width: 36px; height: 36px; padding: 0; justify-content: center; }
+            .pos-store-chip-name { display: none; }
+            .pos-store-chip.dropdown-toggle::after { display: none; }
+            /* Chuông trùng chức năng với tab "Đơn QR" (đã có badge số đơn): ẩn để thanh trên vừa 1 dòng. */
+            .top-nav-tools { display: none !important; }
         }
         .top-nav-tools {
             margin-left: 0;
@@ -866,7 +897,20 @@
                 margin-right: 0 !important;
                 font-size: 1rem;
             }
-            .top-nav-content .nav-pills .nav-link .nav-label { display: none; }
+            /* Mobile: giữ nhãn chữ nhỏ dưới icon (trước đây chỉ còn icon, khó đoán chức năng). */
+            .top-nav-content .nav-pills .nav-link {
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+            }
+            .top-nav-content .nav-pills .nav-link .nav-label {
+                display: block;
+                font-size: 0.62rem;
+                line-height: 1;
+                font-weight: 700;
+                white-space: nowrap;
+            }
             .top-nav-content .nav-pills {
                 gap: 0.5rem !important;
             }
@@ -1261,13 +1305,33 @@
             </form>
             <!-- Chuông + account: một cụm luôn dính mép phải (mobile/desktop) -->
             <div class="top-nav-end-cluster d-flex align-items-center flex-shrink-0">
+                <!-- Cửa hàng đang bán: luôn hiện trên thanh, đổi nhanh khi có nhiều cửa hàng. -->
+                {% if stores|length > 1 %}
+                <div class="dropdown me-1">
+                    <button class="pos-store-chip dropdown-toggle" type="button" id="posStoreChip" data-bs-toggle="dropdown" aria-expanded="false" title="Đổi cửa hàng">
+                        <i class="fa-solid fa-store" aria-hidden="true"></i>
+                        <span class="pos-store-chip-name" id="posStoreChipName">{{ default_store_name }}</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="posStoreChip">
+                        <li><h6 class="dropdown-header">Đổi cửa hàng</h6></li>
+                        {% for store in stores %}
+                        <li><button type="button" class="dropdown-item js-pos-store-option" data-store-id="{{ store.id }}">{{ store.name }}</button></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% elif stores %}
+                <span class="pos-store-chip me-1" title="Cửa hàng đang bán">
+                    <i class="fa-solid fa-store" aria-hidden="true"></i>
+                    <span class="pos-store-chip-name">{{ default_store_name }}</span>
+                </span>
+                {% endif %}
                 <ul class="navbar-nav mb-2 mb-lg-0 align-items-lg-center top-nav-tools">
                     {% if user.tenant.show_qr_order_feature %}
                     <li class="nav-item">
-                        <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();">
-                            <i class="fa-regular fa-bell fs-5" id="nav-bell-icon"></i>
+                        <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();" title="Đơn QR chờ duyệt" aria-label="Đơn QR chờ duyệt">
+                            <i class="fa-regular fa-bell fs-5" id="nav-bell-icon" aria-hidden="true"></i>
                             <span class="position-absolute top-25 start-75 translate-middle p-1 bg-danger border border-light rounded-circle d-none" id="nav-bell-dot">
-                                <span class="visually-hidden">New alerts</span>
+                                <span class="visually-hidden">Có đơn QR mới</span>
                             </span>
                         </a>
                     </li>
@@ -1408,7 +1472,7 @@
                         {% endif %}
                         <li>
                             <a class="dropdown-item account-action mx-2" href="#" onclick="event.preventDefault(); toggleFullscreen();">
-                                <span class="account-icon-pill"><i class="fa-solid fa-expand"></i></span>Fullscreen
+                                <span class="account-icon-pill"><i class="fa-solid fa-expand"></i></span>Toàn màn hình
                             </a>
                         </li>
                         {% if user.is_manager or user.tenant_id %}
@@ -1550,7 +1614,7 @@
                         <button type="button" class="cart-soft-btn cart-soft-danger d-none align-items-center me-2" onclick="clearCart()" id="btn-clear-cart" title="Xóa toàn bộ giỏ hàng">
                             <i class="fa-solid fa-trash-can"></i><span>Xóa tất cả</span>
                         </button>
-                        <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#cartOffcanvas" aria-label="Close"></button>
+                        <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#cartOffcanvas" aria-label="Đóng"></button>
                     </div>
                 </div>
 
@@ -1636,13 +1700,13 @@
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-light border-0">
                     <h5 class="modal-title fw-bold"><i class="fa-solid fa-wallet text-primary me-2"></i>Thanh toán hóa đơn</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                 </div>
                 <div class="modal-body p-0">
                     <div class="row g-0">
                         <!-- Left: Cart Items -->
                         <div class="col-md-5 bg-light p-4 border-end d-flex flex-column" style="max-height: 550px;">
-                            <p class="text-muted mb-3 fw-bold">Danh sách món:</p>
+                            <p class="text-muted mb-3 fw-bold">Danh sách món</p>
                             <div id="modal-cart-items" class="custom-scrollbar flex-grow-1" style="overflow-y: auto;">
                                 <!-- Injected via JS -->
                             </div>
@@ -1660,7 +1724,7 @@
                                     <span class="text-muted">Tạm tính</span>
                                     <span class="fw-semibold" id="modal-subtotal-due">0 đ</span>
                                 </div>
-                                <div class="d-flex justify-content-between small mb-0" id="modal-discount-row">
+                                <div class="d-flex justify-content-between small mb-0 d-none" id="modal-discount-row">
                                     <span class="text-muted" id="modal-discount-label">Khuyến mãi</span>
                                     <span class="fw-semibold text-success" id="modal-discount-amount">-0 đ</span>
                                 </div>
@@ -1728,7 +1792,7 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label text-muted">Phương thức thanh toán:</label>
+                                <label class="form-label text-muted">Phương thức thanh toán</label>
                                 <div class="btn-group w-100" role="group">
                                     <input type="radio" class="btn-check" name="paymentMethod" id="payment-cash" autocomplete="off" checked>
                                     <label class="btn btn-outline-primary" for="payment-cash"><i class="fa-solid fa-money-bill-wave me-1"></i>Tiền mặt</label>
@@ -1749,14 +1813,14 @@
                             </div>
 
                             <div class="mb-3" id="quick-cash-wrapper">
-                                <label class="form-label text-muted">Gợi ý số tiền khách đưa:</label>
+                                <label class="form-label text-muted">Gợi ý số tiền khách đưa</label>
                                 <div class="d-flex flex-wrap gap-2" id="quick-cash-container">
                                     <!-- Quick cash buttons injected here -->
                                 </div>
                             </div>
 
                             <div class="mb-3" id="cash-input-wrapper">
-                                <label class="form-label text-muted">Khách đưa (VNĐ):</label>
+                                <label class="form-label text-muted">Khách đưa (đ)</label>
                                 <div class="input-group input-group-lg">
                                     <span class="input-group-text"><i class="fa-solid fa-money-bill text-success"></i></span>
                                     <input type="text" class="form-control fw-bold fs-5" id="input-cash-received" placeholder="Nhập số tiền..." oninput="formatCashInput(this)">
@@ -1842,22 +1906,24 @@
                     <h5 class="modal-title fw-bold text-dark">
                         <i class="fa-solid fa-bell text-warning me-2"></i>Chi tiết Đơn QR
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                 </div>
                 <div class="modal-body p-4 bg-light">
                     <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border">
                         <div>
-                            <span class="text-muted small d-block" id="qr-modal-table-label">Bàn đặt:</span>
+                            <span class="text-muted small d-block" id="qr-modal-table-label">Bàn đặt</span>
                             <h4 class="fw-bold text-primary mb-0" id="qr-modal-table-name">Bàn 01</h4>
                             <div class="small text-muted d-none" id="qr-modal-customer"></div>
                         </div>
                         <div class="text-end">
-                            <span class="text-muted small d-block">Thời gian:</span>
+                            <span class="text-muted small d-block">Thời gian</span>
                             <span class="fw-bold text-dark" id="qr-modal-time">10:30</span>
+                            <div class="small fw-semibold" id="qr-modal-wait"></div>
                         </div>
                     </div>
+                    <div class="alert alert-warning py-2 px-3 small mb-3 d-none" id="qr-modal-note" role="note"></div>
                     
-                    <p class="fw-bold text-muted mb-2 small">MÓN KHÁCH GỌI:</p>
+                    <p class="fw-bold text-muted mb-2 small">MÓN KHÁCH GỌI</p>
                     <div id="qr-modal-items" class="bg-white rounded p-3 shadow-sm border custom-scrollbar" style="max-height: 250px; overflow-y: auto;">
                         <!-- Injected via JS -->
                     </div>
@@ -1915,7 +1981,7 @@
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-light border-0 py-2">
                     <h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Ghi chú món</h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                 </div>
                 <div class="modal-body p-3">
                     <div class="mb-2 text-muted" style="font-size: 0.9rem;" id="note-item-name"></div>
@@ -1946,8 +2012,8 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
                 <div class="modal-header bg-light border-0 py-3">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-sliders me-2 text-primary"></i>Tùy chọn món</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-sliders me-2 text-primary"></i>Tuỳ chọn món</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
                 </div>
                 <div class="modal-body p-4 custom-scrollbar" style="max-height: 65vh; overflow-y: auto;">
                     
@@ -1975,7 +2041,7 @@
                     <div id="options-modal-toppings-container" class="mb-2">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <p class="fw-bold mb-0 text-dark">TOPPING THÊM</p>
-                            <span class="badge bg-light text-secondary border">Tùy chọn</span>
+                            <span class="badge bg-light text-secondary border">Tuỳ chọn</span>
                         </div>
                         <div id="options-modal-toppings" class="d-flex flex-column gap-2">
                             <!-- Checkbox toppings injected here -->
@@ -2036,7 +2102,7 @@
                 <div class="toast-body fw-bold" id="toastMessage">
                     Đã thêm vào giỏ hàng!
                 </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Đóng"></button>
             </div>
         </div>
     </div>
@@ -2056,7 +2122,7 @@
 
     <script src="{% static 'js/eapp_print.js' %}"></script>
     <!-- Bootstrap 5.3 JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     <script src="{% static 'js/eapp_dialog.js' %}"></script>
     
     <!-- Application Logic -->
@@ -2093,6 +2159,16 @@
         const QR_SOUND_STORAGE_KEY = 'eapp_pos_qr_sound_enabled';
         const QR_VOICE_STORAGE_KEY = 'eapp_pos_qr_voice_enabled';
 
+        // Nhớ cửa hàng đã chọn trên máy này (trước đây chuyển trang là quay về cửa hàng mặc định).
+        const POS_STORE_STORAGE_KEY = 'eapp_pos_store_{{ user.id }}';
+        (() => {
+            const selector = document.getElementById('storeSelector');
+            if (!selector) return;
+            try {
+                const saved = window.localStorage.getItem(POS_STORE_STORAGE_KEY);
+                if (saved && Array.from(selector.options).some((option) => option.value === saved)) selector.value = saved;
+            } catch (error) { /* localStorage bị chặn: dùng cửa hàng mặc định */ }
+        })();
         let currentStoreId = parseInt(document.getElementById('storeSelector')?.value || '{{ default_store_id|default:0 }}', 10) || null;
         let categories = [{ id: 'all', name: 'Tất cả' }];
         let products = [];
@@ -2181,7 +2257,18 @@
 
         currentTheme = readStoredTheme();
 
-        const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+        const PLACEHOLDER_PRODUCT_IMG = "{% static 'images/placeholder-dish.svg' %}";
+        // Thống nhất ký hiệu "đ" như trang quản lý / hoá đơn (Intl VND cho ra "₫").
+        const formatCurrency = (amount) => `${new Intl.NumberFormat('vi-VN').format(Math.round(Number(amount) || 0))} đ`;
+        // Tìm không dấu: "ca phe" khớp "Cà phê", "banh mi" khớp "Bánh mì".
+        const foldText = (value) => String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .replace(/Đ/g, 'D')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
         const escapeHtml = (text) => String(text || '')
             .replaceAll('&', '&amp;')
             .replaceAll('<', '&lt;')
@@ -2240,7 +2327,10 @@
             toastBody.textContent = message;
             toastEl.classList.remove('bg-success', 'bg-primary', 'bg-warning', 'bg-danger', 'bg-secondary');
             toastEl.classList.add(`bg-${type}`);
-            new bootstrap.Toast(toastEl, { delay: 2500 }).show();
+            // Huỷ instance cũ: tạo Toast mới trên cùng phần tử mỗi lần làm timer cũ chồng lên nhau.
+            bootstrap.Toast.getInstance(toastEl)?.dispose();
+            const delay = type === 'danger' || type === 'warning' ? 5000 : 2500;
+            new bootstrap.Toast(toastEl, { delay }).show();
         };
 
         let lastPaidOrderId = null;
@@ -2258,17 +2348,22 @@
             }
             window.eappPrint(urlWithId(TABLE_BILL_URL_TEMPLATE, currentSelectedTableId));
         };
-        const handlePaidOrderPrinting = (data) => {
+        // Một thông báo duy nhất sau thanh toán (trước đây hiện 2 toast "Thanh toán thành công" + "Đã thanh toán").
+        const handlePaidOrderPrinting = (data, successText) => {
             lastPaidOrderId = data.order_id;
             const autoReceipt = readStoredBoolean(AUTO_PRINT_RECEIPT_KEY, false);
             if (autoReceipt) printReceipt(data.order_id);
             if (hasKitchenFeature && data.kitchen_ticket_id && readStoredBoolean(AUTO_PRINT_KITCHEN_KEY, false)) {
                 printKitchenTicket(data.kitchen_ticket_id);
             }
-            if (!autoReceipt) {
-                document.getElementById('receiptToastMessage').textContent = `Đã thanh toán ${data.order_code}.`;
-                new bootstrap.Toast(document.getElementById('receiptToast'), { delay: 8000 }).show();
+            if (autoReceipt) {
+                showToast(successText, 'success');
+                return;
             }
+            const receiptToastEl = document.getElementById('receiptToast');
+            document.getElementById('receiptToastMessage').textContent = successText;
+            bootstrap.Toast.getInstance(receiptToastEl)?.dispose();
+            new bootstrap.Toast(receiptToastEl, { delay: 15000 }).show();
         };
         document.getElementById('receiptToastPrint')?.addEventListener('click', () => {
             printReceipt(lastPaidOrderId);
@@ -2560,11 +2655,25 @@
         const renderProducts = () => {
             const container = document.getElementById('product-container');
             container.innerHTML = '';
+            const searchKey = foldText(currentSearchTerm);
             const filtered = products.filter((p) => {
                 const okCategory = currentFilter === 'all' || p.categoryId === currentFilter;
-                const okSearch = !currentSearchTerm || p.name.toLowerCase().includes(currentSearchTerm.toLowerCase());
+                const okSearch = !searchKey || foldText(`${p.name} ${p.categoryName || ''}`).includes(searchKey);
                 return okCategory && okSearch;
             });
+
+            if (!filtered.length) {
+                const term = (currentSearchTerm || '').trim();
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="text-center text-muted py-5" role="status">
+                            <i class="fa-solid fa-magnifying-glass fs-2 mb-2 d-block opacity-50" aria-hidden="true"></i>
+                            <div class="fw-semibold">${term ? `Không tìm thấy món nào khớp "${escapeHtml(term)}"` : 'Chưa có món trong danh mục này'}</div>
+                            <div class="small">${term ? 'Thử từ khoá ngắn hơn hoặc chọn danh mục "Tất cả".' : 'Quản lý có thể thêm món ở trang Sản phẩm.'}</div>
+                        </div>
+                    </div>`;
+                return;
+            }
 
             filtered.forEach((prod) => {
                 const hasOptions = (prod.sizes && prod.sizes.length > 1) || (prod.toppings && prod.toppings.length > 0);
@@ -2572,7 +2681,7 @@
                     ? '<span class="badge bg-warning text-dark position-absolute top-0 end-0 m-2 shadow-sm"><i class="fa-solid fa-star me-1"></i>Combo</span>'
                     : '';
                 const badgeOptions = hasOptions
-                    ? '<span class="badge bg-white text-primary border position-absolute top-0 start-0 m-2 shadow-sm"><i class="fa-solid fa-sliders me-1"></i>Tùy chọn</span>'
+                    ? '<span class="badge bg-white text-primary border position-absolute top-0 start-0 m-2 shadow-sm"><i class="fa-solid fa-sliders me-1"></i>Tuỳ chọn</span>'
                     : '';
                 const descHtml = prod.description
                     ? `<p class="product-desc text-truncate" title="${escapeHtml(prod.description)}">${escapeHtml(prod.description)}</p>`
@@ -2661,6 +2770,31 @@
             }
         };
 
+        // Đơn QR chờ duyệt quá lâu (khách đang đợi): đổi màu nhãn thời gian để nhân viên chú ý.
+        const QR_WAIT_WARNING_MINUTES = 5;
+        const QR_WAIT_DANGER_MINUTES = 15;
+        const qrWaitMinutes = (order) => {
+            const created = Date.parse(order.created_at || '');
+            return Number.isFinite(created) ? Math.max(0, Math.floor((Date.now() - created) / 60000)) : 0;
+        };
+        const formatWaitDuration = (minutes) => {
+            if (minutes < 60) return `${minutes} phút`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours} giờ ${minutes % 60} phút`;
+            return `${Math.floor(hours / 24)} ngày ${hours % 24} giờ`;
+        };
+        const qrWaitBadge = (order) => {
+            const minutes = qrWaitMinutes(order);
+            const tone = minutes >= QR_WAIT_DANGER_MINUTES ? 'bg-danger' : minutes >= QR_WAIT_WARNING_MINUTES ? 'bg-warning text-dark' : 'bg-light text-dark border';
+            const icon = minutes >= QR_WAIT_WARNING_MINUTES ? 'fa-solid fa-triangle-exclamation' : 'fa-regular fa-clock';
+            return `<span class="badge ${tone}" title="Gửi lúc ${escapeHtml(order.time)}"><i class="${icon} me-1"></i>${escapeHtml(order.time)} · chờ ${formatWaitDuration(minutes)}</span>`;
+        };
+        const qrItemsSummary = (order) => {
+            let summary = order.items.slice(0, 2).map((i) => `${i.qty}× ${i.name}`).join(', ');
+            if (order.items.length > 2) summary += ` và ${order.items.length - 2} món khác...`;
+            return summary;
+        };
+
         const qrOrderHeading = (order) => (order.order_type === 'TAKEAWAY'
             ? `<i class="fa-solid fa-bag-shopping text-info me-2"></i>${escapeHtml(order.customer_name || 'Khách mang đi')}`
             : `<i class="fa-solid fa-chair text-warning me-2"></i>${escapeHtml(order.table_name)}`);
@@ -2671,8 +2805,7 @@
             if (!section || !container) return;
             section.classList.toggle('d-none', !awaitingPaymentOrders.length);
             container.innerHTML = awaitingPaymentOrders.map((order) => {
-                let itemsSummary = order.items.slice(0, 2).map((i) => `${i.qty}x ${i.name}`).join(', ');
-                if (order.items.length > 2) itemsSummary += ` và ${order.items.length - 2} món khác...`;
+                const itemsSummary = qrItemsSummary(order);
                 return `
                     <div class="col-12 col-md-6 col-xl-4">
                         <div class="online-order-card p-3 shadow-sm" style="border-left-color: #0ea5e9;">
@@ -2701,7 +2834,7 @@
             if (!onlineOrders.length) {
                 const storeName = escapeHtml(getCurrentStoreName());
                 const switchStoreHint = hasMultipleStores()
-                    ? '<p class="text-secondary small mb-0">Nếu vừa tạo đơn ở bàn cửa hàng khác, hãy đổi cửa hàng trong Account dropdown để xem đúng đơn.</p>'
+                    ? '<p class="text-secondary small mb-0">Nếu khách vừa gọi món ở cửa hàng khác, bấm nút <i class="fa-solid fa-store"></i> tên cửa hàng trên thanh điều hướng để đổi cửa hàng.</p>'
                     : '';
                 container.innerHTML = `
                     <div class="col-12 text-center py-5 mt-5">
@@ -2716,15 +2849,18 @@
             }
             container.innerHTML = '';
             onlineOrders.forEach((order) => {
-                let itemsSummary = order.items.slice(0, 2).map((i) => `${i.qty}x ${i.name}`).join(', ');
-                if (order.items.length > 2) itemsSummary += ` và ${order.items.length - 2} món khác...`;
+                const itemsSummary = qrItemsSummary(order);
+                const noteHtml = order.customer_note
+                    ? `<div class="small text-warning-emphasis fst-italic mb-2 text-truncate" title="${escapeHtml(order.customer_note)}"><i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(order.customer_note)}</div>`
+                    : '';
                 container.insertAdjacentHTML('beforeend', `
                     <div class="col-12 col-md-6 col-xl-4">
                         <div class="online-order-card p-3 shadow-sm cursor-pointer" onclick="openQrOrderModal(${order.id})" style="cursor: pointer;">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="fw-bold text-dark mb-0 text-truncate">${qrOrderHeading(order)}</h5>
-                                <span class="badge bg-warning text-dark"><i class="fa-regular fa-clock me-1"></i>${escapeHtml(order.time)}</span>
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-1 mb-2">
+                                <h5 class="fw-bold text-dark mb-0 text-truncate" style="min-width: 0; max-width: 100%;">${qrOrderHeading(order)}</h5>
+                                ${qrWaitBadge(order)}
                             </div>
+                            ${noteHtml}
                             <div class="text-muted small mb-3 border-bottom pb-2" style="min-height: 40px;">${escapeHtml(itemsSummary)}</div>
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="fw-bold text-danger">${formatCurrency(order.total)}</span>
@@ -2768,27 +2904,29 @@
                     : '';
                 container.insertAdjacentHTML('beforeend', `
                     <div class="cart-item position-relative align-items-start py-3 pe-4">
-                        <button class="btn btn-sm text-danger p-1 position-absolute" style="top: 0; right: -8px; z-index: 5;" onclick="removeCartItem('${item.cartId}')" title="Xóa món này">
-                            <i class="fa-solid fa-xmark fs-5"></i>
+                        <button class="btn btn-sm text-danger p-1 position-absolute" style="top: 0; right: -8px; z-index: 5;" onclick="removeCartItem('${item.cartId}')" title="Xóa món này" aria-label="Xóa ${escapeHtml(item.name)}">
+                            <i class="fa-solid fa-xmark fs-5" aria-hidden="true"></i>
                         </button>
-                        <img src="${escapeHtml(item.img || 'https://placehold.co/200x200/png?text=Product')}" class="cart-item-img mt-1" alt="${escapeHtml(item.name)}">
+                        <img src="${escapeHtml(item.img || PLACEHOLDER_PRODUCT_IMG)}" class="cart-item-img mt-1" alt="${escapeHtml(item.name)}">
                         <div class="flex-grow-1" style="min-width: 0; padding-right: 20px;">
                             <h6 class="mb-1 text-truncate" style="max-width: 90%;">${escapeHtml(item.name)} ${sourceHtml}</h6>
                             <span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span>${kitchenBadgeHtml(item)}
-                            <div class="d-flex align-items-center">
-                                <small class="text-danger fw-bold me-2">${formatCurrency(item.price)}</small>
-                                <button class="btn btn-sm text-secondary p-0" onclick="openNoteModal('${item.cartId}')" title="Ghi chú"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <div class="d-flex align-items-center flex-wrap">
+                                <small class="text-danger fw-bold me-2">${item.qty > 1
+                                    ? `${formatCurrency(item.price)} × ${item.qty} = ${formatCurrency(item.price * item.qty)}`
+                                    : formatCurrency(item.price)}</small>
+                                <button class="btn btn-sm text-secondary p-0" onclick="openNoteModal('${item.cartId}')" title="Ghi chú" aria-label="Ghi chú cho ${escapeHtml(item.name)}"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
                             </div>
                             ${toppingHtml}
                             ${noteHtml}
                         </div>
                         <div class="d-flex align-items-center ms-2 me-3 h-100 pt-2">
-                            <button class="btn btn-outline-secondary qty-btn" onclick="updateQty('${item.cartId}', -1)">
-                                <i class="fa-solid fa-minus" style="font-size: 10px;"></i>
+                            <button class="btn btn-outline-secondary qty-btn" onclick="updateQty('${item.cartId}', -1)" aria-label="Giảm số lượng ${escapeHtml(item.name)}">
+                                <i class="fa-solid fa-minus" style="font-size: 10px;" aria-hidden="true"></i>
                             </button>
-                            <span class="mx-2 fw-bold" style="min-width: 20px; text-align:center;">${item.qty}</span>
-                            <button class="btn btn-outline-primary qty-btn" onclick="updateQty('${item.cartId}', 1)">
-                                <i class="fa-solid fa-plus" style="font-size: 10px;"></i>
+                            <span class="mx-2 fw-bold" style="min-width: 20px; text-align:center;" aria-label="Số lượng">${item.qty}</span>
+                            <button class="btn btn-outline-primary qty-btn" onclick="updateQty('${item.cartId}', 1)" aria-label="Tăng số lượng ${escapeHtml(item.name)}">
+                                <i class="fa-solid fa-plus" style="font-size: 10px;" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -2892,7 +3030,7 @@
                     price: Number(item.base_price || baseUnit.price || 0),
                     categoryId: String(item.category_id || ''),
                     categoryName: item.category || 'Khác',
-                    img: item.image || 'https://placehold.co/600x600/png?text=Product',
+                    img: item.image || PLACEHOLDER_PRODUCT_IMG,
                     sizes: mappedUnits,
                     default_unit_id: baseUnit.unitId,
                     toppings: hasToppingFeature ? (item.toppings || []).map((top) => ({
@@ -3120,7 +3258,7 @@
             };
         };
 
-        const findProductImage = (productId) => products.find((row) => row.id === productId)?.img || 'https://placehold.co/200x200/png?text=Product';
+        const findProductImage = (productId) => products.find((row) => row.id === productId)?.img || PLACEHOLDER_PRODUCT_IMG;
 
         const loadTableCart = async (tableId) => {
             const payload = await fetchJson(`${API_TABLES_BASE}${tableId}/cart/`);
@@ -3458,14 +3596,25 @@
             if (!order) return;
             currentReviewingOrderId = orderId;
             const isTakeawayOrder = order.order_type === 'TAKEAWAY';
-            document.getElementById('qr-modal-table-label').textContent = isTakeawayOrder ? 'Khách đặt mang đi:' : 'Bàn đặt:';
+            document.getElementById('qr-modal-table-label').textContent = isTakeawayOrder ? 'Khách đặt mang đi' : 'Bàn đặt';
             document.getElementById('qr-modal-table-name').textContent = isTakeawayOrder ? (order.customer_name || 'Khách mang đi') : order.table_name;
             const customerEl = document.getElementById('qr-modal-customer');
-            customerEl.classList.toggle('d-none', !isTakeawayOrder);
-            customerEl.innerHTML = isTakeawayOrder
-                ? `<i class="fa-solid fa-phone me-1"></i><a href="tel:${escapeHtml(order.customer_phone || '')}">${escapeHtml(order.customer_phone || '')}</a>${order.customer_note ? `<div class="fst-italic mt-1"><i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(order.customer_note)}</div>` : ''}`
+            const hasPhone = Boolean(order.customer_phone);
+            customerEl.classList.toggle('d-none', !hasPhone);
+            customerEl.innerHTML = hasPhone
+                ? `<i class="fa-solid fa-phone me-1"></i><a href="tel:${escapeHtml(order.customer_phone)}">${escapeHtml(order.customer_phone)}</a>`
+                : '';
+            // Ghi chú chung của khách (cả đơn tại bàn) đặt ở đầu để nhân viên không bỏ sót.
+            const noteEl = document.getElementById('qr-modal-note');
+            noteEl.classList.toggle('d-none', !order.customer_note);
+            noteEl.innerHTML = order.customer_note
+                ? `<i class="fa-solid fa-comment-dots me-1"></i><strong>Ghi chú của khách:</strong> ${escapeHtml(order.customer_note)}`
                 : '';
             document.getElementById('qr-modal-time').textContent = order.time;
+            const waitMinutes = qrWaitMinutes(order);
+            const waitEl = document.getElementById('qr-modal-wait');
+            waitEl.textContent = `Chờ ${formatWaitDuration(waitMinutes)}`;
+            waitEl.className = `small fw-semibold ${waitMinutes >= QR_WAIT_DANGER_MINUTES ? 'text-danger' : waitMinutes >= QR_WAIT_WARNING_MINUTES ? 'text-warning-emphasis' : 'text-muted'}`;
             document.getElementById('qr-modal-total').textContent = formatCurrency(order.total);
             const itemsContainer = document.getElementById('qr-modal-items');
             itemsContainer.innerHTML = '';
@@ -3474,14 +3623,20 @@
                 const tops = toppingText(item.toppings || []);
                 const toppingHtml = tops ? `<div class="text-muted mt-1" style="font-size:0.8rem;"><i class="fa-solid fa-circle-plus me-1"></i>${escapeHtml(tops)}</div>` : '';
                 itemsContainer.insertAdjacentHTML('beforeend', `
-                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                        <div>
-                            <h6 class="mb-0 text-dark" style="font-size: 0.95rem;">${escapeHtml(item.name)}</h6>
-                            <div><span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span></div>
-                            ${toppingHtml}
-                            ${noteHtml}
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-2 pb-2 border-bottom">
+                        <div class="d-flex align-items-start gap-2 min-w-0">
+                            <span class="badge bg-primary fs-6 flex-shrink-0">${Number(item.qty || 1)}×</span>
+                            <div class="min-w-0">
+                                <h6 class="mb-0 text-dark" style="font-size: 0.95rem;">${escapeHtml(item.name)}</h6>
+                                ${item.size ? `<div><span class="badge bg-secondary mb-1">${escapeHtml(item.size)}</span></div>` : ''}
+                                ${toppingHtml}
+                                ${noteHtml}
+                            </div>
                         </div>
-                        <span class="fw-bold text-dark">${formatCurrency(item.price * item.qty)}</span>
+                        <div class="text-end flex-shrink-0">
+                            <div class="fw-bold text-dark">${formatCurrency(item.price * item.qty)}</div>
+                            <div class="small text-muted">${Number(item.qty || 1)} × ${formatCurrency(item.price)}</div>
+                        </div>
                     </div>
                 `);
             });
@@ -3770,14 +3925,33 @@
             if (optionsModalInstance) optionsModalInstance.hide();
         };
 
+        // Huỷ món bếp đã nhận (có thể đã nấu) bắt buộc lý do: ghi vào nhật ký thao tác để đối soát.
+        const VOID_REASON_CHOICES = ['Khách đổi món', 'Khách huỷ', 'Nhập nhầm', 'Món lỗi / hết nguyên liệu'];
+        const askVoidReason = (label) => window.eappDialog.prompt({
+            title: 'Lý do huỷ món đã báo bếp',
+            message: `${label} đã gửi xuống bếp. Nhập lý do để ghi vào nhật ký.`,
+            placeholder: 'VD: khách đổi món',
+            choices: VOID_REASON_CHOICES,
+            okText: 'Huỷ món',
+            cancelText: 'Không huỷ',
+            variant: 'warning',
+            required: true,
+        });
+
         const updateQty = async (cartId, delta) => {
             const item = cart.find((x) => x.cartId === cartId);
             if (!item) return;
             if (currentSelectedTableId !== null && item.tableItemId) {
+                const nextQty = item.qty + delta;
+                let reason = '';
+                if (delta < 0 && (item.kitchenSentQty || 0) > Math.max(nextQty, 0)) {
+                    reason = await askVoidReason(`${item.name} x${item.kitchenSentQty}`);
+                    if (reason === null) return;
+                }
                 try {
                     await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, {
                         method: 'PATCH',
-                        body: JSON.stringify({ quantity: item.qty + delta }),
+                        body: JSON.stringify({ quantity: nextQty, reason }),
                     });
                     await Promise.all([loadTableCart(currentSelectedTableId), loadTablesFromApi()]);
                 } catch (error) {
@@ -3796,8 +3970,16 @@
             const item = cart.find((x) => x.cartId === cartId);
             if (!item) return;
             if (currentSelectedTableId !== null && item.tableItemId) {
+                let reason = '';
+                if ((item.kitchenSentQty || 0) > 0) {
+                    reason = await askVoidReason(`${item.name} x${item.kitchenSentQty}`);
+                    if (reason === null) return;
+                }
                 try {
-                    await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, { method: 'DELETE', body: '{}' });
+                    await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ reason }),
+                    });
                     await Promise.all([loadTableCart(currentSelectedTableId), loadTablesFromApi()]);
                 } catch (error) {
                     showToast(error.message, 'danger');
@@ -3815,9 +3997,19 @@
 
         const executeClearCart = async () => {
             if (currentSelectedTableId !== null) {
+                const sentItems = cart.filter((item) => item.tableItemId && (item.kitchenSentQty || 0) > 0);
+                let reason = '';
+                if (sentItems.length) {
+                    bootstrap.Modal.getInstance(document.getElementById('confirmClearCartModal'))?.hide();
+                    reason = await askVoidReason(`${sentItems.length} món`);
+                    if (reason === null) return;
+                }
                 try {
                     const jobs = cart.filter((item) => item.tableItemId).map((item) =>
-                        fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, { method: 'DELETE', body: '{}' }),
+                        fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, {
+                            method: 'DELETE',
+                            body: JSON.stringify({ reason }),
+                        }),
                     );
                     await Promise.all(jobs);
                     await Promise.all([loadTableCart(currentSelectedTableId), loadTablesFromApi()]);
@@ -3900,7 +4092,8 @@
             const discountRow = document.getElementById('modal-discount-row');
             if (customerPanel) customerPanel.classList.toggle('d-none', !hasCustomerFeature);
             if (promotionPanel) promotionPanel.classList.toggle('d-none', !hasPromotionFeature);
-            if (discountRow) discountRow.classList.toggle('d-none', !(hasCustomerFeature || hasPromotionFeature));
+            // Chỉ hiện dòng giảm giá khi thật sự có giảm (không hiện "-0 đ").
+            if (discountRow) discountRow.classList.toggle('d-none', !(hasCustomerFeature || hasPromotionFeature) || !currentDiscountAmount);
             if (grid) {
                 const visibleCount = (hasCustomerFeature ? 1 : 0) + (hasPromotionFeature ? 1 : 0);
                 grid.classList.toggle('d-none', visibleCount === 0);
@@ -4170,7 +4363,11 @@
                 tierNote.classList.toggle('d-none', !(selectedPromotion && currentDiscountSource === 'tier'));
             }
             document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
-            document.getElementById('modal-discount-amount').textContent = currentDiscountAmount ? `-${formatCurrency(currentDiscountAmount)}` : '-0 đ';
+            document.getElementById('modal-discount-amount').textContent = currentDiscountAmount ? `-${formatCurrency(currentDiscountAmount)}` : '';
+            document.getElementById('modal-discount-row')?.classList.toggle(
+                'd-none',
+                !(hasCustomerFeature || hasPromotionFeature) || !currentDiscountAmount
+            );
             document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
             renderSelectedPromotionButton();
             refreshQuickCashButtons();
@@ -4326,7 +4523,7 @@
                 modalItemsContainer.insertAdjacentHTML('beforeend', `
                     <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
                         <div class="d-flex align-items-center">
-                            <img src="${escapeHtml(item.img || 'https://placehold.co/200x200/png?text=Product')}" class="rounded shadow-sm me-3" style="width: 45px; height: 45px; object-fit: cover;">
+                            <img src="${escapeHtml(item.img || PLACEHOLDER_PRODUCT_IMG)}" class="rounded shadow-sm me-3" style="width: 45px; height: 45px; object-fit: cover;">
                             <div>
                                 <h6 class="mb-1 text-dark" style="font-size: 0.95rem;">${escapeHtml(item.name)}</h6>
                                 <div><span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span></div>
@@ -4342,7 +4539,8 @@
             totalAmountDue = cartSubtotalAmount + renderTaxRow(cartSubtotalAmount);
             document.getElementById('modal-total-due').textContent = formatCurrency(totalAmountDue);
             document.getElementById('modal-subtotal-due').textContent = formatCurrency(cartSubtotalAmount);
-            document.getElementById('modal-discount-amount').textContent = '-0 đ';
+            document.getElementById('modal-discount-amount').textContent = '';
+            document.getElementById('modal-discount-row')?.classList.add('d-none');
             document.getElementById('input-cash-received').value = '';
             document.getElementById('modal-change-due').textContent = '0 đ';
             document.getElementById('modal-change-due').className = 'fs-4 fw-bold text-muted';
@@ -4514,8 +4712,7 @@
                 paymentRequestId = null;
                 if (paymentModalInstance) paymentModalInstance.hide();
                 const pointMsg = data.points_earned ? ` · +${data.points_earned} điểm` : '';
-                showToast(`Thanh toán thành công (${data.order_code})${pointMsg}!`, 'success');
-                handlePaidOrderPrinting(data);
+                handlePaidOrderPrinting(data, `Đã thanh toán ${data.order_code}${pointMsg}.`);
                 selectedPromotion = null;
                 currentDiscountAmount = 0;
                 currentDiscountSource = 'none';
@@ -4681,10 +4878,36 @@
             });
         });
 
+        const syncStoreChip = () => {
+            const chipName = document.getElementById('posStoreChipName');
+            if (chipName) chipName.textContent = getCurrentStoreName();
+            document.getElementById('posStoreChip')?.setAttribute('aria-label', `Cửa hàng: ${getCurrentStoreName()}. Bấm để đổi`);
+            document.querySelectorAll('.js-pos-store-option').forEach((option) => {
+                const active = Number(option.dataset.storeId) === currentStoreId;
+                option.classList.toggle('active', active);
+                option.setAttribute('aria-current', active ? 'true' : 'false');
+            });
+        };
+        document.querySelectorAll('.js-pos-store-option').forEach((option) => {
+            option.addEventListener('click', () => {
+                const selector = document.getElementById('storeSelector');
+                if (!selector || selector.value === option.dataset.storeId) return;
+                selector.value = option.dataset.storeId;
+                selector.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+        syncStoreChip();
+        // Cập nhật nhãn "chờ N phút" của đơn QR mà không cần gọi lại API.
+        setInterval(() => {
+            if (hasQrOrderFeature && (onlineOrders.length || awaitingPaymentOrders.length)) renderOnlineOrders();
+        }, 60000);
+
         document.getElementById('storeSelector')?.addEventListener('change', async (event) => {
             stopPosQrSocket();
             stopFallbackPolling();
             currentStoreId = parseInt(event.target.value || '0', 10) || null;
+            try { window.localStorage.setItem(POS_STORE_STORAGE_KEY, String(currentStoreId || '')); } catch (error) { /* bỏ qua */ }
+            syncStoreChip();
             posQrReconnectDelayMs = POS_WS_RECONNECT_BASE_MS;
             pendingSaveToTable = false;
             currentSelectedTableId = null;
@@ -4762,8 +4985,13 @@
             loadQrAlertPreferences();
             resetOnlineOrdersTracking();
             bootstrapPage();
+            // Thông báo từ trang trước (VD đổi mật khẩu): hiện 1 lần ở đây để không dồn sang trang sau.
+            const flash = JSON.parse(document.getElementById('posFlashMessages')?.textContent || '[]');
+            const toneOf = (tags) => (tags.includes('error') ? 'danger' : tags.includes('warning') ? 'warning' : 'success');
+            flash.forEach((row, index) => setTimeout(() => showToast(row.text, toneOf(row.tags)), index * 2600));
         };
     </script>
+    {{ pos_flash_messages|json_script:'posFlashMessages' }}
 {% include 'App_Core/_pwa_register.html' %}
 </body>
 </html>

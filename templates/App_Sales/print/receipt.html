@@ -4,6 +4,7 @@
 {% block title %}Hoá đơn {{ order.order_code }}{% endblock %}
 
 {% block paper %}
+{% if brand_name and brand_name|lower != store.name|lower %}<div class="center bold">{{ brand_name }}</div>{% endif %}
 {% include 'App_Sales/print/_store_header.html' %}
 <div class="center">
     <div class="doc-title">HOÁ ĐƠN THANH TOÁN</div>
@@ -27,28 +28,27 @@
 <hr class="sep">
 {% include 'App_Sales/print/_items.html' with rows=rows %}
 <hr class="sep">
-<div class="row"><span>Tạm tính</span><span>{{ order.subtotal|thousand_sep }}</span></div>
+<div class="row"><span>Tạm tính</span><span>{{ order.subtotal|thousand_sep }} đ</span></div>
 {% if order.discount_amount %}
 <div class="row">
     <span>Giảm giá{% if order.discount_source == 'tier' %} (hạng {{ order.tier_snapshot|upper }}){% elif order.promotion_snapshot_name %} ({{ order.promotion_snapshot_name }}){% endif %}</span>
-    <span>-{{ order.discount_amount|thousand_sep }}</span>
+    <span>-{{ order.discount_amount|thousand_sep }} đ</span>
 </div>
 {% endif %}
-{% if order.tax_amount %}
-<div class="row"><span>Thuế{% if order.tax_rate %} ({{ order.tax_percent_label }}%){% endif %}</span><span>{{ order.tax_amount|thousand_sep }}</span></div>
-{% endif %}
+<div class="row"><span>Thuế{% if order.tax_rate %} ({{ order.tax_percent_label }}%){% else %} (0%){% endif %}</span><span>{{ order.tax_amount|thousand_sep }} đ</span></div>
 <hr class="sep solid">
-<div class="row total-row"><span>TỔNG CỘNG</span><span>{{ order.total_amount|thousand_sep }}</span></div>
-<div class="row"><span>{% if order.payment_method == 'cash' %}Khách đưa (tiền mặt){% else %}Thanh toán (thẻ/QR){% endif %}</span><span>{{ order.customer_paid|thousand_sep }}</span></div>
-{% if order.change_amount %}
-<div class="row"><span>Tiền thừa</span><span>{{ order.change_amount|thousand_sep }}</span></div>
+<div class="row total-row"><span>TỔNG CỘNG</span><span>{{ order.total_amount|thousand_sep }} đ</span></div>
+<div class="row"><span>Phương thức</span><span class="bold">{{ order.get_payment_method_display }}</span></div>
+<div class="row"><span>{% if order.payment_method == 'cash' %}Khách đưa{% else %}Đã thanh toán{% endif %}</span><span>{{ order.customer_paid|thousand_sep }} đ</span></div>
+{% if order.payment_method == 'cash' %}
+<div class="row"><span>Tiền thừa trả khách</span><span>{{ order.change_amount|thousand_sep }} đ</span></div>
 {% endif %}
 {% if order.refunded_amount %}
 <hr class="sep">
 {% for refund in refunds %}
-<div class="row"><span>Hoàn tiền {{ refund.created_at|date:'d/m H:i' }}</span><span>-{{ refund.amount|thousand_sep }}</span></div>
+<div class="row"><span>Hoàn tiền {{ refund.created_at|date:'d/m H:i' }}</span><span>-{{ refund.amount|thousand_sep }} đ</span></div>
 {% endfor %}
-<div class="row bold"><span>Thực thu</span><span>{{ order.net_amount|thousand_sep }}</span></div>
+<div class="row bold"><span>Thực thu</span><span>{{ order.net_amount|thousand_sep }} đ</span></div>
 {% endif %}
 <hr class="sep">
 <div class="footer-note">Cảm ơn quý khách, hẹn gặp lại!</div>

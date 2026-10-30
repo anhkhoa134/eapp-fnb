@@ -109,7 +109,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-person-plus me-2 text-primary"></i>Tạo nhân viên</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" action="{% url 'App_Quanly:staffs' %}">
                 <div class="modal-body">
@@ -174,7 +174,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-pencil me-2 text-primary"></i>Sửa nhân viên</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="editStaffForm" action="{% if edit_staff %}{% url 'App_Quanly:staff_edit' edit_staff.id %}{% else %}#{% endif %}">
                 <div class="modal-body">
@@ -224,7 +224,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa nhân viên</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="deleteStaffForm" action="">
                 <div class="modal-body">
@@ -245,7 +245,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-key me-2 text-primary"></i>Đặt lại mật khẩu</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="resetStaffPasswordForm" action="">
                 <div class="modal-body">

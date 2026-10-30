@@ -11,7 +11,16 @@ from typing import Any
 from django.db import transaction
 from django.db.models import Max
 
-from App_Catalog.models import Category, Product, ProductTopping, ProductUnit, StoreCategory, StoreProduct, Topping
+from App_Catalog.models import (
+    MAX_PRICE_VND,
+    Category,
+    Product,
+    ProductTopping,
+    ProductUnit,
+    StoreCategory,
+    StoreProduct,
+    Topping,
+)
 from App_Tenant.models import Store, Tenant
 
 SHEET_HUONG_DAN = 'Huong_dan'
@@ -435,8 +444,8 @@ def import_catalog_from_upload(tenant: Tenant, file_obj, *, preview: bool = Fals
                 )
             try:
                 price = parse_decimal_cell(d.get('gia'))
-                if not price.is_finite() or price < 0 or price >= Decimal('1000000000000'):
-                    raise ValueError('Giá phải từ 0 đến dưới 1.000.000.000.000')
+                if not price.is_finite() or price <= 0 or price > MAX_PRICE_VND:
+                    raise ValueError('Giá phải lớn hơn 0 và tối đa 100.000.000')
                 if price != price.quantize(Decimal('0.01')):
                     raise ValueError('Giá chỉ được có tối đa 2 chữ số thập phân')
             except InvalidOperation:
@@ -496,7 +505,7 @@ def import_catalog_from_upload(tenant: Tenant, file_obj, *, preview: bool = Fals
             errors.append(f'{SHEET_SAN_PHAM_TOPPING} dòng {r}: nhiều topping trùng tên "{top_name}" trong DB')
         try:
             price = parse_decimal_cell(d.get('gia_them'))
-            if not price.is_finite() or price < 0 or price >= Decimal('1000000000000') or price != price.quantize(Decimal('0.01')):
+            if not price.is_finite() or price < 0 or price > MAX_PRICE_VND or price != price.quantize(Decimal('0.01')):
                 raise ValueError('Giá thêm không hợp lệ')
         except (ValueError, InvalidOperation) as e:
             errors.append(f'{SHEET_SAN_PHAM_TOPPING} dòng {r}: gia_them — {e}')

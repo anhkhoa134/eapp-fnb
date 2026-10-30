@@ -12,7 +12,7 @@ from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.core import signing
 from django.core.paginator import Paginator
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import CharField, Count, F, Prefetch, Q, Sum, Value
@@ -22,7 +22,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from reportlab.lib.pagesizes import A3, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
@@ -49,6 +49,7 @@ from App_Quanly.catalog_excel import (
     next_display_order,
     template_workbook_bytes,
 )
+from App_Quanly import order_export
 from App_Quanly.catalog_preview import catalog_state_fingerprint
 from App_Quanly.forms import (
     AccountProfileForm,
@@ -86,6 +87,7 @@ from App_Sales.models import (
 )
 from App_Sales.services import (
     create_refund,
+    customer_search_q,
     ensure_customer_tier_settings,
     recompute_all_customer_stats,
     recompute_customer_stats,
@@ -101,7 +103,8 @@ def _tenant_or_404(user):
 
 
 def _feature_disabled_response(message):
-    return HttpResponse(message, status=403)
+    # Raise để handler403 hiển thị trang lỗi có giao diện (trước đây trả text trần).
+    raise PermissionDenied(message)
 
 
 def _feature_required(check, message):
@@ -125,6 +128,19 @@ customer_feature_required = _feature_required(
 promotion_feature_required = _feature_required(
     lambda tenant: tenant.promotion_feature_enabled, 'Tính năng khuyến mãi đang tắt hoặc chưa có trong gói.'
 )
+
+
+def _form_error_message(prefix, form):
+    """'Không thể …' + lỗi cụ thể đầu tiên của form (view sửa redirect nên lỗi tại ô sẽ mất)."""
+    details = []
+    for name, errors in form.errors.items():
+        field = form.fields.get(name)
+        label = field.label if field is not None and name != '__all__' else ''
+        for error in errors:
+            details.append(f'{label}: {error}' if label else error)
+    if not details:
+        return f'{prefix}, vui lòng kiểm tra lại dữ liệu.'
+    return f'{prefix}: ' + ' '.join(details[:3])
 
 
 def _plan_limit_message(label, limit):
@@ -418,7 +434,7 @@ def dashboard(request):
         chart_orders_values.append(day_point['orders'])
         cursor_day += timedelta(days=1)
 
-    chart_payment_names = ['Tiền mặt', 'Card/QR']
+    chart_payment_names = ['Tiền mặt', 'Thẻ/QR']
     chart_payment_values = [cash_orders, card_orders]
     chart_store_names = [row['store__name'] for row in store_kpis]
     chart_store_values = [int((row['total_revenue'] or Decimal('0')).quantize(Decimal('1'))) for row in store_kpis]
@@ -491,8 +507,87 @@ def dashboard(request):
         'chart_store_names': chart_store_names,
         'chart_store_values': chart_store_values,
         'recent_activity_rows': recent_activity_rows,
+        'setup_steps': _setup_checklist(tenant),
     }
     return render(request, 'App_Quanly/dashboard.html', context)
+
+
+def _setup_checklist(tenant):
+    """Các bước thiết lập ban đầu cho chủ quán mới; trả [] khi đã xong hết (ẩn khỏi Dashboard)."""
+    sellable = Product.objects.filter(
+        tenant=tenant,
+        is_active=True,
+        units__is_active=True,
+        store_links__is_available=True,
+        store_links__store__is_active=True,
+    )
+    steps = [
+        {
+            'label': 'Tạo danh mục món (VD: Cà phê, Trà sữa)',
+            'done': Category.objects.filter(tenant=tenant, is_active=True).exists(),
+            'url': reverse('App_Quanly:categories'),
+        },
+        {
+            'label': 'Thêm món có đơn vị bán + giá và gán cửa hàng',
+            'done': sellable.exists(),
+            'url': reverse('App_Quanly:products'),
+        },
+    ]
+    if tenant.show_qr_order_feature:
+        steps.append(
+            {
+                'label': 'In mã QR bàn để khách tự gọi món',
+                'done': DiningTable.objects.filter(tenant=tenant, is_active=True).exists(),
+                'url': reverse('App_Quanly:qr_tables'),
+            }
+        )
+    steps.append(
+        {
+            'label': 'Bán đơn đầu tiên trên màn hình POS',
+            'done': Order.objects.filter(tenant=tenant).exists(),
+            'url': reverse('App_Sales:pos'),
+        }
+    )
+    return steps if not all(step['done'] for step in steps) else []
+
+
+def _filter_orders(request, tenant, *, report_errors=True):
+    """Lọc đơn bán theo query string của Lịch sử đơn (dùng chung cho trang và xuất Excel/CSV)."""
+    orders = Order.objects.filter(tenant=tenant).select_related('store', 'cashier', 'customer', 'promotion')
+    filters = {
+        key: (request.GET.get(key) or '').strip()
+        for key in ('store', 'payment_method', 'status', 'cashier', 'q', 'date_from', 'date_to')
+    }
+    if filters['store'].isdigit():
+        orders = orders.filter(store_id=int(filters['store']))
+    if filters['payment_method'] in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+        orders = orders.filter(payment_method=filters['payment_method'])
+    if filters['status'] in set(Order.Status.values):
+        orders = orders.filter(status=filters['status'])
+    if filters['cashier'].isdigit():
+        orders = orders.filter(cashier_id=int(filters['cashier']))
+    selected_q = filters['q']
+    if selected_q:
+        orders = orders.filter(
+            Q(order_code__icontains=selected_q)
+            | Q(cashier__username__icontains=selected_q)
+            | Q(store__name__icontains=selected_q)
+            | Q(customer__name__icontains=selected_q)
+            | Q(customer__phone__icontains=selected_q)
+            | Q(promotion_snapshot_name__icontains=selected_q)
+        )
+    try:
+        start_dt, end_dt = _parse_date_bounds(filters['date_from'], filters['date_to'])
+    except ValueError:
+        if report_errors:
+            messages.error(request, 'Bộ lọc ngày không hợp lệ.')
+        start_dt, end_dt = None, None
+    if start_dt:
+        orders = orders.filter(created_at__gte=start_dt)
+    if end_dt:
+        orders = orders.filter(created_at__lte=end_dt)
+    filters['start_dt'], filters['end_dt'] = start_dt, end_dt
+    return orders, filters
 
 
 @manager_required
@@ -506,43 +601,15 @@ def order_history(request):
         .order_by('username')
     )
 
-    orders = Order.objects.filter(tenant=tenant).select_related('store', 'cashier', 'customer', 'promotion')
-
-    selected_store = (request.GET.get('store') or '').strip()
-    selected_payment = (request.GET.get('payment_method') or '').strip()
-    selected_status = (request.GET.get('status') or '').strip()
-    selected_cashier = (request.GET.get('cashier') or '').strip()
-    selected_q = (request.GET.get('q') or '').strip()
-    date_from = (request.GET.get('date_from') or '').strip()
-    date_to = (request.GET.get('date_to') or '').strip()
-
-    if selected_store.isdigit():
-        orders = orders.filter(store_id=int(selected_store))
-    if selected_payment in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
-        orders = orders.filter(payment_method=selected_payment)
-    if selected_status in set(Order.Status.values):
-        orders = orders.filter(status=selected_status)
-    if selected_cashier.isdigit():
-        orders = orders.filter(cashier_id=int(selected_cashier))
-    if selected_q:
-        orders = orders.filter(
-            Q(order_code__icontains=selected_q)
-            | Q(cashier__username__icontains=selected_q)
-            | Q(store__name__icontains=selected_q)
-            | Q(customer__name__icontains=selected_q)
-            | Q(customer__phone__icontains=selected_q)
-            | Q(promotion_snapshot_name__icontains=selected_q)
-        )
-
-    try:
-        start_dt, end_dt = _parse_date_bounds(date_from, date_to)
-    except ValueError:
-        messages.error(request, 'Bộ lọc ngày không hợp lệ.')
-        start_dt, end_dt = None, None
-    if start_dt:
-        orders = orders.filter(created_at__gte=start_dt)
-    if end_dt:
-        orders = orders.filter(created_at__lte=end_dt)
+    orders, filters = _filter_orders(request, tenant)
+    selected_store = filters['store']
+    selected_payment = filters['payment_method']
+    selected_status = filters['status']
+    selected_cashier = filters['cashier']
+    selected_q = filters['q']
+    date_from = filters['date_from']
+    date_to = filters['date_to']
+    start_dt, end_dt = filters['start_dt'], filters['end_dt']
 
     summary = orders.aggregate(
         total_orders=Coalesce(Count('id'), 0),
@@ -671,6 +738,27 @@ def order_history(request):
     )
 
 
+@manager_required
+@require_GET
+def orders_export(request):
+    """Xuất đơn bán theo bộ lọc hiện tại: ?format=xlsx (mặc định, 3 sheet) hoặc ?format=csv."""
+    tenant = _tenant_or_404(request.user)
+    orders, filters = _filter_orders(request, tenant, report_errors=False)
+    orders = orders.order_by('-created_at', '-id')
+    period = ' – '.join(part for part in (filters['date_from'], filters['date_to']) if part)
+    if request.GET.get('format') == 'csv':
+        response = HttpResponse(order_export.build_orders_csv(orders), content_type='text/csv; charset=utf-8')
+        filename = order_export.export_filename('don-hang', filters, 'csv')
+    else:
+        response = HttpResponse(
+            order_export.build_orders_xlsx(orders, tenant_name=tenant.name, period_label=period),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        filename = order_export.export_filename('bao-cao-ban-hang', filters, 'xlsx')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
 def _redirect_next_or(request, fallback):
     next_url = (request.POST.get('next') or '').strip()
     if next_url and url_has_allowed_host_and_scheme(
@@ -744,12 +832,15 @@ AUDIT_ACTION_GROUPS = [
     (
         'Bán hàng',
         [
+            Action.ORDER_CHECKOUT,
             Action.ORDER_REFUND,
             Action.ORDER_DELETE,
             Action.ORDER_REPRINT,
             Action.CART_VOID,
             Action.TABLE_MOVE,
+            Action.QR_APPROVE,
             Action.QR_REJECT,
+            Action.KITCHEN_STATUS,
             Action.KITCHEN_REPRINT,
         ],
     ),
@@ -857,11 +948,7 @@ def customer_list_create(request):
         customers = customers.filter(is_active=True)
 
     if selected_q:
-        customers = customers.filter(
-            Q(name__icontains=selected_q)
-            | Q(phone__icontains=selected_q)
-            | Q(email__icontains=selected_q)
-        )
+        customers = customers.filter(customer_search_q(selected_q))
 
     is_tier_settings_post = request.method == 'POST' and request.POST.get('form_kind') == 'tier_settings'
     form_data = request.POST if request.method == 'POST' and not is_tier_settings_post else None
@@ -917,7 +1004,7 @@ def customer_edit(request, pk):
         form.save()
         messages.success(request, 'Đã cập nhật khách hàng.')
     else:
-        messages.error(request, 'Không thể cập nhật khách hàng, vui lòng kiểm tra dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật khách hàng', form))
     return redirect('App_Quanly:customers')
 
 
@@ -998,7 +1085,7 @@ def promotion_edit(request, pk):
         _sync_promotion_store_links(promotion, selected_store_ids)
         messages.success(request, 'Đã cập nhật khuyến mãi.')
     else:
-        messages.error(request, 'Không thể cập nhật khuyến mãi, vui lòng kiểm tra dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật khuyến mãi', form))
     return redirect('App_Quanly:promotions')
 
 
@@ -1081,7 +1168,7 @@ def category_edit(request, pk):
         _sync_category_store_links(category, selected_store_ids)
         messages.success(request, 'Đã cập nhật danh mục.')
     else:
-        messages.error(request, 'Không thể cập nhật danh mục, vui lòng kiểm tra lại dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật danh mục', form))
     return redirect('App_Quanly:categories')
 
 
@@ -1206,7 +1293,14 @@ def product_list_create(request):
             product.save()
             selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
             _sync_product_store_links(product, selected_store_ids)
-            messages.success(request, 'Đã tạo sản phẩm. Hãy thêm đơn vị bán ở bên dưới.')
+            messages.success(request, f'Đã tạo sản phẩm "{product.name}".')
+            missing = ['thêm đơn vị bán + giá (nút "Thêm đơn vị")']
+            if not selected_store_ids:
+                missing.append('gán ít nhất 1 cửa hàng (nút "Sửa")')
+            messages.warning(
+                request,
+                f'Món "{product.name}" chưa hiện ở POS và menu QR. Cần ' + ' và '.join(missing) + '.',
+            )
             return redirect('App_Quanly:products')
 
     product_rows = []
@@ -1217,11 +1311,17 @@ def product_list_create(request):
             if link.is_available:
                 available_store_ids.append(link.store_id)
                 available_store_names.append(link.store.name)
+        hidden_reasons = []
+        if not any(unit.is_active for unit in product.units.all()):
+            hidden_reasons.append('chưa có đơn vị bán đang bật')
+        if not available_store_ids:
+            hidden_reasons.append('chưa gán cửa hàng')
         product_rows.append(
             {
                 'product': product,
                 'available_store_ids_csv': ','.join(str(store_id) for store_id in available_store_ids),
                 'available_store_names': ', '.join(available_store_names),
+                'pos_hidden_reason': ', '.join(hidden_reasons).capitalize() if product.is_active else '',
             }
         )
 
@@ -1262,7 +1362,7 @@ def product_edit(request, pk):
         _sync_product_store_links(product, selected_store_ids)
         messages.success(request, 'Đã cập nhật sản phẩm.')
     else:
-        messages.error(request, 'Không thể cập nhật sản phẩm, vui lòng kiểm tra lại dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật sản phẩm', form))
     return redirect('App_Quanly:products')
 
 
@@ -1289,7 +1389,7 @@ def unit_add(request, product_pk):
         unit.save()
         messages.success(request, 'Đã thêm đơn vị sản phẩm.')
     else:
-        messages.error(request, 'Không thể thêm đơn vị, vui lòng kiểm tra dữ liệu.')
+        messages.error(request, _form_error_message('Không thể thêm đơn vị', form))
     return redirect('App_Quanly:products')
 
 
@@ -1304,7 +1404,7 @@ def unit_edit(request, pk):
         form.save()
         messages.success(request, 'Đã cập nhật đơn vị sản phẩm.')
     else:
-        messages.error(request, 'Không thể cập nhật đơn vị sản phẩm, vui lòng kiểm tra lại dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật đơn vị', form))
     return redirect('App_Quanly:products')
 
 
@@ -1391,7 +1491,7 @@ def topping_edit(request, pk):
         _sync_topping_product_links(topping=topping, selected_products=selected_products)
         messages.success(request, 'Đã cập nhật topping.')
     else:
-        messages.error(request, 'Không thể cập nhật topping, vui lòng kiểm tra lại dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật topping', form))
     return redirect('App_Quanly:toppings')
 
 
@@ -1428,7 +1528,7 @@ def product_topping_edit(request, pk):
         form.save()
         messages.success(request, 'Đã cập nhật gán topping sản phẩm.')
     else:
-        messages.error(request, 'Không thể cập nhật gán topping, vui lòng kiểm tra lại dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật gán topping', form))
     return redirect('App_Quanly:toppings')
 
 
@@ -1909,7 +2009,7 @@ def qr_table_edit(request, pk):
         table.save()
         messages.success(request, f'Đã cập nhật bàn "{table.name}".')
     else:
-        messages.error(request, 'Không thể cập nhật bàn QR, vui lòng kiểm tra dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật bàn QR', form))
     return redirect('App_Quanly:qr_tables')
 
 
@@ -2255,7 +2355,7 @@ def store_edit(request, pk):
         _save_store_and_sync_default(tenant=tenant, store=store, is_default=form.cleaned_data['is_default'])
         messages.success(request, f'Đã cập nhật cửa hàng "{store.name}".')
     else:
-        messages.error(request, 'Không thể cập nhật cửa hàng, vui lòng kiểm tra lại dữ liệu.')
+        messages.error(request, _form_error_message('Không thể cập nhật cửa hàng', form))
     return redirect('App_Quanly:stores')
 
 

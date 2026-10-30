@@ -16,7 +16,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from App_Accounts import login_throttle, rate_limit
 from App_Accounts.forms import (
@@ -27,6 +27,7 @@ from App_Accounts.forms import (
     SignupForm,
 )
 from App_Accounts.models import User
+from App_Core.views import render_error_page
 from App_Tenant.services import get_default_subscription_plan, register_free_tenant
 
 
@@ -119,11 +120,23 @@ class POSPasswordResetCompleteView(PasswordResetEnabledMixin, PasswordResetCompl
     template_name = 'App_Accounts/password_reset_complete.html'
 
 
-@require_POST
-@login_required
+@require_http_methods(['GET', 'POST'])
 def pos_logout(request):
-    logout(request)
-    return redirect('App_Accounts:login')
+    if request.method == 'POST':
+        if request.user.is_authenticated:
+            logout(request)
+        return redirect('App_Accounts:login')
+    if not request.user.is_authenticated:
+        return redirect('App_Accounts:login')
+    # Mở /accounts/logout/ trực tiếp: hỏi xác nhận (đăng xuất vẫn chỉ bằng POST, chống CSRF logout).
+    return render_error_page(
+        request,
+        200,
+        'Đăng xuất khỏi eApp FnB?',
+        'Bạn sẽ cần đăng nhập lại để tiếp tục bán hàng hoặc quản lý cửa hàng.',
+        badge='ĐĂNG XUẤT',
+        logout_confirm=True,
+    )
 
 
 @login_required

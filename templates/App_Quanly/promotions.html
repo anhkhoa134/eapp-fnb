@@ -312,12 +312,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // Server gửi ISO theo giờ cửa hàng (VD 2026-10-29T14:00:00+07:00): lấy nguyên phần ngày giờ,
+    // không đổi sang múi giờ của máy đang mở trang.
     const toDateTimeLocal = (value) => {
-            if (!value) return '';
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) return '';
-            const pad = (n) => String(n).padStart(2, '0');
-            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+            return match ? `${match[1]}T${match[2]}` : '';
         };
         const deletePromotionForm = document.getElementById('deletePromotionForm');
         const deletePromotionName = document.getElementById('deletePromotionName');
@@ -329,8 +328,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('edit-promotion-discount-value').value = button.dataset.discountValue || '';
                 document.getElementById('edit-promotion-min-order').value = button.dataset.minOrder || '0';
                 document.getElementById('edit-promotion-max-discount').value = button.dataset.maxDiscount || '';
-                document.getElementById('edit-promotion-valid-from').value = toDateTimeLocal(button.dataset.validFrom || '');
-                document.getElementById('edit-promotion-valid-to').value = toDateTimeLocal(button.dataset.validTo || '');
+                window.eappSetDateValue(document.getElementById('edit-promotion-valid-from'), toDateTimeLocal(button.dataset.validFrom || ''));
+                window.eappSetDateValue(document.getElementById('edit-promotion-valid-to'), toDateTimeLocal(button.dataset.validTo || ''));
                 document.getElementById('edit-promotion-active').checked = button.dataset.active === '1';
                 const selected = new Set((button.dataset.storeIds || '').split(',').filter(Boolean));
                 document.querySelectorAll('.js-edit-promotion-store').forEach((input) => {

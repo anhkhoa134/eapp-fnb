@@ -1,0 +1,109 @@
+{% load static %}<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#10b981">
+    <meta name="robots" content="noindex">
+    <title>{{ title }} | eApp FnB</title>
+    <link rel="icon" type="image/x-icon" href="{% static 'pwa/icons/fnb-favicon.ico' %}">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(160deg, #ecfdf5 0%, #f8fafc 45%, #e0f2fe 100%);
+            color: #0f172a;
+        }
+        .card {
+            max-width: 460px;
+            width: 100%;
+            background: #fff;
+            border-radius: 20px;
+            padding: 2rem 1.75rem;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
+            text-align: center;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 800;
+            color: #0f172a;
+            text-decoration: none;
+            margin-bottom: 1.25rem;
+        }
+        .brand img { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; }
+        .code {
+            display: inline-block;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #047857;
+            background: rgba(16, 185, 129, 0.12);
+            border-radius: 999px;
+            padding: 0.25rem 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        h1 { font-size: 1.3rem; font-weight: 800; margin: 0 0 0.5rem; }
+        p { margin: 0 0 1.5rem; color: #475569; font-size: 0.95rem; line-height: 1.55; }
+        .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0.6rem 1.2rem;
+            border-radius: 12px;
+            font: inherit;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .btn-primary { background: #047857; color: #fff; }
+        .btn-primary:hover { background: #065f46; }
+        .btn-light { background: #f1f5f9; color: #0f172a; border-color: #e2e8f0; }
+        .btn-light:hover { background: #e2e8f0; }
+        .btn-danger { background: #dc2626; color: #fff; }
+        .btn-danger:hover { background: #b91c1c; }
+        .user { margin-top: 1.25rem; font-size: 0.82rem; color: #64748b; }
+        form { margin: 0; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <a class="brand" href="{{ home_url }}">
+            <img src="{% static 'images/logo/eapp.webp' %}" alt="" width="32" height="32">
+            <span>eApp FnB</span>
+        </a>
+        <div><span class="code">{{ badge }}</span></div>
+        <h1>{{ title }}</h1>
+        <p>{{ message }}</p>
+        <div class="actions">
+            {% block actions %}
+            {% if logout_confirm %}
+            <form method="post" action="{% url 'App_Accounts:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Đăng xuất</button>
+            </form>
+            <a class="btn btn-light" href="{{ home_url }}">{{ home_label }}</a>
+            {% else %}
+            <a class="btn btn-primary" href="{{ home_url }}">{{ home_label }}</a>
+            <button type="button" class="btn btn-light" onclick="history.length > 1 ? history.back() : (location.href = '{{ home_url|escapejs }}')">Quay lại</button>
+            {% endif %}
+            {% endblock %}
+        </div>
+        {% if user.is_authenticated %}
+        <div class="user">Đang đăng nhập: {{ user.username }}</div>
+        {% endif %}
+    </main>
+</body>
+</html>

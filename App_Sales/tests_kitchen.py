@@ -114,6 +114,10 @@ class KitchenFeatureTests(TestCase):
         self._send(self.table_1)
 
         res = self._patch_item(self.table_1, item, {'quantity': 1})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()['code'], 'reason_required')
+
+        res = self._patch_item(self.table_1, item, {'quantity': 1, 'reason': 'Khách đổi món'})
         self.assertEqual(res.status_code, 200)
         item.refresh_from_db()
         self.assertEqual(item.kitchen_sent_quantity, 1)
@@ -128,7 +132,9 @@ class KitchenFeatureTests(TestCase):
         self._send(self.table_1)
 
         url = reverse('App_Sales_API:table_cart_item', kwargs={'table_id': self.table_1.id, 'item_id': item.id})
-        self.assertEqual(self.client.delete(url).status_code, 200)
+        self.assertEqual(self.client.delete(url).status_code, 400)
+        response = self.client.delete(url, data=json.dumps({'reason': 'Khách huỷ'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
         statuses = sorted(KitchenTicketItem.objects.values_list('status', flat=True))
         self.assertEqual(statuses, [KitchenTicketItem.Status.CANCELLED, KitchenTicketItem.Status.DONE])
         self.assertFalse(KitchenTicket.objects.filter(completed_at__isnull=True).exists())

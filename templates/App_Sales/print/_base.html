@@ -43,7 +43,8 @@
             text-decoration: none;
             cursor: pointer;
         }
-        .print-toolbar .primary { background: #10b981; border-color: #10b981; font-weight: 700; }
+        .print-toolbar .primary { background: #047857; border-color: #047857; font-weight: 700; }
+        .print-toolbar .print-note { font-size: 12px; color: #cbd5e1; }
         .paper {
             width: 80mm;
             margin: 16px auto;
@@ -89,6 +90,7 @@
             <option value="80">80 mm</option>
             <option value="58">58 mm</option>
         </select>
+        {% if printed_count %}<span class="print-note">Đã in {{ printed_count }} lần · bấm In sẽ đóng dấu bản in lại</span>{% endif %}
         <button type="button" class="primary" id="printNow">In</button>
         <button type="button" id="closeWindow">Đóng</button>
     </div>

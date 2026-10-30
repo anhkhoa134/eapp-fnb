@@ -1,0 +1,67 @@
+/* Lỗi form Django (ul.errorlist) hiển thị như invalid-feedback của Bootstrap, ô lỗi viền đỏ. */
+ul.errorlist {
+    list-style: none;
+    margin: 0.3rem 0 0;
+    padding: 0;
+    color: #dc3545;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+ul.errorlist li + li { margin-top: 0.15rem; }
+ul.errorlist.nonfield,
+ul.errorlist.nonform {
+    margin: 0 0 0.75rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    background: #fef2f2;
+}
+ul.errorlist li::before {
+    content: "\26A0";
+    margin-right: 0.35rem;
+}
+.form-control[aria-invalid="true"],
+.form-select[aria-invalid="true"] {
+    border-color: #dc3545;
+}
+.form-control[aria-invalid="true"]:focus,
+.form-select[aria-invalid="true"]:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.2);
+}
+
+/* Ô chọn tệp: ẩn chữ "Choose File / No file chosen" của trình duyệt, dùng nhãn tiếng Việt. */
+.eapp-file-input { position: relative; }
+.eapp-file-input input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.eapp-file-input .eapp-file-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: calc(1.5em + 0.75rem + 2px);
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: var(--bs-border-radius, 0.375rem);
+    background: #fff;
+    color: #475569;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.eapp-file-input .eapp-file-btn {
+    flex: none;
+    padding: 0.1rem 0.6rem;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 600;
+}
+.eapp-file-input:focus-within .eapp-file-label {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+.d-flex > .eapp-file-input { flex: 1 1 auto; min-width: 0; }

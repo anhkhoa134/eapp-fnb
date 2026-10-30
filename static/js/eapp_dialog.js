@@ -4,6 +4,7 @@
  * JS:
  *   const ok = await eappDialog.confirm({ title, message, okText, cancelText, variant });
  *   await eappDialog.alert({ title, message, variant });
+ *   const reason = await eappDialog.prompt({ title, message, placeholder, choices: ['…'], required: true });
  *   variant: 'primary' (mặc định) | 'danger' | 'warning' | 'success' | 'info'
  *
  * Khai báo trên form hoặc nút submit (không cần viết JS):
@@ -38,6 +39,7 @@
         .eapp-dialog-icon.v-success { background: rgba(16, 185, 129, 0.16); color: #047857; }
         .eapp-dialog-title { font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 0.35rem; }
         .eapp-dialog-message { color: #475569; white-space: pre-line; margin: 0; }
+        .eapp-dialog-choices .btn { border-radius: 999px; font-size: 0.8rem; padding: 0.25rem 0.7rem; }
         .eapp-dialog .modal-footer { border-top: 0; padding: 0 1.5rem 1.5rem; gap: 0.5rem; flex-wrap: nowrap; }
         .eapp-dialog .modal-footer .btn { flex: 1 1 0; margin: 0; font-weight: 700; padding: 0.6rem 1rem; border-radius: 12px; }
     `;
@@ -46,6 +48,8 @@
     let modal = null;
     let resolveCurrent = null;
     let result = false;
+    let currentMode = 'confirm';
+    let currentRequired = false;
     let queue = Promise.resolve();
 
     const build = () => {
@@ -66,6 +70,9 @@
                         <div class="eapp-dialog-icon" aria-hidden="true"></div>
                         <div class="eapp-dialog-title" id="eappDialogTitle"></div>
                         <p class="eapp-dialog-message" id="eappDialogMessage"></p>
+                        <div class="eapp-dialog-choices d-flex flex-wrap gap-1 justify-content-center mt-3 d-none"></div>
+                        <input type="text" class="form-control mt-2 d-none" data-eapp-dialog="input" maxlength="255" aria-labelledby="eappDialogTitle">
+                        <div class="invalid-feedback text-start">Vui lòng nhập lý do.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light border" data-eapp-dialog="cancel"></button>
@@ -76,9 +83,27 @@
         document.body.appendChild(modalEl);
         modal = new bootstrap.Modal(modalEl);
 
+        const input = modalEl.querySelector('[data-eapp-dialog="input"]');
         modalEl.querySelector('[data-eapp-dialog="ok"]').addEventListener('click', () => {
-            result = true;
+            if (currentMode === 'prompt') {
+                const value = input.value.trim();
+                if (currentRequired && !value) {
+                    input.classList.add('is-invalid');
+                    input.focus();
+                    return;
+                }
+                result = value;
+            } else {
+                result = true;
+            }
             modal.hide();
+        });
+        input.addEventListener('input', () => input.classList.remove('is-invalid'));
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                modalEl.querySelector('[data-eapp-dialog="ok"]').click();
+            }
         });
         modalEl.querySelector('[data-eapp-dialog="cancel"]').addEventListener('click', () => modal.hide());
         modalEl.addEventListener('shown.bs.modal', () => {
@@ -88,7 +113,8 @@
                 const last = backdrops[backdrops.length - 1];
                 if (last) last.style.zIndex = String(STACK_Z_INDEX - 5);
             }
-            modalEl.querySelector('[data-eapp-dialog="ok"]').focus();
+            if (currentMode === 'prompt') input.focus();
+            else modalEl.querySelector('[data-eapp-dialog="ok"]').focus();
         });
         modalEl.addEventListener('hidden.bs.modal', () => {
             modalEl.style.zIndex = '';
@@ -100,11 +126,11 @@
         });
     };
 
-    const open = ({ mode, title, message, okText, cancelText, variant }) => {
+    const open = ({ mode, title, message, okText, cancelText, variant, placeholder, choices, required, value }) => {
         if (!window.bootstrap || !window.bootstrap.Modal) {
             // Không có Bootstrap thì không hiển thị được hộp thoại: coi như đồng ý để không chặn thao tác.
             console.warn('eappDialog cần Bootstrap 5:', message);
-            return Promise.resolve(true);
+            return Promise.resolve(mode === 'prompt' ? (value || '') : true);
         }
         if (!modalEl) build();
         const run = () => new Promise((resolve) => {
@@ -123,7 +149,30 @@
             cancelBtn.textContent = cancelText || 'Huỷ';
             cancelBtn.classList.toggle('d-none', mode === 'alert');
 
-            result = false;
+            const input = modalEl.querySelector('[data-eapp-dialog="input"]');
+            const choicesEl = modalEl.querySelector('.eapp-dialog-choices');
+            input.classList.toggle('d-none', mode !== 'prompt');
+            input.classList.remove('is-invalid');
+            input.value = value || '';
+            input.placeholder = placeholder || '';
+            choicesEl.innerHTML = '';
+            (mode === 'prompt' ? choices || [] : []).forEach((choice) => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'btn btn-outline-secondary';
+                chip.textContent = choice;
+                chip.addEventListener('click', () => {
+                    input.value = choice;
+                    input.classList.remove('is-invalid');
+                    input.focus();
+                });
+                choicesEl.appendChild(chip);
+            });
+            choicesEl.classList.toggle('d-none', !choicesEl.children.length);
+
+            currentMode = mode;
+            currentRequired = Boolean(required);
+            result = mode === 'prompt' ? null : false;
             resolveCurrent = resolve;
             if (document.querySelector('.modal.show')) modalEl.style.zIndex = String(STACK_Z_INDEX);
             modal.show();
@@ -135,6 +184,8 @@
 
     window.eappDialog = {
         confirm: (options = {}) => open({ ...options, mode: 'confirm' }),
+        // Trả chuỗi đã nhập, hoặc null khi bấm Huỷ. options: placeholder, choices (gợi ý nhanh), required, value.
+        prompt: (options = {}) => open({ ...options, mode: 'prompt' }),
         alert: async (options = {}) => {
             await open({ ...options, mode: 'alert' });
         },

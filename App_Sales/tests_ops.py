@@ -353,12 +353,13 @@ class AuditLogTests(OpsTestBase):
         item = TableCartItem.objects.get(table=self.table)
         self.client.patch(
             reverse('App_Sales_API:table_cart_item', args=[self.table.id, item.id]),
-            data=json.dumps({'quantity': 1}),
+            data=json.dumps({'quantity': 1, 'reason': 'Khách đổi món'}),
             content_type='application/json',
         )
         log = AuditLog.objects.get(tenant=self.tenant, action=AuditLog.Action.CART_VOID)
         self.assertIn('Cà phê sữa x2', log.message)
         self.assertIn('đã báo bếp', log.message)
+        self.assertIn('Lý do: Khách đổi món', log.message)
         self.assertEqual(log.username, 'ops_staff')
 
         table_2 = DiningTable.objects.create(tenant=self.tenant, store=self.store, code='B02', name='Bàn 02')
@@ -373,7 +374,7 @@ class AuditLogTests(OpsTestBase):
         )
         log = AuditLog.objects.get(tenant=self.tenant, action=AuditLog.Action.OBJECT_UPDATE)
         self.assertEqual(log.object_type, 'Đơn vị bán')
-        self.assertEqual(log.extra['changes'], [{'field': 'Giá', 'old': '30.000', 'new': '35.000'}])
+        self.assertEqual(log.extra['changes'], [{'field': 'Giá bán', 'old': '30.000', 'new': '35.000'}])
 
     def test_no_log_without_request_user(self):
         self.unit.price = Decimal('40000')
@@ -401,3 +402,73 @@ class AuditLogTests(OpsTestBase):
         self.assertNotContains(response, 'other tenant secret')
         filtered = self.client.get(reverse('App_Quanly:audit_log'), {'action': 'group:0'})
         self.assertNotContains(filtered, 'own tenant entry')
+
+
+class QaReportSalesTests(OpsTestBase):
+    """Hồi quy báo cáo kiểm thử 29/10/2026 phía bán hàng."""
+
+    def test_receipt_preview_after_autoprint_is_not_stamped_reprint(self):
+        """BUG-15: mở xem hoá đơn vừa in tự động đã hiện "BẢN IN LẠI (lần 2)"."""
+        self.login(self.staff)
+        order = self.checkout_takeaway()
+        url = reverse('App_Sales:order_receipt', args=[order.id])
+        self.client.get(url, {'autoprint': '1'})
+        preview = self.client.get(url)
+        self.assertNotContains(preview, 'BẢN IN LẠI')
+        self.assertContains(preview, 'Đã in 1 lần')
+        self.assertContains(preview, 'Tiền thừa trả khách')
+        self.assertContains(preview, 'Phương thức')
+
+    def test_checkout_and_kitchen_status_are_audited(self):
+        """BUG-11: thiếu log thanh toán / trạng thái bếp."""
+        self.login(self.staff)
+        order = self.checkout_takeaway()
+        log = AuditLog.objects.get(tenant=self.tenant, action=AuditLog.Action.ORDER_CHECKOUT)
+        self.assertIn(order.order_code, log.message)
+        self.assertEqual(log.object_type, 'Đơn bán')
+
+        self.add_to_table(quantity=1)
+        self.post_json(reverse('App_Sales_API:table_kitchen_send', args=[self.table.id]), {})
+        kitchen_item = KitchenTicket.objects.latest('id').items.get()
+        self.post_json(reverse('App_Sales_API:kitchen_item_status', args=[kitchen_item.id]), {'status': 'DONE'})
+        log = AuditLog.objects.get(tenant=self.tenant, action=AuditLog.Action.KITCHEN_STATUS)
+        self.assertIn('Đã xong', log.message)
+
+    def test_order_export_xlsx_and_csv(self):
+        """BUG-13: không có xuất Excel/CSV."""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        self.login(self.staff)
+        order = self.checkout_takeaway(quantity=2)
+        self.login(self.manager)
+        response = self.client.get(reverse('App_Quanly:orders_export'), {'format': 'xlsx'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment;', response['Content-Disposition'])
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, ['Đơn hàng', 'Theo món', 'Theo thu ngân'])
+        self.assertEqual(workbook['Đơn hàng']['A2'].value, order.order_code)
+        self.assertEqual(workbook['Đơn hàng']['H2'].value, 'Tiền mặt')
+        self.assertEqual(workbook['Theo món']['C2'].value, 2)
+
+        csv_response = self.client.get(reverse('App_Quanly:orders_export'), {'format': 'csv', 'payment_method': 'card'})
+        text = csv_response.content.decode('utf-8-sig')
+        self.assertIn('Mã đơn', text)
+        self.assertNotIn(order.order_code, text)
+
+        self.login(self.staff)
+        self.assertEqual(self.client.get(reverse('App_Quanly:orders_export')).status_code, 403)
+
+    def test_customer_search_without_accents(self):
+        """BUG-03: tìm "khach" không ra "QA-TEST Khách"."""
+        from App_Sales.models import Customer
+
+        self.tenant.show_customer_feature = True
+        self.tenant.save()
+        Customer.objects.create(tenant=self.tenant, name='Nguyễn Thị Khách', phone='0900000009')
+        self.login(self.manager)
+        page = self.client.get(reverse('App_Quanly:customers'), {'q': 'nguyen thi khach'})
+        self.assertContains(page, 'Nguyễn Thị Khách')
+        api = self.client.get(reverse('App_Sales_API:customers'), {'q': 'khach'}).json()
+        self.assertEqual([row['name'] for row in api['customers']], ['Nguyễn Thị Khách'])

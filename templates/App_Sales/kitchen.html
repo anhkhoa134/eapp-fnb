@@ -290,6 +290,7 @@
     }
     .ticket-card.age-warn .ticket-elapsed { color: #b45309; }
     .ticket-card.age-late .ticket-elapsed { color: #b91c1c; }
+    .ticket-card.is-stale { opacity: 0.75; border-style: dashed; }
     .ticket-item {
         display: flex;
         gap: 0.6rem;
@@ -453,6 +454,12 @@
     </div>
 </div>
 
+<div id="kitchenAlert" class="alert alert-danger d-none py-2 px-3 mb-3" role="alert"></div>
+<div id="kitchenStaleNotice" class="alert alert-warning d-none d-flex flex-wrap align-items-center gap-2 py-2 px-3 mb-3" role="status">
+    <i class="bi bi-hourglass-bottom" aria-hidden="true"></i>
+    <span id="kitchenStaleText"></span>
+    <button type="button" class="btn btn-sm btn-outline-dark ms-auto" id="kitchenStaleToggle"></button>
+</div>
 <div id="kitchenBoard" class="kitchen-grid"></div>
 <div id="kitchenEmpty" class="kitchen-empty d-none">
     <i class="bi bi-cup-hot fs-1 d-block mb-2"></i>
@@ -475,6 +482,10 @@
     const POLL_INTERVAL_MS = 15000;
     const WARN_MINUTES = 10;
     const LATE_MINUTES = 20;
+    // Phiếu chưa xong quá 12 giờ coi là tồn (thường quên bấm Xong từ ca trước): gom lại, cho ẩn.
+    const STALE_MINUTES = 12 * 60;
+    const STALE_HIDDEN_STORAGE_KEY = 'eapp_kitchen_hide_stale';
+    const STORE_TIME_ZONE = '{{ store_time_zone|escapejs }}';
     const WS_RECONNECT_BASE_MS = 1000;
     const WS_RECONNECT_MAX_MS = 20000;
 
@@ -550,15 +561,52 @@
         if (!iso) return 0;
         return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
     };
+    // Trước đây hiện "699g15'" (giờ + phút viết tắt) khó đọc với phiếu tồn nhiều ngày.
     const formatElapsed = (minutes) => {
-        if (minutes < 60) return `${minutes}'`;
+        if (minutes < 60) return `${minutes} phút`;
         const hours = Math.floor(minutes / 60);
-        return `${hours}g${String(minutes % 60).padStart(2, '0')}'`;
+        if (hours < 24) return `${hours} giờ ${minutes % 60} phút`;
+        return `${Math.floor(hours / 24)} ngày ${hours % 24} giờ`;
     };
+    const clockFormatter = (() => {
+        const options = { hour: '2-digit', minute: '2-digit', hour12: false };
+        try {
+            return new Intl.DateTimeFormat('vi-VN', { ...options, timeZone: STORE_TIME_ZONE || undefined });
+        } catch (error) {
+            return new Intl.DateTimeFormat('vi-VN', options);
+        }
+    })();
+    const dayFormatter = (() => {
+        const options = { day: '2-digit', month: '2-digit' };
+        try {
+            return new Intl.DateTimeFormat('vi-VN', { ...options, timeZone: STORE_TIME_ZONE || undefined });
+        } catch (error) {
+            return new Intl.DateTimeFormat('vi-VN', options);
+        }
+    })();
     const formatClock = (iso) => {
         if (!iso) return '';
-        return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(iso);
+        const dayLabel = (value) => {
+            const parts = Object.fromEntries(dayFormatter.formatToParts(value).map((part) => [part.type, part.value]));
+            return `${parts.day}/${parts.month}`;
+        };
+        const sameDay = dayLabel(date) === dayLabel(new Date());
+        return sameDay ? clockFormatter.format(date) : `${clockFormatter.format(date)} ${dayLabel(date)}`;
     };
+    const isStale = (ticket) => !ticket.completed_at && minutesSince(ticket.created_at) >= STALE_MINUTES;
+    let hideStale = readBoolPref(STALE_HIDDEN_STORAGE_KEY, false);
+
+    const showKitchenAlert = (message) => {
+        const el = document.getElementById('kitchenAlert');
+        el.textContent = message || '';
+        el.classList.toggle('d-none', !message);
+    };
+    const friendlyError = (error) => (
+        error instanceof TypeError || !navigator.onLine
+            ? 'Mất kết nối mạng nên thao tác CHƯA được lưu. Kiểm tra mạng rồi bấm lại.'
+            : (error?.message || 'Yêu cầu thất bại.')
+    );
 
     const itemActionsHtml = (item) => {
         if (item.status === 'CANCELLED') return '';
@@ -577,6 +625,7 @@
         let ageClass = '';
         if (isOpen && age >= LATE_MINUTES) ageClass = 'age-late';
         else if (isOpen && age >= WARN_MINUTES) ageClass = 'age-warn';
+        if (isStale(ticket)) ageClass += ' is-stale';
         const hasOpenItems = ticket.items.some((item) => item.status === 'PENDING' || item.status === 'PREPARING');
         const metaParts = [`Gửi lúc ${formatClock(ticket.created_at)}`];
         if (ticket.created_by) metaParts.push(ticket.created_by);
@@ -600,13 +649,13 @@
                 <div class="ticket-head">
                     <div style="min-width:0;">
                         <div class="ticket-table text-truncate">${escapeHtml(ticket.table_name || 'Phiếu bếp')}</div>
+                        ${isOpen ? `<div class="ticket-elapsed mt-1" title="Thời gian chờ"><i class="bi bi-stopwatch me-1" aria-hidden="true"></i>${isStale(ticket) ? 'Tồn ' : 'Chờ '}${formatElapsed(age)}</div>` : ''}
                         <div class="ticket-meta mt-1">
                             <span class="source-pill ${ticket.source}">${escapeHtml(ticket.source_label)}</span>
                             <span class="ms-1">${escapeHtml(metaParts.join(' · '))}</span>
                         </div>
                     </div>
                     <div class="d-flex align-items-start gap-2">
-                        ${isOpen ? `<div class="ticket-elapsed" title="Thời gian chờ"><i class="bi bi-stopwatch me-1"></i>${formatElapsed(age)}</div>` : ''}
                         <button type="button" class="ticket-print" data-print-url="${printUrl(ticket.id)}" title="${ticket.print_count ? `In lại (đã in ${ticket.print_count} lần)` : 'In phiếu'}">
                             <i class="bi bi-printer"></i>
                         </button>
@@ -626,8 +675,16 @@
     const render = () => {
         const board = document.getElementById('kitchenBoard');
         const empty = document.getElementById('kitchenEmpty');
-        board.innerHTML = tickets.map(ticketHtml).join('');
-        empty.classList.toggle('d-none', tickets.length > 0);
+        const staleCount = scope === 'active' ? tickets.filter(isStale).length : 0;
+        const visible = hideStale ? tickets.filter((ticket) => !isStale(ticket)) : tickets;
+        const notice = document.getElementById('kitchenStaleNotice');
+        notice.classList.toggle('d-none', !staleCount);
+        if (staleCount) {
+            document.getElementById('kitchenStaleText').textContent = `${staleCount} phiếu chưa xong quá 12 giờ (có thể quên bấm "Xong"). ${hideStale ? 'Đang ẩn.' : ''}`;
+            document.getElementById('kitchenStaleToggle').textContent = hideStale ? 'Hiện phiếu tồn' : 'Ẩn phiếu tồn';
+        }
+        board.innerHTML = visible.map(ticketHtml).join('');
+        empty.classList.toggle('d-none', visible.length > 0);
         document.getElementById('kitchenEmptyText').textContent = scope === 'active'
             ? 'Chưa có món nào cần làm.'
             : 'Hôm nay chưa có phiếu nào hoàn tất.';
@@ -658,9 +715,11 @@
             const countEl = document.getElementById('activeCount');
             countEl.textContent = data.active_count || 0;
             countEl.classList.toggle('has-items', Boolean(data.active_count));
+            showKitchenAlert('');
             render();
         } catch (error) {
             console.warn('Kitchen load failed:', error);
+            showKitchenAlert(`Không tải được phiếu bếp: ${friendlyError(error)} Đang tự thử lại…`);
         }
     };
 
@@ -748,8 +807,14 @@
             await loadTickets();
         } catch (error) {
             btn.disabled = false;
-            window.eappDialog.alert({ title: 'Không cập nhật được', message: error.message, variant: 'danger' });
+            window.eappDialog.alert({ title: 'Không cập nhật được', message: friendlyError(error), variant: 'danger' });
         }
+    });
+
+    document.getElementById('kitchenStaleToggle').addEventListener('click', () => {
+        hideStale = !hideStale;
+        writeBoolPref(STALE_HIDDEN_STORAGE_KEY, hideStale);
+        render();
     });
 
     document.querySelectorAll('input[name="kitchenScope"]').forEach((input) => {

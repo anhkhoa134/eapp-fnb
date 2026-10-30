@@ -22,6 +22,12 @@
                     <div class="fw-semibold fs-6">{{ product.name }}</div>
                     <div class="small text-muted">{{ product.category.name|default:'Không danh mục' }}</div>
                     <div class="small text-muted">{{ row.available_store_names|default:'Chưa gán cửa hàng' }}</div>
+                    {% if row.pos_hidden_reason %}
+                    <div class="small mt-1">
+                        <span class="badge text-bg-warning"><i class="bi bi-eye-slash me-1" aria-hidden="true"></i>Chưa hiện ở POS / menu QR</span>
+                        <span class="text-muted ms-1">{{ row.pos_hidden_reason }}</span>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="d-flex flex-wrap gap-2 justify-content-end">
                     {% include 'App_Quanly/_status_icon.html' with active=product.is_active inactive_label='Tạm tắt' extra_class='align-self-center' %}
@@ -123,7 +129,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-plus-circle me-2 text-primary"></i>Tạo sản phẩm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" action="{% url 'App_Quanly:products' %}" enctype="multipart/form-data">
                 <div class="modal-body">
@@ -185,7 +191,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa sản phẩm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="editProductForm" action="" enctype="multipart/form-data">
                 <div class="modal-body">
@@ -260,7 +266,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa sản phẩm</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="deleteProductForm" action="">
                 <div class="modal-body">
@@ -281,7 +287,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-plus-square me-2 text-primary"></i>Thêm đơn vị</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="addUnitForm" action="">
                 <div class="modal-body">
@@ -323,7 +329,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Sửa đơn vị</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="editUnitForm" action="">
                 <div class="modal-body">
@@ -368,7 +374,7 @@
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Xóa đơn vị</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <form method="post" id="deleteUnitForm" action="">
                 <div class="modal-body">

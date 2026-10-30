@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from App_Core.models import TimeStampedModel
+from App_Core.text import fold_vietnamese
 
 
 def generate_qr_token():
@@ -15,12 +16,12 @@ def generate_qr_token():
 
 class Order(TimeStampedModel):
     class PaymentMethod(models.TextChoices):
-        CASH = 'cash', 'Cash'
-        CARD = 'card', 'Card/QR'
+        CASH = 'cash', 'Tiền mặt'
+        CARD = 'card', 'Thẻ/QR'
 
     class Status(models.TextChoices):
-        COMPLETED = 'completed', 'Completed'
-        CANCELLED = 'cancelled', 'Cancelled'
+        COMPLETED = 'completed', 'Hoàn thành'
+        CANCELLED = 'cancelled', 'Đã huỷ'
         REFUNDED = 'refunded', 'Đã hoàn tiền'
 
     class SaleChannel(models.TextChoices):
@@ -101,6 +102,8 @@ class Order(TimeStampedModel):
             models.Index(fields=['tenant', 'promotion', 'created_at']),
         ]
         ordering = ['-created_at']
+        verbose_name = 'Đơn bán'
+        verbose_name_plural = 'Đơn bán'
 
     def save(self, *args, **kwargs):
         if not self.order_code:
@@ -143,6 +146,8 @@ class Customer(TimeStampedModel):
     total_spent = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     tier = models.CharField(max_length=20, choices=Tier.choices, default=Tier.MEMBER)
     last_order_at = models.DateTimeField(null=True, blank=True)
+    # Tên + email không dấu, chữ thường: tìm "khach" ra "Khách" (icontains của DB phân biệt dấu).
+    search_text = models.CharField(max_length=400, blank=True, editable=False, db_index=True)
 
     class Meta:
         constraints = [
@@ -173,6 +178,10 @@ class Customer(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         self.full_clean()
+        self.search_text = fold_vietnamese(f'{self.name} {self.email}')[:400]
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and {'name', 'email'} & set(update_fields):
+            kwargs['update_fields'] = {*update_fields, 'search_text'}
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -330,11 +339,17 @@ class Promotion(TimeStampedModel):
         self.name = (self.name or '').strip()
         if not self.name:
             raise ValidationError({'name': 'Vui lòng nhập tên khuyến mãi.'})
-        if self.discount_value <= 0:
+        # discount_value / min_order_amount = None khi ô nhập sai (VD "abc") đã báo lỗi ở form:
+        # trước đây so sánh None <= 0 làm trang lỗi 500.
+        if self.discount_value is not None and self.discount_value <= 0:
             raise ValidationError({'discount_value': 'Giá trị giảm phải lớn hơn 0.'})
-        if self.discount_type == self.DiscountType.PERCENT and self.discount_value > 100:
+        if (
+            self.discount_value is not None
+            and self.discount_type == self.DiscountType.PERCENT
+            and self.discount_value > 100
+        ):
             raise ValidationError({'discount_value': 'Giảm theo phần trăm không được vượt quá 100%.'})
-        if self.min_order_amount < 0:
+        if self.min_order_amount is not None and self.min_order_amount < 0:
             raise ValidationError({'min_order_amount': 'Điều kiện đơn tối thiểu không được âm.'})
         if self.max_discount_amount is not None and self.max_discount_amount < 0:
             raise ValidationError({'max_discount_amount': 'Giới hạn giảm tối đa không được âm.'})
@@ -351,22 +366,30 @@ class Promotion(TimeStampedModel):
 
 class DiningTable(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='dining_tables')
-    store = models.ForeignKey('App_Tenant.Store', on_delete=models.CASCADE, related_name='dining_tables')
-    code = models.CharField(max_length=40)
-    name = models.CharField(max_length=120)
+    store = models.ForeignKey(
+        'App_Tenant.Store', on_delete=models.CASCADE, related_name='dining_tables', verbose_name='Cửa hàng'
+    )
+    code = models.CharField('Mã bàn', max_length=40)
+    name = models.CharField('Tên bàn', max_length=120)
     qr_token = models.CharField(max_length=64, unique=True, default=generate_qr_token, editable=False)
     is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['store', 'code'], name='uq_dining_table_store_code'),
+            models.UniqueConstraint(
+                fields=['store', 'code'],
+                name='uq_dining_table_store_code',
+                violation_error_message='Mã bàn đã tồn tại ở cửa hàng này.',
+            ),
         ]
         indexes = [
             models.Index(fields=['tenant', 'store', 'is_active']),
             models.Index(fields=['store', 'display_order']),
         ]
         ordering = ['display_order', 'id']
+        verbose_name = 'Bàn'
+        verbose_name_plural = 'Bàn'
 
     def clean(self):
         if self.store_id and self.tenant_id and self.store.tenant_id != self.tenant_id:
@@ -385,10 +408,10 @@ class DiningTable(TimeStampedModel):
 
 class QROrder(TimeStampedModel):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', 'Pending'
-        APPROVED = 'APPROVED', 'Approved'
-        REJECTED = 'REJECTED', 'Rejected'
-        CANCELLED = 'CANCELLED', 'Cancelled'
+        PENDING = 'PENDING', 'Chờ duyệt'
+        APPROVED = 'APPROVED', 'Đã duyệt'
+        REJECTED = 'REJECTED', 'Đã từ chối'
+        CANCELLED = 'CANCELLED', 'Khách đã huỷ'
 
     class OrderType(models.TextChoices):
         DINE_IN = 'DINE_IN', 'Tại bàn'
@@ -457,6 +480,8 @@ class QROrder(TimeStampedModel):
             models.Index(fields=['table', 'status', 'created_at']),
         ]
         ordering = ['-created_at']
+        verbose_name = 'Đơn QR'
+        verbose_name_plural = 'Đơn QR'
 
     def clean(self):
         if self.order_type == self.OrderType.DINE_IN and not self.table_id:
@@ -479,7 +504,7 @@ class QROrder(TimeStampedModel):
         return self.table.name if self.table_id else ''
 
     def __str__(self):
-        return f'QR-{self.id or "new"}-{self.status}'
+        return f'QR-{self.id or "new"} ({self.get_status_display()})'
 
 
 class QROrderItem(TimeStampedModel):
@@ -497,6 +522,8 @@ class QROrderItem(TimeStampedModel):
         indexes = [
             models.Index(fields=['qr_order', 'snapshot_product_name']),
         ]
+        verbose_name = 'Món trong đơn QR'
+        verbose_name_plural = 'Món trong đơn QR'
 
     def clean(self):
         if self.quantity <= 0:
@@ -522,6 +549,8 @@ class QROrderItemTopping(TimeStampedModel):
             models.Index(fields=['qr_order_item', 'snapshot_topping_name']),
         ]
         ordering = ['id']
+        verbose_name = 'Topping món đơn QR'
+        verbose_name_plural = 'Topping món đơn QR'
 
     def clean(self):
         if self.snapshot_price < 0:
@@ -537,7 +566,7 @@ class QROrderItemTopping(TimeStampedModel):
 
 class TableCartItem(TimeStampedModel):
     class Source(models.TextChoices):
-        STAFF = 'STAFF', 'Staff'
+        STAFF = 'STAFF', 'Nhân viên'
         QR = 'QR', 'QR'
 
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='table_cart_items')
@@ -559,6 +588,8 @@ class TableCartItem(TimeStampedModel):
             models.Index(fields=['tenant', 'store', 'table', 'created_at']),
             models.Index(fields=['table', 'source', 'created_at']),
         ]
+        verbose_name = 'Món tại bàn'
+        verbose_name_plural = 'Món tại bàn'
 
     def clean(self):
         if self.quantity <= 0:
@@ -589,6 +620,8 @@ class TableCartItemTopping(TimeStampedModel):
             models.Index(fields=['table_cart_item', 'snapshot_topping_name']),
         ]
         ordering = ['id']
+        verbose_name = 'Topping món tại bàn'
+        verbose_name_plural = 'Topping món tại bàn'
 
     def clean(self):
         if self.snapshot_price < 0:
@@ -617,6 +650,8 @@ class OrderItem(TimeStampedModel):
         indexes = [
             models.Index(fields=['order', 'snapshot_product_name']),
         ]
+        verbose_name = 'Món trong đơn'
+        verbose_name_plural = 'Món trong đơn'
 
     def save(self, *args, **kwargs):
         self.line_total = self.unit_price * self.quantity
@@ -640,6 +675,8 @@ class OrderItemTopping(TimeStampedModel):
             models.Index(fields=['order_item', 'snapshot_topping_name']),
         ]
         ordering = ['id']
+        verbose_name = 'Topping món trong đơn'
+        verbose_name_plural = 'Topping món trong đơn'
 
     def clean(self):
         if self.snapshot_price < 0:
@@ -738,7 +775,7 @@ class KitchenTicketItem(TimeStampedModel):
         verbose_name_plural = 'Món trong phiếu bếp'
 
     def __str__(self):
-        return f'{self.snapshot_product_name} x{self.quantity} ({self.status})'
+        return f'{self.snapshot_product_name} x{self.quantity} ({self.get_status_display()})'
 
 
 class Refund(TimeStampedModel):

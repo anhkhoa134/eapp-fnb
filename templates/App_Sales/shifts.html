@@ -129,11 +129,11 @@
     </div>
     <div class="row g-2 mb-3">
         <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Số đơn</div><div class="value">{{ summary.order_count|thousand_sep }}</div></div></div>
-        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Doanh thu</div><div class="value">{{ summary.gross_sales|thousand_sep }}</div></div></div>
-        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Tiền mặt</div><div class="value">{{ summary.cash_sales|thousand_sep }}</div></div></div>
-        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Thẻ / QR</div><div class="value">{{ summary.card_sales|thousand_sep }}</div></div></div>
-        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Hoàn tiền</div><div class="value">{{ summary.refund_total|thousand_sep }}</div></div></div>
-        <div class="col-6 col-lg-2"><div class="kpi highlight"><div class="label">Tiền mặt dự kiến</div><div class="value" id="expectedCash" data-value="{{ summary.expected_cash|floatformat:0 }}">{{ summary.expected_cash|thousand_sep }}</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Doanh thu</div><div class="value">{{ summary.gross_sales|thousand_sep }} đ</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Tiền mặt</div><div class="value">{{ summary.cash_sales|thousand_sep }} đ</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Thẻ / QR</div><div class="value">{{ summary.card_sales|thousand_sep }} đ</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi"><div class="label">Hoàn tiền</div><div class="value">{{ summary.refund_total|thousand_sep }} đ</div></div></div>
+        <div class="col-6 col-lg-2"><div class="kpi highlight"><div class="label">Tiền mặt dự kiến</div><div class="value" id="expectedCash" data-value="{{ summary.expected_cash|floatformat:0 }}">{{ summary.expected_cash|thousand_sep }} đ</div></div></div>
     </div>
     <div class="small text-muted mb-3">
         Tiền mặt dự kiến = tiền đầu ca {{ current_shift.opening_cash|thousand_sep }} đ + thu tiền mặt {{ summary.cash_sales|thousand_sep }} đ − hoàn tiền mặt {{ summary.cash_refunds|thousand_sep }} đ.
@@ -177,7 +177,7 @@
         <input type="hidden" name="store_id" value="{{ store.id }}">
         <div class="col-12 col-md-4">
             <label class="form-label mb-1 small text-muted" for="openingCash">Tiền đầu ca (đ)</label>
-            <input type="text" inputmode="numeric" class="form-control form-control-lg fw-bold js-money" id="openingCash" name="opening_cash" placeholder="0" autocomplete="off">
+            <input type="text" inputmode="numeric" class="form-control form-control-lg fw-bold js-money" id="openingCash" name="opening_cash" placeholder="VD: 500.000 (để trống nếu két rỗng)" autocomplete="off">
         </div>
         <div class="col-12 col-md-5">
             <label class="form-label mb-1 small text-muted" for="openNote">Ghi chú (tuỳ chọn)</label>
@@ -203,10 +203,10 @@
                     <th>Mở ca</th>
                     <th>Chốt ca</th>
                     <th class="text-end">Số đơn</th>
-                    <th class="text-end">Doanh thu</th>
-                    <th class="text-end">TM dự kiến</th>
-                    <th class="text-end">TM thực đếm</th>
-                    <th class="text-end">Chênh lệch</th>
+                    <th class="text-end">Doanh thu (đ)</th>
+                    <th class="text-end">TM dự kiến (đ)</th>
+                    <th class="text-end">TM thực đếm (đ)</th>
+                    <th class="text-end">Chênh lệch (đ)</th>
                     <th></th>
                 </tr>
             </thead>
@@ -243,7 +243,7 @@
                     {% endif %}
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-print-url="{% url 'App_Sales:shift_print' shift.id %}" title="In báo cáo ca">
-                            <i class="bi bi-printer"></i>
+                            <i class="bi bi-printer" aria-hidden="true"></i> In
                         </button>
                     </td>
                 </tr>

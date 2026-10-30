@@ -1,13 +1,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <style>
     .auth-page {
-        --primary-color: #17935a;
-        --primary-hover: #107b49;
+        --primary-color: #12784a;
+        --primary-hover: #0e6640;
         --auth-ink: #0f172a;
         --auth-text: #334155;
-        --auth-muted: #64748b;
+        --auth-muted: #475569;
         --auth-border: #d8dee6;
         --auth-link: #2563eb;
         font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -68,7 +69,7 @@
         color: #fff;
         background:
             radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.12), transparent 45%),
-            linear-gradient(160deg, #11874f 0%, #1ba362 55%, #0f8f78 100%);
+            linear-gradient(160deg, #0b6b3f 0%, #0d7347 55%, #0c6a55 100%);
     }
     .auth-brand {
         display: flex;
@@ -94,7 +95,7 @@
         margin-bottom: 1rem;
     }
     .auth-lead {
-        color: rgba(255, 255, 255, 0.86);
+        color: rgba(255, 255, 255, 0.94);
         font-size: 1rem;
         line-height: 1.6;
         max-width: 34rem;
@@ -120,7 +121,7 @@
     .auth-copyright {
         margin-top: auto;
         padding-top: 2rem;
-        color: rgba(255, 255, 255, 0.78);
+        color: rgba(255, 255, 255, 0.9);
         font-size: 0.85rem;
     }
 
@@ -244,6 +245,12 @@
         color: var(--auth-link);
         font-weight: 600;
         text-decoration: none;
+    }
+    /* Link nằm trong đoạn văn phải phân biệt được không chỉ bằng màu (WCAG link-in-text-block). */
+    p .auth-link,
+    .auth-help .auth-link {
+        text-decoration: underline;
+        text-underline-offset: 3px;
     }
     .auth-link:hover {
         color: #1d4ed8;

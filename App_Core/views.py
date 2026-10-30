@@ -1,7 +1,7 @@
-from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.templatetags.static import static as static_url
+from django.urls import reverse
 
 
 def _expects_json_response(request):
@@ -14,30 +14,67 @@ def _expects_json_response(request):
     )
 
 
+def _home_for(user):
+    """Trang "về nhà" theo vai trò: (url, nhãn nút)."""
+    if user.is_authenticated:
+        if user.is_superuser and not user.tenant_id:
+            return reverse('admin:index'), 'Về trang quản trị'
+        if getattr(user, 'is_manager', False):
+            return reverse('App_Quanly:dashboard'), 'Về trang quản lý'
+        return reverse('App_Sales:pos'), 'Về màn hình bán hàng'
+    return reverse('App_Accounts:login'), 'Đăng nhập'
+
+
+def render_error_page(request, status, title, message, **extra):
+    home_url, home_label = _home_for(request.user)
+    context = {
+        'status_code': status,
+        'badge': f'LỖI {status}',
+        'title': title,
+        'message': message,
+        'home_url': home_url,
+        'home_label': home_label,
+        **extra,
+    }
+    return render(request, 'App_Core/error.html', context, status=status)
+
+
 def build_not_found_response(request):
     if _expects_json_response(request):
         return JsonResponse({'detail': 'Đường dẫn không tồn tại.'}, status=404)
-
-    if request.user.is_authenticated:
-        if request.user.is_superuser:
-            target = 'admin:index'
-            message = 'Không tìm thấy trang. Đã chuyển về trang quản trị.'
-        elif getattr(request.user, 'is_manager', False):
-            target = 'App_Quanly:dashboard'
-            message = 'Không tìm thấy trang. Đã chuyển về dashboard quản lý.'
-        else:
-            target = 'App_Sales:pos'
-            message = 'Không tìm thấy trang. Đã chuyển về POS.'
-    else:
-        target = 'App_Accounts:login'
-        message = 'Không tìm thấy trang. Vui lòng đăng nhập lại.'
-
-    messages.warning(request, message)
-    return redirect(target)
+    # Trả 404 thật (không chuyển hướng im lặng về POS / login, không cộng dồn flash message).
+    return render_error_page(
+        request,
+        404,
+        'Không tìm thấy trang',
+        'Đường dẫn không tồn tại hoặc dữ liệu đã bị xoá. Kiểm tra lại địa chỉ hoặc quay về trang chính.',
+    )
 
 
 def redirect_not_found(request, exception):
     return build_not_found_response(request)
+
+
+DEFAULT_PERMISSION_MESSAGE = 'Tài khoản của bạn không có quyền truy cập trang này. Liên hệ quản lý nếu cần được cấp quyền.'
+
+
+def permission_denied_view(request, exception=None):
+    if _expects_json_response(request):
+        return JsonResponse({'detail': str(exception or '') or 'Bạn không có quyền truy cập.'}, status=403)
+    detail = str(exception or '').strip()
+    # Thông báo mặc định của decorator quá ngắn; câu riêng của view (VD "Tính năng … đang tắt") thì giữ nguyên.
+    if not detail or detail == 'Bạn không có quyền truy cập.':
+        detail = DEFAULT_PERMISSION_MESSAGE
+    return render_error_page(request, 403, 'Không có quyền truy cập', detail)
+
+
+def method_not_allowed_response(request):
+    return render_error_page(
+        request,
+        405,
+        'Thao tác không hợp lệ',
+        'Trang này không mở trực tiếp bằng đường dẫn được. Hãy quay lại và thao tác từ giao diện.',
+    )
 
 
 def _abs_static(request, relative_path: str) -> str:
@@ -194,3 +231,67 @@ self.addEventListener('fetch', (event) => {
 
 def offline_view(request):
     return render(request, 'offline.html')
+
+
+# --- SEO: robots.txt / sitemap.xml / llms.txt (trước đây 302 về trang đăng nhập) ---------------
+
+PUBLIC_SITEMAP_ROUTES = ('App_Accounts:login', 'App_Accounts:signup')
+
+
+def robots_txt_view(request):
+    lines = [
+        'User-agent: *',
+        'Allow: /accounts/login/',
+        'Allow: /accounts/signup/',
+        'Allow: /llms.txt',
+        # Vùng ứng dụng sau đăng nhập và link gọi món có token: không cần index.
+        'Disallow: /quanly/',
+        'Disallow: /api/',
+        'Disallow: /orders/',
+        'Disallow: /tables/',
+        'Disallow: /kitchen/',
+        'Disallow: /shifts/',
+        'Disallow: /accounts/password/',
+        'Disallow: /accounts/logout/',
+        'Disallow: /*/qr/',
+        '',
+        f'Sitemap: {request.build_absolute_uri(reverse("pwa_sitemap"))}',
+    ]
+    return HttpResponse('\n'.join(lines) + '\n', content_type='text/plain; charset=utf-8')
+
+
+def sitemap_xml_view(request):
+    urls = '\n'.join(
+        f'  <url><loc>{request.build_absolute_uri(reverse(name))}</loc></url>' for name in PUBLIC_SITEMAP_ROUTES
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'{urls}\n'
+        '</urlset>\n'
+    )
+    return HttpResponse(xml, content_type='application/xml; charset=utf-8')
+
+
+def llms_txt_view(request):
+    login_url = request.build_absolute_uri(reverse('App_Accounts:login'))
+    signup_url = request.build_absolute_uri(reverse('App_Accounts:signup'))
+    text = f"""# eApp FnB
+
+> eApp FnB là phần mềm bán hàng (POS) và quản lý cho quán cà phê, trà sữa, nhà hàng tại Việt Nam:
+> bán tại quầy, gọi món tại bàn qua mã QR, màn hình bếp, khuyến mãi, khách hàng thân thiết và
+> báo cáo doanh thu cho nhiều chi nhánh. Chạy trên trình duyệt, cài được như ứng dụng (PWA).
+
+## Tính năng chính
+- POS tại quầy: chọn bàn, size/topping, ghi chú món, chuyển bàn, thanh toán tiền mặt hoặc thẻ/QR, in hoá đơn 58/80mm.
+- Gọi món QR: khách quét mã ở bàn, chọn món và gửi đơn; nhân viên duyệt đơn trên POS.
+- Màn hình bếp: nhận phiếu theo thời gian thực, đánh dấu đang làm / đã xong.
+- Quản lý: danh mục, món, đơn vị bán, topping, nhiều cửa hàng, nhân viên theo cửa hàng, ca làm việc.
+- Khuyến mãi, hạng khách hàng thân thiết, hoàn tiền, nhật ký thao tác, xuất báo cáo Excel/CSV.
+
+## Liên kết
+- [Đăng nhập]({login_url})
+- [Đăng ký cửa hàng miễn phí]({signup_url})
+- [Trang sản phẩm eApp](https://eapp.vn/)
+"""
+    return HttpResponse(text, content_type='text/plain; charset=utf-8')

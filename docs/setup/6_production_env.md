@@ -239,6 +239,15 @@ server {
 }
 ```
 
+Ẩn phiên bản Nginx khỏi header `Server` (báo cáo QA 29/10/2026, BUG-19): trong khối `http { ... }` của
+`/etc/nginx/nginx.conf` bật dòng
+
+```nginx
+server_tokens off;
+```
+
+CSP và Permissions-Policy do Django gửi (`App_Core.security_headers`), không cần thêm ở Nginx.
+
 Kích hoạt:
 ```bash
 sudo ln -s /etc/nginx/sites-available/eapp-fnb /etc/nginx/sites-enabled/
