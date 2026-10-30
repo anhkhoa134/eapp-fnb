@@ -19,10 +19,14 @@ hoặc các sự kiện input/change dùng để gửi form và cập nhật ngh
 - Menu khuyến mãi vẫn dùng Bootstrap và logic tính tiền hiện có.
 - `data-dropdown-native` bỏ qua widget do thư viện khác quản lý.
 - Select multiple/size > 1 giữ hành vi listbox.
+- Thao tác chạm chặn mặc định `touchend` và focus popup thay vì select để tránh
+  bật thêm bộ chọn hệ thống trên iPhone/PWA; vuốt qua select vẫn cuộn trang.
 - `EAPPDropdowns.init(root)` khởi tạo chủ động; `EAPPDropdowns.close()` đóng menu.
 
 Kiểm thử: `python3 scripts/tests/dropdowns_browser.py` (Python Playwright và
 Chromium; có thể đặt `CHROMIUM_EXECUTABLE`). Test không cần server/database.
+Có thể chạy với WebKit bằng `BROWSER=webkit python3 scripts/tests/dropdowns_browser.py`
+(cần cài browser qua `python3 -m playwright install webkit`).
 Các tình huống FnB cần kiểm tra: tạo/sửa nguyên liệu, sửa sản phẩm, lọc lịch sử
 đơn, đổi theme/cửa hàng, chuyển bàn, tìm/chọn khách và khuyến mãi, chọn cửa hàng
 ở catalog, chọn khổ giấy in.

@@ -11,6 +11,11 @@
     let sequence = 0;
     const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 
+    function focusControl(state) {
+        // Focusing a select during a touch gesture can bring up iOS's native picker.
+        if (!state.touchSelect) state.control.focus({ preventScroll: true });
+    }
+
     function options(state) {
         const source = state.isSelect ? state.control : document.getElementById(state.control.dataset.dropdownList);
         return source ? Array.from(source.querySelectorAll('option')) : [];
@@ -69,7 +74,7 @@
         if (state.isSelect) state.control.selectedIndex = option.index;
         else state.control.value = option.value;
         close();
-        state.control.focus({ preventScroll: true });
+        focusControl(state);
         if (previous !== state.control.value) {
             state.choosing = true;
             state.control.dispatchEvent(new Event('input', { bubbles: true }));
@@ -167,6 +172,10 @@
             menu.append(search);
         }
         menu.append(list);
+        menu.tabIndex = -1;
+        menu.addEventListener('keydown', event => {
+            if (event.target === menu) keydown(event, state);
+        });
         // Keep a nested select's parent Bootstrap dropdown open during selection/search.
         menu.addEventListener('click', event => event.stopPropagation());
         (state.control.closest('.flatpickr-calendar, .modal, dialog, .dropdown-menu') || document.body).append(menu);
@@ -175,28 +184,30 @@
         state.control.setAttribute('aria-controls', list.id);
         render(state);
         if (state.search) state.search.focus({ preventScroll: true });
-        else state.control.focus({ preventScroll: true });
+        else if (state.touchSelect) menu.focus({ preventScroll: true });
+        else focusControl(state);
         activate(state, state.active, true);
     }
 
     function keydown(event, state) {
         if (event.isComposing) return;
+        if (event.target === state.control) state.touchSelect = false;
         const isOpen = opened === state;
         if (event.key === 'Escape' && isOpen) {
             event.preventDefault();
             event.stopPropagation();
             close();
-            state.control.focus({ preventScroll: true });
+            focusControl(state);
             return;
         }
         if (event.key === 'Tab') {
-            if (isOpen && state.search === event.target) state.control.focus({ preventScroll: true });
+            if (isOpen && (state.search === event.target || state.menu === event.target)) state.control.focus({ preventScroll: true });
             close();
             return;
         }
         const arrow = event.key === 'ArrowDown' || event.key === 'ArrowUp';
         const edge = event.key === 'Home' || event.key === 'End';
-        const commit = event.key === 'Enter' || (event.key === ' ' && event.target === state.control && state.isSelect);
+        const commit = event.key === 'Enter' || (event.key === ' ' && (event.target === state.control || event.target === state.menu) && state.isSelect);
         if (arrow || (isOpen && edge && event.target === state.control && state.isSelect) || commit && (state.isSelect || isOpen)) {
             event.preventDefault();
             event.stopPropagation();
@@ -250,8 +261,32 @@
         control.setAttribute('aria-haspopup', 'listbox');
         control.setAttribute('aria-expanded', 'false');
         if (state.isSelect) {
-            // Cancel both pointer and mouse defaults: prevents OS pickers on touch and desktop.
-            control.addEventListener('pointerdown', event => { if (event.button === 0) event.preventDefault(); });
+            // iOS also activates its picker from touchend, independently of mouse defaults.
+            // Leave touchstart/move alone so a swipe over a select can still scroll the page.
+            let touch = null;
+            control.addEventListener('touchstart', event => {
+                state.touchSelect = true;
+                touch = event.touches.length === 1 ? {
+                    x: event.touches[0].clientX, y: event.touches[0].clientY,
+                } : null;
+            }, { passive: true });
+            control.addEventListener('touchmove', event => {
+                if (touch && (event.touches.length !== 1 ||
+                    Math.abs(event.touches[0].clientX - touch.x) > 10 ||
+                    Math.abs(event.touches[0].clientY - touch.y) > 10)) touch = null;
+            }, { passive: true });
+            control.addEventListener('touchcancel', () => { touch = null; });
+            control.addEventListener('touchend', event => {
+                event.preventDefault();
+                if (!touch) return;
+                touch = null;
+                event.stopPropagation();
+                if (opened === state) close(); else open(state);
+            }, { passive: false });
+            control.addEventListener('pointerdown', event => {
+                state.touchSelect = event.pointerType === 'touch';
+                if (event.button === 0) event.preventDefault();
+            });
             control.addEventListener('mousedown', event => event.preventDefault());
         }
         control.addEventListener('click', event => {

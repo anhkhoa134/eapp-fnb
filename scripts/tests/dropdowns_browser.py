@@ -1,7 +1,8 @@
 """Browser regression tests. Run: python3 scripts/tests/dropdowns_browser.py
 
-Requires Python Playwright and Chromium. Set CHROMIUM_EXECUTABLE to use an
-existing browser installation. Fixtures are local; no server/database required.
+Requires Python Playwright and Chromium (or BROWSER=webkit for mobile WebKit).
+Set CHROMIUM_EXECUTABLE to use an existing Chromium installation.
+Fixtures are local; no server/database required.
 """
 import os
 from pathlib import Path
@@ -16,8 +17,10 @@ class DropdownTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch(
-            executable_path=os.environ.get('CHROMIUM_EXECUTABLE'), headless=True,
+        browser_name = os.environ.get('BROWSER', 'chromium')
+        cls.browser = getattr(cls.playwright, browser_name).launch(
+            executable_path=os.environ.get('CHROMIUM_EXECUTABLE') if browser_name == 'chromium' else None,
+            headless=True,
         )
 
     @classmethod
@@ -202,14 +205,51 @@ class DropdownTests(unittest.TestCase):
     def test_touch_and_outside_dismissal(self):
         context = self.browser.new_context(has_touch=True, is_mobile=True, viewport={'width': 375, 'height': 667})
         page = context.new_page()
-        page.set_content('<select><option>A</option><option>B</option></select><button>Outside</button>')
+        page.set_content('''
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>select, button { min-height: 44px; font-size: 16px; } select { width: 240px; }</style>
+            <select><option>A</option><option>B</option></select><button>Outside</button>
+        ''')
         page.add_style_tag(path=str(ROOT / 'static/css/dropdowns.css'))
         page.add_script_tag(path=str(ROOT / 'static/js/dropdowns.js'))
+        page.evaluate('''() => {
+          window.selectFocusCount = 0;
+          window.touchEnds = [];
+          const select = document.querySelector('select');
+          select.addEventListener('focus', () => window.selectFocusCount++);
+          select.addEventListener('touchend', e => window.touchEnds.push(e.defaultPrevented));
+        }''')
         page.locator('select').tap()
+        self.assertEqual(page.locator('.eapp-dropdown-popup').count(), 1)
+        self.assertEqual(page.evaluate('window.touchEnds'), [True])
         page.locator('.eapp-dropdown-list').get_by_role('option', name='B', exact=True).tap()
         self.assertEqual(page.locator('select').input_value(), 'B')
+        self.assertEqual(page.locator('.eapp-dropdown-popup').count(), 0)
+        self.assertEqual(page.evaluate('window.selectFocusCount'), 0)
+        page.locator('select').tap()
+        page.locator('select').tap()
+        self.assertEqual(page.locator('.eapp-dropdown-popup').count(), 0)
         page.locator('select').tap()
         page.locator('button').tap()
+        self.assertEqual(page.locator('.eapp-dropdown-popup').count(), 0)
+        page.locator('select').evaluate('''select => {
+          const touch = {clientX: 20, clientY: 20};
+          const moved = {clientX: 20, clientY: 80};
+          for (const [type, touches] of [
+            ['touchstart', [touch]], ['touchmove', [moved]], ['touchend', []],
+          ]) {
+            const event = new Event(type, {bubbles: true, cancelable: true});
+            Object.defineProperty(event, 'touches', {value: touches});
+            select.dispatchEvent(event);
+          }
+        }''')
+        self.assertEqual(page.locator('.eapp-dropdown-popup').count(), 0, 'Swiping must not open the dropdown')
+        page.locator('select').evaluate("select => select.dataset.dropdownSearch = 'true'")
+        page.locator('select').tap()
+        page.locator('.eapp-dropdown-search').press('a')
+        page.locator('.eapp-dropdown-list').get_by_role('option', name='A', exact=True).tap()
+        self.assertEqual(page.locator('select').input_value(), 'A')
+        self.assertEqual(page.evaluate('window.selectFocusCount'), 0, 'Typing a search must not restore native select focus')
         self.assertEqual(page.locator('.eapp-dropdown-popup').count(), 0)
         context.close()
 

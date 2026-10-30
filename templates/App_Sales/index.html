@@ -474,7 +474,6 @@
         .products-area {
             height: 100%;
             overflow-y: auto;
-            padding-bottom: 80px; /* Space for mobile cart button */
         }
 
         .cart-area-wrapper {
@@ -878,11 +877,32 @@
         }
 
         @media (max-width: 991.98px) {
+            /* Keep the cart in its own row, outside the product scroll area.
+               dvh follows Safari's toolbar; flex also accounts for the search row. */
+            body {
+                height: 100vh;
+                height: 100dvh;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            .pos-navbar-stack { flex-shrink: 0; }
+            .app-container {
+                flex: 1;
+                min-height: 0;
+                height: auto;
+            }
             .navbar > .container-fluid {
                 flex-wrap: wrap;
                 align-items: center;
             }
-            .mobile-cart-btn { display: block; }
+            .mobile-cart-btn {
+                display: block;
+                position: static;
+                flex-shrink: 0;
+                margin: 15px;
+                margin-bottom: calc(15px + env(safe-area-inset-bottom, 0px));
+            }
             /* Make offcanvas act truly as offcanvas on mobile */
             .cart-area-wrapper { border-left: none; }
             .top-nav-content {
@@ -1006,7 +1026,7 @@
             }
             .top-account-dropdown .account-menu {
                 min-width: 0;
-                width: min(360px, calc(100vw - 24px));
+                width: min(320px, calc(100vw - 24px));
             }
         }
 
