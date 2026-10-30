@@ -74,6 +74,17 @@
         .total-row { font-size: 1.3em; font-weight: 800; }
         .footer-note { margin-top: 3mm; text-align: center; font-style: italic; }
         .qr-img { width: 38mm; max-width: 100%; height: auto; display: block; margin: 2mm auto 1mm; }
+        .header-note { margin-top: 1mm; font-weight: 600; }
+        /* Cỡ chữ theo Mẫu phiếu của cửa hàng (font-md = mặc định). */
+        body.font-sm .paper { font-size: 10.5px; }
+        body.font-lg .paper { font-size: 13.5px; }
+        body.paper-58.font-sm .paper { font-size: 9.5px; }
+        body.paper-58.font-lg .paper { font-size: 12.5px; }
+        /* direct=1: eapp_direct_print.js chụp .paper thành ảnh gửi máy in nhiệt; rộng bằng vùng in của đầu in (48 / 72 mm). */
+        body.direct-print { background: #fff; }
+        body.direct-print .print-toolbar { display: none; }
+        body.direct-print .paper { width: 72mm; margin: 0; padding: 0 0 2mm; box-shadow: none; }
+        body.direct-print.paper-58 .paper { width: 48mm; padding: 0 0 2mm; }
         {% block print_css %}{% endblock %}
         @media print {
             body { background: #fff; }
@@ -83,7 +94,7 @@
     </style>
     {% include 'App_Core/_dropdown_assets.html' %}
 </head>
-<body class="paper-80">
+<body class="paper-80{% if request.GET.direct == '1' %} direct-print{% endif %}{% if store %} font-{{ store.print_options.font_size }}{% endif %}">
     <div class="print-toolbar">
         <label for="paperSize">Khổ giấy</label>
         <select id="paperSize">
@@ -129,7 +140,7 @@
         window.addEventListener('afterprint', () => {
             if (inFrame) window.parent.postMessage({ type: 'eapp-print-done' }, window.location.origin);
         });
-        if (params.get('autoprint') === '1') {
+        if (params.get('autoprint') === '1' && params.get('direct') !== '1') {
             window.addEventListener('load', () => setTimeout(() => window.print(), 200));
         }
     })();

@@ -261,13 +261,47 @@
 <script src="{% static 'js/eapp_print.js' %}"></script>
 <script>
 (() => {
+    {% if stores|length > 1 %}
+    // Dùng chung khoá với POS / màn hình bếp: mở /shifts/ không kèm store_id thì về cửa hàng máy này đang dùng,
+    // thay vì cửa hàng mặc định của tài khoản.
+    const STORE_STORAGE_KEY = 'eapp_pos_store_{{ user.id }}';
+    const VALID_STORE_IDS = [{% for s in stores %}'{{ s.id }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const saved = window.localStorage.getItem(STORE_STORAGE_KEY);
+        if (!params.has('store_id') && saved && saved !== '{{ store.id }}' && VALID_STORE_IDS.includes(saved)) {
+            params.set('store_id', saved);
+            window.location.replace(`${window.location.pathname}?${params}`);
+            return;
+        }
+        window.localStorage.setItem(STORE_STORAGE_KEY, '{{ store.id }}');
+    } catch (error) { /* localStorage bị chặn: dùng cửa hàng mặc định */ }
+    {% endif %}
+
     const digitsOf = (value) => String(value || '').replace(/[^0-9]/g, '');
     const formatVnd = (number) => Number(number || 0).toLocaleString('vi-VN');
+    const MONEY_PATTERN = /^[0-9][0-9.,\s]*(đ|₫)?$/i;
+
+    // Chữ hoặc số âm: giữ nguyên ô và chặn gửi. Trước đây bỏ ký tự lạ nên "abc" thành 0đ, "-500" thành 500đ.
+    const moneyError = (raw) => {
+        if (!raw || MONEY_PATTERN.test(raw)) return '';
+        return raw.startsWith('-') ? 'Số tiền không được âm.' : 'Chỉ nhập số, VD: 500.000.';
+    };
 
     document.querySelectorAll('.js-money').forEach((input) => {
+        const feedback = document.createElement('div');
+        feedback.className = 'invalid-feedback';
+        input.insertAdjacentElement('afterend', feedback);
         input.addEventListener('input', () => {
-            const digits = digitsOf(input.value);
-            input.value = digits ? formatVnd(Number(digits)) : '';
+            const raw = input.value.trim();
+            const error = moneyError(raw);
+            input.setCustomValidity(error);
+            input.classList.toggle('is-invalid', !!error);
+            feedback.textContent = error;
+            if (!error) {
+                const digits = digitsOf(raw);
+                input.value = digits ? formatVnd(Number(digits)) : '';
+            }
             input.dispatchEvent(new CustomEvent('money-change'));
         });
     });
@@ -278,7 +312,7 @@
     if (counted && expectedEl && hint) {
         const expected = Number(expectedEl.dataset.value || 0);
         counted.addEventListener('money-change', () => {
-            const digits = digitsOf(counted.value);
+            const digits = counted.validity.customError ? '' : digitsOf(counted.value);
             if (!digits) {
                 hint.innerHTML = '&nbsp;';
                 hint.className = 'small mt-1';

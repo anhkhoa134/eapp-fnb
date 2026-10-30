@@ -1,0 +1,27 @@
+{% extends 'App_Sales/print/_base.html' %}
+{% load number_format %}
+
+{% block title %}In thử{% endblock %}
+
+{% block paper %}
+{% if store %}{% include 'App_Sales/print/_store_header.html' %}{% endif %}
+<div class="center">
+    <div class="doc-title">PHIẾU IN THỬ</div>
+    <div class="reprint">KHÔNG PHẢI HOÁ ĐƠN</div>
+</div>
+<hr class="sep">
+<div class="meta">
+    <div class="row"><span>Giờ in:</span><span>{{ printed_at|date:'d/m/Y H:i' }}</span></div>
+    <div class="row"><span>Người in:</span><span>{{ request.user.get_full_name|default:request.user.username }}</span></div>
+</div>
+<hr class="sep">
+{% include 'App_Sales/print/_items.html' with rows=rows %}
+<hr class="sep solid">
+<div class="row total-row"><span>TỔNG CỘNG</span><span>{{ total_amount|thousand_sep }} đ</span></div>
+{% if store.print_options.footer_note %}<div class="footer-note">{{ store.print_options.footer_note|linebreaksbr }}</div>{% endif %}
+<hr class="sep">
+<div class="center bold">Kiểm tra căn lề</div>
+<div class="row"><span>|&lt; Trái</span><span>Phải &gt;|</span></div>
+<div class="center">Tiếng Việt: ăâđêôơư ÁÀẢÃẠ ỨỪỬỮỰ</div>
+<div class="footer-note">Hai dấu | sát mép giấy và không bị cắt chữ là máy in đã đúng khổ.</div>
+{% endblock %}

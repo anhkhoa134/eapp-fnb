@@ -411,16 +411,17 @@ def run_seed_initial_data(
                 defaults={'is_available': store.name in assigned_stores},
             )
 
+    # Giá chung của topping (Topping.price là giá POS / menu QR dùng); trước đây để 0 đ.
     topping_templates = [
-        {'name': 'Thêm sữa', 'display_order': 1},
-        {'name': 'Trân châu trắng', 'display_order': 2},
-        {'name': 'Thạch phô mai', 'display_order': 3},
-        {'name': 'Pudding trứng', 'display_order': 4},
-        {'name': 'Thêm thịt', 'display_order': 5},
-        {'name': 'Ốp la', 'display_order': 6},
-        {'name': 'Thêm quẩy', 'display_order': 7},
-        {'name': 'Trứng chần', 'display_order': 8},
-        {'name': 'Chả cua', 'display_order': 9},
+        {'name': 'Thêm sữa', 'display_order': 1, 'price': Decimal('5000')},
+        {'name': 'Trân châu trắng', 'display_order': 2, 'price': Decimal('10000')},
+        {'name': 'Thạch phô mai', 'display_order': 3, 'price': Decimal('15000')},
+        {'name': 'Pudding trứng', 'display_order': 4, 'price': Decimal('12000')},
+        {'name': 'Thêm thịt', 'display_order': 5, 'price': Decimal('10000')},
+        {'name': 'Ốp la', 'display_order': 6, 'price': Decimal('6000')},
+        {'name': 'Thêm quẩy', 'display_order': 7, 'price': Decimal('5000')},
+        {'name': 'Trứng chần', 'display_order': 8, 'price': Decimal('8000')},
+        {'name': 'Chả cua', 'display_order': 9, 'price': Decimal('15000')},
     ]
     curated_topping_names = {row['name'] for row in topping_templates}
     Topping.objects.filter(tenant=tenant).exclude(name__in=curated_topping_names).update(is_active=False)
@@ -430,11 +431,14 @@ def run_seed_initial_data(
         topping, _ = Topping.objects.get_or_create(
             tenant=tenant,
             name=row['name'],
-            defaults={'is_active': True, 'display_order': row['display_order']},
+            defaults={'is_active': True, 'display_order': row['display_order'], 'price': row['price']},
         )
         topping.is_active = True
         topping.display_order = row['display_order']
-        topping.save(update_fields=['is_active', 'display_order', 'updated_at'])
+        if not topping.price:
+            # Chỉ điền giá cho topping demo còn 0 đ, không ghi đè giá quản lý đã sửa.
+            topping.price = row['price']
+        topping.save(update_fields=['is_active', 'display_order', 'price', 'updated_at'])
         topping_map[row['name']] = topping
 
     ProductTopping.objects.filter(product__tenant=tenant).update(is_active=False)

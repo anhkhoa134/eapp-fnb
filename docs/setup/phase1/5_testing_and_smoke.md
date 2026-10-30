@@ -67,7 +67,7 @@ python manage.py test App_Sales.tests_ws App_Public.tests_ws
 1. Quản lý: mở `/quanly/stores/` (hoặc categories/products/staffs) — nếu đủ >20 dòng, có liên kết Trang trước/sau; `?page=2` load đúng trang.
 2. QR bàn: lọc `?store=<id>` rồi chuyển trang — tham số `store` vẫn giữ trong URL.
 3. Toppings: đổi `page` và `mpage` — hai bảng không reset lẫn nhau.
-4. `/orders/today/?page=2` (có nhiều đơn trong ngày): KPI tổng đơn / doanh thu không chỉ còn 20 dòng của bảng; bảng chi tiết theo trang.
+4. Modal *Đơn hàng trong ngày* trên POS, sang trang 2 (có nhiều đơn trong ngày): KPI tổng đơn / doanh thu không chỉ còn 20 dòng của bảng; bảng chi tiết theo trang.
 
 ## Regression cần giữ
 - Logout chỉ POST.

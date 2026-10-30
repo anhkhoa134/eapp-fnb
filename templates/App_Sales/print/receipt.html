@@ -4,7 +4,8 @@
 {% block title %}Hoá đơn {{ order.order_code }}{% endblock %}
 
 {% block paper %}
-{% if brand_name and brand_name|lower != store.name|lower %}<div class="center bold">{{ brand_name }}</div>{% endif %}
+{% with opts=store.print_options %}
+{% if opts.show_brand and brand_name and brand_name|lower != store.name|lower %}<div class="center bold">{{ brand_name }}</div>{% endif %}
 {% include 'App_Sales/print/_store_header.html' %}
 <div class="center">
     <div class="doc-title">HOÁ ĐƠN THANH TOÁN</div>
@@ -20,28 +21,28 @@
     {% elif order.sale_channel == 'takeaway' %}
     <div class="row"><span>Loại đơn:</span><span class="bold">Mang về</span></div>
     {% endif %}
-    <div class="row"><span>Thu ngân:</span><span>{{ order.cashier.get_full_name|default:order.cashier.username }}</span></div>
-    {% if order.customer %}
+    {% if opts.show_cashier %}<div class="row"><span>Thu ngân:</span><span>{{ order.cashier.get_full_name|default:order.cashier.username }}</span></div>{% endif %}
+    {% if opts.show_customer and order.customer %}
     <div class="row"><span>Khách:</span><span>{{ order.customer.name }}{% if order.customer.phone %} - {{ order.customer.phone }}{% endif %}</span></div>
     {% endif %}
 </div>
 <hr class="sep">
 {% include 'App_Sales/print/_items.html' with rows=rows %}
 <hr class="sep">
-<div class="row"><span>Tạm tính</span><span>{{ order.subtotal|thousand_sep }} đ</span></div>
+{% if opts.show_subtotal %}<div class="row"><span>Tạm tính</span><span>{{ order.subtotal|thousand_sep }} đ</span></div>{% endif %}
 {% if order.discount_amount %}
 <div class="row">
     <span>Giảm giá{% if order.discount_source == 'tier' %} (hạng {{ order.tier_snapshot|upper }}){% elif order.promotion_snapshot_name %} ({{ order.promotion_snapshot_name }}){% endif %}</span>
     <span>-{{ order.discount_amount|thousand_sep }} đ</span>
 </div>
 {% endif %}
-<div class="row"><span>Thuế{% if order.tax_rate %} ({{ order.tax_percent_label }}%){% else %} (0%){% endif %}</span><span>{{ order.tax_amount|thousand_sep }} đ</span></div>
+{% if order.tax_rate or opts.show_zero_tax %}<div class="row"><span>Thuế{% if order.tax_rate %} ({{ order.tax_percent_label }}%){% else %} (0%){% endif %}</span><span>{{ order.tax_amount|thousand_sep }} đ</span></div>{% endif %}
 <hr class="sep solid">
 <div class="row total-row"><span>TỔNG CỘNG</span><span>{{ order.total_amount|thousand_sep }} đ</span></div>
-<div class="row"><span>Phương thức</span><span class="bold">{{ order.get_payment_method_display }}</span></div>
+{% if opts.show_payment_method %}<div class="row"><span>Phương thức</span><span class="bold">{{ order.get_payment_method_display }}</span></div>{% endif %}
 {% if order.payment_reference %}<div class="row"><span>Mã giao dịch</span><span>{{ order.payment_reference }}</span></div>{% endif %}
-<div class="row"><span>{% if order.payment_method == 'cash' %}Khách đưa{% else %}Đã thanh toán{% endif %}</span><span>{{ order.customer_paid|thousand_sep }} đ</span></div>
-{% if order.payment_method == 'cash' %}
+{% if opts.show_customer_paid %}<div class="row"><span>{% if order.payment_method == 'cash' %}Khách đưa{% else %}Đã thanh toán{% endif %}</span><span>{{ order.customer_paid|thousand_sep }} đ</span></div>{% endif %}
+{% if order.payment_method == 'cash' and opts.show_change %}
 <div class="row"><span>Tiền thừa trả khách</span><span>{{ order.change_amount|thousand_sep }} đ</span></div>
 {% endif %}
 {% if order.refunded_amount %}
@@ -51,6 +52,9 @@
 {% endfor %}
 <div class="row bold"><span>Thực thu</span><span>{{ order.net_amount|thousand_sep }} đ</span></div>
 {% endif %}
+{% if opts.footer_note %}
 <hr class="sep">
-<div class="footer-note">Cảm ơn quý khách, hẹn gặp lại!</div>
+<div class="footer-note">{{ opts.footer_note|linebreaksbr }}</div>
+{% endif %}
+{% endwith %}
 {% endblock %}

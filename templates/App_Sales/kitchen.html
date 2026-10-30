@@ -148,56 +148,49 @@
         transition: background 0.2s;
     }
     .k-count.has-items { background: #ef4444; }
-    /* Nút bật/tắt dạng chip */
-    .k-toggle {
+    /* Modal Thiết lập (cùng kiểu tab pill với Thiết lập trên POS) */
+    .k-settings-tabs .nav { overflow-x: auto; scrollbar-width: none; }
+    .k-settings-tabs .nav::-webkit-scrollbar { display: none; }
+    .k-settings-tabs .nav-link {
         border-radius: 999px;
-        border: 1px solid #e2e8f0;
-        background: #fff;
-        color: #64748b;
-        font-weight: 700;
-        font-size: 0.86rem;
-        padding: 0.42rem 0.85rem;
-        display: inline-flex;
+        font-weight: 600;
+        font-size: 0.88rem;
+        white-space: nowrap;
+        padding: 0.4rem 0.9rem;
+    }
+    .k-settings-tabs .nav-link { color: #64748b; }
+    .k-settings-tabs .nav-link.active { background: var(--primary-color); color: #fff; }
+    .k-setting-row {
+        display: flex;
         align-items: center;
-        gap: 0.4rem;
-        cursor: pointer;
-        user-select: none;
-        transition: all 0.2s ease;
-        margin: 0;
+        justify-content: space-between;
+        gap: 0.75rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 0.65rem 0.8rem;
     }
-    .k-toggle:hover { border-color: #cbd5e1; color: #334155; }
-    .k-toggle:active { transform: scale(0.96); }
-    .k-toggle .on-icon { display: none; }
-    .btn-check:checked + .k-toggle {
-        background: rgba(16, 185, 129, 0.1);
-        border-color: rgba(16, 185, 129, 0.45);
-        color: #047857;
+    .k-setting-row .form-switch { margin: 0; }
+    .k-setting-row .form-check-input { width: 2.6em; height: 1.4em; cursor: pointer; }
+    .k-section-label {
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #475569;
+        margin-bottom: 0.5rem;
     }
-    .btn-check:checked + .k-toggle .on-icon { display: inline; }
-    .btn-check:checked + .k-toggle .off-icon { display: none; }
-    .btn-check:focus-visible + .k-toggle { outline: 2px solid var(--primary-color); outline-offset: 1px; }
-    .k-toggle .k-dot {
-        width: 26px;
-        height: 16px;
-        border-radius: 999px;
-        background: #cbd5e1;
-        position: relative;
-        transition: background 0.2s;
+    .k-guide-section { margin-bottom: 1.25rem; }
+    .k-guide-section h2 {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #0f172a;
+        padding-bottom: 0.4rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+        margin-bottom: 0.6rem;
     }
-    .k-toggle .k-dot::after {
-        content: "";
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: #fff;
-        transition: transform 0.2s ease;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    }
-    .btn-check:checked + .k-toggle .k-dot { background: var(--primary-color); }
-    .btn-check:checked + .k-toggle .k-dot::after { transform: translateX(10px); }
+    .k-guide-section h3 { font-size: 0.92rem; font-weight: 700; margin: 0.8rem 0 0.3rem; }
+    .k-guide-section p,
+    .k-guide-section li { font-size: 0.9rem; color: #334155; }
     /* Nút icon */
     .k-icon-btn {
         width: 38px;
@@ -238,7 +231,6 @@
     @media (max-width: 767.98px) {
         .kitchen-toolbar { position: static; }
         .k-divider { display: none; }
-        .k-toggle .k-label-long { display: none; }
     }
     .kitchen-grid {
         display: grid;
@@ -436,14 +428,9 @@
             <label for="scopeDone"><i class="bi bi-check2-circle"></i>Đã xong hôm nay</label>
         </div>
         <span class="k-divider" aria-hidden="true"></span>
-        <input type="checkbox" class="btn-check" id="kitchenSound" autocomplete="off">
-        <label class="k-toggle" for="kitchenSound" title="Phát chuông khi có phiếu mới">
-            <i class="bi bi-bell-fill on-icon"></i><i class="bi bi-bell-slash off-icon"></i>Chuông<span class="k-dot" aria-hidden="true"></span>
-        </label>
-        <input type="checkbox" class="btn-check" id="kitchenAutoPrint" autocomplete="off">
-        <label class="k-toggle" for="kitchenAutoPrint" title="Tự in phiếu bếp mới chưa được in ở máy khác">
-            <i class="bi bi-printer-fill on-icon"></i><i class="bi bi-printer off-icon"></i><span>Tự in<span class="k-label-long"> phiếu</span></span><span class="k-dot" aria-hidden="true"></span>
-        </label>
+        <button type="button" class="k-icon-btn" id="kitchenSettingsBtn" data-bs-toggle="modal" data-bs-target="#kitchenSettingsModal" title="Thiết lập: chuông, tự in, máy in, mẫu phiếu" aria-label="Thiết lập">
+            <i class="bi bi-sliders"></i>
+        </button>
         <span class="k-divider" aria-hidden="true"></span>
         <button type="button" class="k-icon-btn" id="kitchenFullscreen" title="Toàn màn hình" aria-label="Toàn màn hình">
             <i class="bi bi-arrows-fullscreen"></i>
@@ -467,10 +454,102 @@
     <i class="bi bi-cup-hot fs-1 d-block mb-2"></i>
     <div class="fw-semibold" id="kitchenEmptyText">Chưa có món nào cần làm.</div>
 </div>
+
+<div class="modal fade" id="kitchenSettingsModal" tabindex="-1" aria-labelledby="kitchenSettingsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="kitchenSettingsTitle"><i class="bi bi-sliders me-2 text-success"></i>Thiết lập</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="k-settings-tabs px-3 py-2 border-bottom">
+                <ul class="nav nav-pills gap-1 flex-nowrap" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="kitchenTabGeneral" data-bs-toggle="pill" data-bs-target="#kitchenPaneGeneral" type="button" role="tab" aria-controls="kitchenPaneGeneral" aria-selected="true">
+                            <i class="bi bi-bell me-1"></i>Chung
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="kitchenTabPrint" data-bs-toggle="pill" data-bs-target="#kitchenPanePrint" type="button" role="tab" aria-controls="kitchenPanePrint" aria-selected="false">
+                            <i class="bi bi-printer me-1"></i>In ấn
+                        </button>
+                    </li>
+                    {% if not user.is_kitchen %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="kitchenTabReceipt" data-bs-toggle="pill" data-bs-target="#kitchenPaneReceipt" type="button" role="tab" aria-controls="kitchenPaneReceipt" aria-selected="false">
+                            <i class="bi bi-file-text me-1"></i>Mẫu phiếu
+                        </button>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="kitchenTabGuide" data-bs-toggle="pill" data-bs-target="#kitchenPaneGuide" type="button" role="tab" aria-controls="kitchenPaneGuide" aria-selected="false">
+                            <i class="bi bi-question-circle me-1"></i>Hướng dẫn in
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="modal-body">
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="kitchenPaneGeneral" role="tabpanel" aria-labelledby="kitchenTabGeneral" tabindex="0">
+                        <div class="k-section-label">Màn hình bếp trên thiết bị này</div>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="k-setting-row">
+                                <div>
+                                    <div class="fw-semibold"><i class="bi bi-bell-fill me-1 text-warning"></i>Chuông phiếu mới</div>
+                                    <div class="small text-muted">Phát chuông khi có phiếu bếp mới.</div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="kitchenSound" aria-label="Chuông phiếu mới">
+                                </div>
+                            </div>
+                            <div class="k-setting-row">
+                                <div>
+                                    <div class="fw-semibold"><i class="bi bi-printer-fill me-1 text-success"></i>Tự in phiếu</div>
+                                    <div class="small text-muted">Tự in phiếu bếp mới chưa được in ở máy khác.</div>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="kitchenAutoPrint" aria-label="Tự in phiếu">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="kitchenPanePrint" role="tabpanel" aria-labelledby="kitchenTabPrint" tabindex="0">
+                        <div class="k-section-label">Thiết lập in trên thiết bị này</div>
+                        <div class="k-setting-row mb-2">
+                            <div>
+                                <div class="fw-semibold"><i class="bi bi-rulers me-1"></i>Khổ giấy</div>
+                                <div class="small text-muted">Theo khổ cuộn giấy của máy in.</div>
+                            </div>
+                            <select class="form-select form-select-sm w-auto" id="kitchenPaperSize" aria-label="Khổ giấy">
+                                <option value="80">80 mm</option>
+                                <option value="58">58 mm</option>
+                            </select>
+                        </div>
+                        {% include 'App_Sales/print/_direct_printer_picker.html' with role='kitchen' title='Máy in phiếu bếp' icons='bi' row_class='k-setting-row' %}
+                        <p class="small text-muted mt-3 mb-0">
+                            Đã chọn máy in thì phiếu bếp (bấm In hoặc Tự in) in thẳng tới máy này, không hiện hộp thoại in.
+                            Chưa chọn thì in qua hộp thoại của trình duyệt. Máy in Bluetooth: thử Dò Bluetooth LE trước, không thấy máy thì bấm Dò Bluetooth.
+                        </p>
+                    </div>
+                    {% if not user.is_kitchen %}
+                    <div class="tab-pane fade" id="kitchenPaneReceipt" role="tabpanel" aria-labelledby="kitchenTabReceipt" tabindex="0">
+                        {% include 'App_Sales/print/_receipt_settings_form.html' with store_select='#kitchenStore' default_store_id=default_store_id %}
+                    </div>
+                    {% endif %}
+                    <div class="tab-pane fade" id="kitchenPaneGuide" role="tabpanel" aria-labelledby="kitchenTabGuide" tabindex="0">
+                        {% include 'App_Sales/print/_help_guide.html' with section_class='k-guide-section' %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/eapp_print.js' %}"></script>
+<script src="{% static 'js/eapp_direct_print.js' %}"></script>
+<script src="{% static 'js/eapp_print_settings.js' %}"></script>
 <script>
 (() => {
     const API_TICKETS_URL = "{% url 'App_Sales_API:kitchen_tickets' %}";
@@ -492,6 +571,15 @@
     const WS_RECONNECT_MAX_MS = 20000;
 
     const storeSelect = document.getElementById('kitchenStore');
+    // Dùng chung khoá với POS: máy ở chi nhánh nào thì mở bếp đúng chi nhánh đó
+    // (trước đây luôn về cửa hàng mặc định của tài khoản nên bếp chi nhánh khác không thấy phiếu).
+    const STORE_STORAGE_KEY = 'eapp_pos_store_{{ user.id }}';
+    if (storeSelect) {
+        try {
+            const saved = window.localStorage.getItem(STORE_STORAGE_KEY);
+            if (saved && Array.from(storeSelect.options).some((option) => option.value === saved)) storeSelect.value = saved;
+        } catch (error) { /* localStorage bị chặn: dùng cửa hàng mặc định */ }
+    }
     let storeId = parseInt(storeSelect?.value || '{{ default_store_id|default:0 }}', 10) || null;
     let scope = 'active';
     let tickets = [];
@@ -658,7 +746,7 @@
                         </div>
                     </div>
                     <div class="d-flex align-items-start gap-2">
-                        <button type="button" class="ticket-print" data-print-url="${printUrl(ticket.id)}" title="${ticket.print_count ? `In lại (đã in ${ticket.print_count} lần)` : 'In phiếu'}">
+                        <button type="button" class="ticket-print" data-print-url="${printUrl(ticket.id)}" data-print-role="kitchen" title="${ticket.print_count ? `In lại (đã in ${ticket.print_count} lần)` : 'In phiếu'}">
                             <i class="bi bi-printer"></i>
                         </button>
                     </div>
@@ -709,7 +797,8 @@
                         .filter((ticket) => !ticket.print_count && !autoPrintedIds.has(ticket.id))
                         .forEach((ticket) => {
                             autoPrintedIds.add(ticket.id);
-                            window.eappPrint(printUrl(ticket.id));
+                            // first_only=1: máy chủ chỉ cho một thiết bị in (POS hoặc màn hình bếp khác có thể in trước).
+                            window.eappPrint(`${printUrl(ticket.id)}?first_only=1`, 'kitchen');
                         });
                 }
             }
@@ -830,6 +919,7 @@
 
     storeSelect?.addEventListener('change', () => {
         storeId = parseInt(storeSelect.value || '0', 10) || null;
+        try { window.localStorage.setItem(STORE_STORAGE_KEY, String(storeId || '')); } catch (error) { /* bỏ qua */ }
         tickets = [];
         render();
         reconnectDelay = WS_RECONNECT_BASE_MS;
@@ -853,6 +943,24 @@
     autoPrintToggle.addEventListener('change', () => {
         autoPrintEnabled = autoPrintToggle.checked;
         writeBoolPref(AUTO_PRINT_STORAGE_KEY, autoPrintEnabled);
+    });
+
+    // Máy in phiếu bếp kết nối trực tiếp (static/js/eapp_direct_print.js); khổ giấy dùng chung khoá với POS và trang in.
+    const PRINT_PAPER_KEY = 'eapp_print_paper';
+    const paperSelect = document.getElementById('kitchenPaperSize');
+    try { paperSelect.value = window.localStorage.getItem(PRINT_PAPER_KEY) === '58' ? '58' : '80'; } catch (error) { /* bỏ qua */ }
+    paperSelect.addEventListener('change', () => {
+        try { window.localStorage.setItem(PRINT_PAPER_KEY, paperSelect.value); } catch (error) { /* bỏ qua */ }
+    });
+    const printerPicker = document.querySelector('#kitchenSettingsModal [data-direct-printer]');
+    window.eappDirectPrint?.bindPicker(printerPicker, {
+        storeName: () => storeSelect?.selectedOptions[0]?.textContent.trim() || '',
+    });
+    // Đèn máy in trên nút Thiết lập: xanh nhấp nháy = đang kết nối, vàng = cần dò lại, đỏ = lỗi in.
+    window.eappDirectPrint?.bindIndicator(document.getElementById('kitchenSettingsBtn'), ['kitchen']);
+    window.addEventListener('eapp-print-error', (event) => {
+        const { message, fallback } = event.detail || {};
+        showKitchenAlert(fallback ? `${message} Đang in qua hộp thoại.` : `Không in được phiếu bếp: ${message}`);
     });
 
     const fullscreenBtn = document.getElementById('kitchenFullscreen');

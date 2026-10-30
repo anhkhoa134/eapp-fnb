@@ -2,7 +2,7 @@
 
 ## Web routes
 - `GET /` → POS (staff/manager, login required).
-- `GET /orders/today/` → đơn hôm nay (staff/manager, login required).
+- `GET /api/pos/orders/today/?store_id=&page=` → đơn hôm nay dạng JSON cho modal trên POS (staff/manager). Trang `/orders/today/` đã bỏ; `/?open=orders-today` mở POS kèm modal.
 - `GET /kitchen/` → màn hình bếp (staff/manager, login required; 403 khi tenant tắt `show_kitchen_feature`).
 - `GET|POST /shifts/?store_id=` → ca làm việc: mở ca (`action=open`), chốt ca (`action=close`) (staff/manager; 403 khi tenant tắt `show_shift_feature`). Chi tiết: `docs/setup/phase4/2_shifts_and_refunds.md`.
 - Trang in (staff/manager có quyền store; `?autoprint=1` để tự mở hộp thoại in và đếm lần in; cho phép nhúng iframe cùng origin):
@@ -91,7 +91,7 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
   - `profile` — cập nhật họ tên (`first_name`), email (`AccountProfileForm`). Manager bắt buộc email (dùng cho Quên mật khẩu) và sửa thêm `tenant_name` (tên doanh nghiệp); staff gửi `tenant_name` bị bỏ qua.
   - `password_change` — đổi mật khẩu (`POSPasswordChangeForm`), giữ phiên hiện tại.
   - Manager thấy thêm bảng *Các gói cước & nâng cấp*. Anchor `#doi-mat-khau` trỏ tới thẻ đổi mật khẩu.
-  - Menu avatar (`base.html` và POS): *Thông tin tài khoản* → trang này (đổi mật khẩu ở thẻ `#doi-mat-khau` trên trang, menu không còn mục riêng); `base.html` có *Lịch sử đơn* (manager → `/quanly/orders/`, staff → `/orders/today/`).
+  - Menu avatar (`base.html` và POS): *Thông tin tài khoản* → trang này (đổi mật khẩu ở thẻ `#doi-mat-khau` trên trang, menu không còn mục riêng); `base.html` có *Lịch sử đơn* (manager → `/quanly/orders/`, staff → `/?open=orders-today`, tức POS mở sẵn modal đơn trong ngày).
   - Menu avatar POS chia nhóm bằng gạch ngang: cửa hàng / giao diện / thông báo / in ấn → lối tắt (*Đơn hàng trong ngày*, *Ca làm việc*, *Màn hình bếp*, *Fullscreen*) → *Trang quản lý* (manager) + *Thông tin tài khoản* → *Đăng xuất*. Menu tự cuộn dọc khi cao hơn màn hình.
   - Sidebar (`_sidebar_nav.html`) với staff chỉ hiện *Tài khoản* và liên kết nhanh; các mục manager-only bị ẩn. *Ca làm việc* nằm trong nhóm con dưới *Cấu hình tính năng* (manager, khi bật); staff vào ca làm việc từ menu tài khoản POS.
   - `/accounts/password/change/` vẫn còn nhưng không còn menu nào trỏ tới.
@@ -123,7 +123,7 @@ Tất cả dưới đây yêu cầu **manager** (trừ khi ghi chú khác).
   - `page` — danh sách topping;
   - `mpage` — bảng gán topping theo sản phẩm;
   - Link phân trang của mỗi bảng giữ tham số của bảng còn lại (ví dụ đổi trang topping không reset trang gán).
-- **Đơn trong ngày** `GET /orders/today/?store_id=&page=`:
+- **Đơn trong ngày** `GET /api/pos/orders/today/?store_id=&page=` (modal trên POS):
   - Các chỉ số KPI (tổng đơn, doanh thu, giá trị đơn trung bình) tính trên **toàn bộ** đơn sau khi lọc cửa hàng;
   - Chỉ **bảng chi tiết** theo từng trang.
 - **Đã có từ trước (không đổi):** lịch sử đơn `/quanly/orders/`.

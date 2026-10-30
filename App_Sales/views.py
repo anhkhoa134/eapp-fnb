@@ -2,6 +2,7 @@ import json
 import re
 from datetime import datetime, time
 from decimal import Decimal, InvalidOperation
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib import messages
@@ -59,6 +60,7 @@ from App_Sales.services import (
     sum_net_revenue,
     validate_order_lines,
 )
+from App_Tenant.models import normalize_print_settings
 from App_Tenant.services import get_user_accessible_stores
 
 
@@ -67,12 +69,6 @@ def _json_error(detail, status=400):
 
 
 ORDERS_TODAY_PER_PAGE = 20
-
-
-def _orders_today_query_string(request):
-    q = request.GET.copy()
-    q.pop('page', None)
-    return q.urlencode()
 
 
 def _pos_product_image_url(request, product):
@@ -423,17 +419,16 @@ def pos_page(request):
 @login_required
 @staff_or_manager_required
 @require_GET
-def orders_today_page(request):
+def api_orders_today(request):
+    """Đơn hàng trong ngày cho modal trên POS (trước đây là trang riêng /orders/today/)."""
     user = request.user
     stores_qs = get_user_accessible_stores(user)
-    stores = list(stores_qs)
 
     today = timezone.localdate()
     tz = timezone.get_current_timezone()
     start_dt = timezone.make_aware(datetime.combine(today, time.min), tz)
     end_dt = timezone.make_aware(datetime.combine(today, time.max), tz)
 
-    selected_store_id = (request.GET.get('store_id') or '').strip()
     orders = (
         Order.objects.filter(
             tenant=user.tenant,
@@ -447,6 +442,7 @@ def orders_today_page(request):
     )
 
     selected_store = None
+    selected_store_id = (request.GET.get('store_id') or '').strip()
     if selected_store_id.isdigit():
         selected_store = stores_qs.filter(id=int(selected_store_id)).first()
         if selected_store:
@@ -455,21 +451,43 @@ def orders_today_page(request):
     total_orders = orders.filter(status=Order.Status.COMPLETED).count()
     total_revenue = orders.aggregate(total=sum_net_revenue())['total'] or Decimal('0')
     avg_order = (total_revenue / total_orders) if total_orders else Decimal('0')
-    orders_page = Paginator(orders, ORDERS_TODAY_PER_PAGE).get_page(request.GET.get('page'))
+    page = Paginator(orders, ORDERS_TODAY_PER_PAGE).get_page(request.GET.get('page'))
+    refund_base = reverse('App_Quanly:orders') if user.is_manager else ''
 
-    return render(
-        request,
-        'App_Sales/orders_today.html',
+    return JsonResponse(
         {
-            'stores': stores,
-            'selected_store_id': selected_store.id if selected_store else '',
-            'today': today,
-            'orders_page': orders_page,
-            'orders_query_string': _orders_today_query_string(request),
+            'date': today.strftime('%d/%m/%Y'),
+            'store_id': selected_store.id if selected_store else None,
             'total_orders': total_orders,
-            'total_revenue': total_revenue,
-            'avg_order': avg_order,
-        },
+            'total_revenue': float(total_revenue),
+            'avg_order': float(avg_order),
+            'page': page.number,
+            'num_pages': page.paginator.num_pages,
+            'total_count': page.paginator.count,
+            'orders': [
+                {
+                    'id': order.id,
+                    'order_code': order.order_code,
+                    'store_name': order.store.name,
+                    'cashier': order.cashier.username,
+                    'table_name': order.table_name,
+                    'sale_channel': order.sale_channel,
+                    'payment_method': order.payment_method,
+                    'total_amount': float(order.total_amount),
+                    'refunded_amount': float(order.refunded_amount),
+                    'is_refunded': order.status == Order.Status.REFUNDED,
+                    'time': timezone.localtime(order.created_at).strftime('%H:%M'),
+                    'receipt_url': reverse('App_Sales:order_receipt', args=[order.id]),
+                    # Hoàn tiền làm ở Lịch sử đơn (chỉ quản lý).
+                    'refund_url': (
+                        f'{refund_base}?q={quote(order.order_code)}'
+                        if refund_base and order.refundable_amount
+                        else ''
+                    ),
+                }
+                for order in page.object_list
+            ],
+        }
     )
 
 
@@ -2167,17 +2185,28 @@ def _is_autoprint(request) -> bool:
     return request.GET.get('autoprint') == '1'
 
 
-def _register_print(request, obj) -> int:
+def _register_print(request, obj) -> int | None:
     """
     Lần in thật (autoprint=1) thì tăng bộ đếm. Trả về số thứ tự bản in lại (>= 2) để in dấu
     "Bản in lại", hoặc 0 nếu là bản in đầu tiên. Xem trước không tăng bộ đếm và không đóng dấu
     (trước đây mở xem hoá đơn vừa in tự động đã hiện "BẢN IN LẠI (lần 2)"); thanh công cụ báo số lần đã in.
+
+    Tự in (first_only=1) chỉ in khi chưa máy nào in: POS và màn hình bếp cùng bật tự in, hoặc 2 màn hình
+    bếp, trước đây đều in và tờ thứ hai bị đóng dấu "IN LẠI". Trả về None khi máy khác đã in trước.
     """
     if not _is_autoprint(request):
         return 0
+    if request.GET.get('first_only') == '1':
+        claimed = type(obj).objects.filter(pk=obj.pk, print_count=0).update(print_count=1)
+        return 0 if claimed else None
     type(obj).objects.filter(pk=obj.pk).update(print_count=F('print_count') + 1)
     obj.refresh_from_db(fields=['print_count'])
     return obj.print_count if obj.print_count > 1 else 0
+
+
+def _print_skipped(request):
+    # Trang rỗng báo cho eapp_print.js gỡ iframe, để hàng đợi in chạy tiếp mà không mở hộp thoại in.
+    return render(request, 'App_Sales/print/skipped.html')
 
 
 def _print_row(*, name, unit, toppings, quantity, unit_price, note=''):
@@ -2210,6 +2239,8 @@ def _get_accessible_order_or_403(user, order_id):
 def order_receipt_print(request, order_id):
     order = _get_accessible_order_or_403(request.user, order_id)
     reprint_no = _register_print(request, order)
+    if reprint_no is None:
+        return _print_skipped(request)
     if reprint_no and _is_autoprint(request):
         log_action(
             Action.ORDER_REPRINT,
@@ -2300,6 +2331,8 @@ def kitchen_ticket_print(request, ticket_id):
     if not ticket:
         raise PermissionDenied('Không có quyền xem phiếu bếp của cửa hàng này.')
     reprint_no = _register_print(request, ticket)
+    if reprint_no is None:
+        return _print_skipped(request)
     if reprint_no and _is_autoprint(request):
         log_action(
             Action.KITCHEN_REPRINT,
@@ -2314,6 +2347,7 @@ def kitchen_ticket_print(request, ticket_id):
         'App_Sales/print/kitchen_ticket.html',
         {
             'ticket': ticket,
+            'store': ticket.store,  # cỡ chữ theo Mẫu phiếu của cửa hàng
             'items': items,
             'total_quantity': sum(
                 item.quantity for item in items if item.status != KitchenTicketItem.Status.CANCELLED
@@ -2322,6 +2356,72 @@ def kitchen_ticket_print(request, ticket_id):
             'printed_count': 0 if _is_autoprint(request) else ticket.print_count,
         },
     )
+
+
+@login_required
+@kitchen_access_required
+@require_GET
+def print_help_page(request):
+    return render(request, 'App_Sales/print_help.html')
+
+
+@login_required
+@kitchen_access_required
+@require_GET
+@xframe_options_sameorigin
+def print_test_page(request):
+    # Phiếu in thử để chỉnh máy in / khổ giấy: dữ liệu mẫu, không ghi gì vào hệ thống.
+    sample = [
+        ('Cà phê sữa đá', 'Ly lớn', ['Thêm shot espresso'], 2, Decimal('35000'), 'Ít đá'),
+        ('Trà đào cam sả', 'Ly vừa', [], 1, Decimal('45000'), ''),
+        ('Bánh mì thịt nướng', '', [], 3, Decimal('25000'), ''),
+    ]
+    rows = [
+        _print_row(name=name, unit=unit, toppings=toppings, quantity=qty, unit_price=price, note=note)
+        for name, unit, toppings, qty, price, note in sample
+    ]
+    # store_id: tab Mẫu phiếu xem trước đúng cửa hàng đang chọn; không có / không được phép thì dùng cửa hàng mặc định.
+    raw_store_id = request.GET.get('store_id', '')
+    store = None
+    if raw_store_id.isdigit():
+        store = get_user_accessible_stores(request.user).filter(id=int(raw_store_id)).first()
+    return render(
+        request,
+        'App_Sales/print/test_page.html',
+        {
+            'store': store or get_accessible_store_or_default(request.user),
+            'rows': rows,
+            'total_amount': sum((row['line_total'] for row in rows), Decimal('0')),
+            'printed_at': timezone.now(),
+        },
+    )
+
+
+@login_required
+@kitchen_access_required
+@require_http_methods(['GET', 'POST'])
+def api_store_print_settings(request, store_id):
+    # Mẫu phiếu in theo cửa hàng (tab Mẫu phiếu ở Thiết lập POS / màn hình bếp): ai cũng xem, quản lý mới sửa.
+    store = get_user_accessible_stores(request.user).filter(id=store_id).first()
+    if not store:
+        return _json_error('Không có quyền truy cập cửa hàng này.', 403)
+    if request.method == 'POST':
+        if not request.user.is_manager:
+            return _json_error('Chỉ quản lý được sửa mẫu phiếu in.', 403)
+        payload = _parse_json_request(request)
+        if payload is None:
+            return _json_error('Dữ liệu không hợp lệ.')
+        store.print_settings = normalize_print_settings({**store.print_options, **payload})
+        store.save(update_fields=['print_settings', 'updated_at'])
+        log_action(
+            Action.OBJECT_UPDATE,
+            request=request,
+            store_id=store.id,
+            obj=store,
+            object_type='Cửa hàng',
+            message=f'Sửa mẫu phiếu in của {store.name}',
+        )
+    return JsonResponse({'store_id': store.id, 'store_name': store.name, 'settings': store.print_options})
 
 
 # --- Ca làm việc ------------------------------------------------------------------------------

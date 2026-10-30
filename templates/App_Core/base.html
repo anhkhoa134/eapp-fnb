@@ -305,7 +305,7 @@
                     </li>
                     {% if not user.is_kitchen %}
                     <li>
-                        <a class="dropdown-item account-action mx-2" href="{% if user.is_manager %}{% url 'App_Quanly:orders' %}{% else %}{% url 'App_Sales:orders_today' %}{% endif %}">
+                        <a class="dropdown-item account-action mx-2" href="{% if user.is_manager %}{% url 'App_Quanly:orders' %}{% else %}{% url 'App_Sales:pos' %}?open=orders-today{% endif %}">
                             <span class="account-icon-pill"><i class="bi bi-receipt-cutoff"></i></span>Lịch sử đơn
                         </a>
                     </li>

@@ -73,7 +73,7 @@ Lưu ý:
 1. Quản lý: `/quanly/stores/` hoặc `categories/` / `products/` / `staffs/` — nếu >20 dòng, Trang trước/sau; URL có `?page=`.
 2. QR bàn: `?store=<id>&page=` — giữ `store` khi đổi trang.
 3. Toppings: hai bảng — `page` và `mpage` độc lập.
-4. Đơn trong ngày: `/orders/today/?page=` — KPI (tổng đơn, doanh thu) không đổi khi chỉ đổi trang bảng.
+4. Đơn trong ngày (modal trên POS), đổi trang — KPI (tổng đơn, doanh thu) không đổi khi chỉ đổi trang bảng.
 
 ---
 

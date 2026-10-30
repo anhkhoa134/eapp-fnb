@@ -1281,7 +1281,7 @@ def product_list_create(request):
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, tenant=tenant)
     else:
-        form = ProductForm(tenant=tenant)
+        form = ProductForm(tenant=tenant, initial={'store_ids': list(stores)})
 
     open_create_modal = request.method == 'POST' and bool(form.errors)
     if request.method == 'POST' and form.is_valid():
@@ -1295,12 +1295,9 @@ def product_list_create(request):
             selected_store_ids = set(form.cleaned_data['store_ids'].values_list('id', flat=True))
             _sync_product_store_links(product, selected_store_ids)
             messages.success(request, f'Đã tạo sản phẩm "{product.name}".')
-            missing = ['thêm đơn vị bán + giá (nút "Thêm đơn vị")']
-            if not selected_store_ids:
-                missing.append('gán ít nhất 1 cửa hàng (nút "Sửa")')
             messages.warning(
                 request,
-                f'Món "{product.name}" chưa hiện ở POS và menu QR. Cần ' + ' và '.join(missing) + '.',
+                f'Món "{product.name}" chưa hiện ở POS và menu QR. Cần thêm đơn vị bán + giá (nút "Thêm đơn vị").',
             )
             return redirect('App_Quanly:products')
 
@@ -1448,7 +1445,7 @@ def topping_list_create(request):
                 _sync_topping_product_links(topping=topping, selected_products=selected_products)
                 messages.success(request, 'Đã tạo topping.')
                 return redirect('App_Quanly:toppings')
-            messages.error(request, 'Không thể tạo topping, vui lòng kiểm tra dữ liệu.')
+            messages.error(request, _form_error_message('Không thể tạo topping', topping_form))
             open_topping_modal = True
         elif form_type == 'mapping':
             mapping_form = ProductToppingForm(request.POST, prefix='mapping', tenant=tenant)
@@ -1458,7 +1455,7 @@ def topping_list_create(request):
                 mapping.save()
                 messages.success(request, 'Đã gán topping cho sản phẩm.')
                 return redirect('App_Quanly:toppings')
-            messages.error(request, 'Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.')
+            messages.error(request, _form_error_message('Không thể gán topping cho sản phẩm', mapping_form))
             open_mapping_modal = True
 
     toppings_page = Paginator(toppings, QUANLY_LIST_PER_PAGE).get_page(request.GET.get('page'))

@@ -1,0 +1,199 @@
+{% extends 'App_Core/base.html' %}
+{% load static %}
+
+{% block title %}Hướng dẫn in | eApp FnB{% endblock %}
+{% block body_class %}print-help-page{% endblock %}
+{% block container_class %}container py-4 px-3{% endblock %}
+
+{% block extra_css %}
+<style>
+    .print-help-page {
+        background:
+            radial-gradient(circle at 12% 14%, rgba(16, 185, 129, 0.14), transparent 36%),
+            radial-gradient(circle at 88% 18%, rgba(14, 165, 233, 0.14), transparent 32%),
+            linear-gradient(150deg, #f8fafc 0%, #eef2ff 100%);
+        min-height: 100vh;
+    }
+    .help-hero {
+        border-radius: 18px;
+        background: linear-gradient(140deg, rgba(59, 130, 246, 0.95), rgba(20, 184, 166, 0.94), rgba(16, 185, 129, 0.92));
+        color: #fff;
+        box-shadow: 0 16px 30px rgba(15, 23, 42, 0.22);
+    }
+    .help-hero .kicker {
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.8;
+        font-weight: 700;
+    }
+    .help-card {
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        scroll-margin-top: 80px;
+    }
+    .help-card h2 {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.85rem;
+    }
+    .help-card h2 i {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: linear-gradient(140deg, rgba(16, 185, 129, 0.18), rgba(14, 165, 233, 0.2));
+    }
+    .help-card h3 { font-size: 0.95rem; font-weight: 700; margin: 1rem 0 0.4rem; }
+    .help-card p, .help-card li { color: #334155; }
+    .help-card ol li, .help-card ul li { margin-bottom: 0.3rem; }
+    .help-toc a { text-decoration: none; }
+    .device-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    }
+    .device-row:last-child { border-bottom: 0; }
+    .device-row .sub { font-size: 0.82rem; color: #64748b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="help-hero p-4 mb-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <div class="kicker">Trợ giúp</div>
+            <h1 class="h4 fw-bold mb-1">Hướng dẫn cài đặt máy in</h1>
+            <p class="mb-0 opacity-75">Hoá đơn, phiếu tạm tính và phiếu bếp được in qua trình duyệt ra máy in của thiết bị đang dùng.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            {% if user.is_kitchen %}
+            <a href="{% url 'App_Sales:kitchen' %}" class="btn btn-light fw-semibold px-3">
+                <i class="bi bi-arrow-left-circle me-1"></i>Màn hình bếp
+            </a>
+            {% else %}
+            <a href="{% url 'App_Sales:pos' %}" class="btn btn-light fw-semibold px-3">
+                <i class="bi bi-arrow-left-circle me-1"></i>Quay lại POS
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <section class="help-card p-3 p-md-4 mb-3" id="thiet-bi">
+            <h2><i class="bi bi-printer"></i>Thiết lập in trên thiết bị này</h2>
+            <p class="small mb-2">Các thiết lập này lưu riêng trên trình duyệt của máy này. Mỗi máy POS / máy bếp cần chỉnh riêng.</p>
+            <div class="device-row">
+                <div>
+                    <div class="fw-semibold">Khổ giấy</div>
+                    <div class="sub">Theo khổ cuộn giấy của máy in.</div>
+                </div>
+                <select class="form-select form-select-sm w-auto" id="helpPaperSize" aria-label="Khổ giấy">
+                    <option value="80">80 mm</option>
+                    <option value="58">58 mm</option>
+                </select>
+            </div>
+            {% if not user.is_kitchen %}
+            <div class="device-row">
+                <div>
+                    <div class="fw-semibold">Tự in hoá đơn</div>
+                    <div class="sub">POS in hoá đơn ngay sau khi thanh toán.</div>
+                </div>
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" data-pref-key="eapp_pos_auto_print_receipt" aria-label="Tự in hoá đơn">
+                </div>
+            </div>
+            {% endif %}
+            {% if user.tenant.show_kitchen_feature %}
+            {% if not user.is_kitchen %}
+            <div class="device-row">
+                <div>
+                    <div class="fw-semibold">Tự in phiếu bếp từ POS</div>
+                    <div class="sub">In phiếu bếp ở máy POS khi báo bếp / thanh toán mang về.</div>
+                </div>
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" data-pref-key="eapp_pos_auto_print_kitchen" aria-label="Tự in phiếu bếp từ POS">
+                </div>
+            </div>
+            {% endif %}
+            <div class="device-row">
+                <div>
+                    <div class="fw-semibold">Tự in trên màn hình bếp</div>
+                    <div class="sub">Màn hình bếp mở trên máy này tự in phiếu mới.</div>
+                </div>
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" data-pref-key="eapp_kitchen_auto_print" aria-label="Tự in trên màn hình bếp">
+                </div>
+            </div>
+            {% endif %}
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button type="button" class="btn btn-success fw-semibold" data-print-url="{% url 'App_Sales:print_test' %}">
+                    <i class="bi bi-printer me-1"></i>In thử
+                </button>
+                <a class="btn btn-outline-secondary" href="{% url 'App_Sales:print_test' %}" target="_blank" rel="noopener">
+                    <i class="bi bi-eye me-1"></i>Xem trước phiếu in thử
+                </a>
+            </div>
+            <p class="small text-muted mt-2 mb-0">
+                Trang web không xem được danh sách máy in đã kết nối: trình duyệt không cho phép. In thử là cách kiểm tra máy in đã sẵn sàng chưa.
+            </p>
+        </section>
+
+        <nav class="help-card p-3 p-md-4 mb-3 help-toc" aria-label="Mục lục">
+            <h2><i class="bi bi-list-ul"></i>Nội dung</h2>
+            <ol class="mb-0">
+                <li><a href="#bat-dau">Bắt đầu nhanh</a></li>
+                <li><a href="#bo-tri">Bố trí máy in theo mô hình quán</a></li>
+                <li><a href="#ket-noi">Kết nối máy in theo loại thiết bị</a></li>
+                <li><a href="#in-truc-tiep">In thẳng tới máy in nhiệt USB / Bluetooth</a></li>
+                <li><a href="#khong-hop-thoai">In không cần bấm hộp thoại</a></li>
+                <li><a href="#su-co">Xử lý sự cố</a></li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="col-lg-7">
+        {% include 'App_Sales/print/_help_guide.html' with section_class='help-card p-3 p-md-4 mb-3' %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/eapp_print.js' %}"></script>
+<script>
+(() => {
+    // Dùng chung khoá lưu với POS, màn hình bếp và trang in để chỉnh ở đây là có hiệu lực ngay ở đó.
+    const PAPER_KEY = 'eapp_print_paper';
+    const read = (key) => {
+        try { return window.localStorage.getItem(key); } catch (error) { return null; }
+    };
+    const write = (key, value) => {
+        try { window.localStorage.setItem(key, value); } catch (error) { /* bỏ qua: trình duyệt chặn storage */ }
+    };
+
+    const paper = document.getElementById('helpPaperSize');
+    paper.value = read(PAPER_KEY) === '58' ? '58' : '80';
+    paper.addEventListener('change', () => write(PAPER_KEY, paper.value));
+
+    document.querySelectorAll('[data-pref-key]').forEach((toggle) => {
+        const key = toggle.dataset.prefKey;
+        toggle.checked = ['1', 'true'].includes(read(key));
+        toggle.addEventListener('change', () => write(key, toggle.checked ? '1' : '0'));
+    });
+})();
+</script>
+{% endblock %}

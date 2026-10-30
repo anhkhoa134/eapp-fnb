@@ -65,6 +65,22 @@ class KitchenFeatureTests(TestCase):
         return self._post(url, {'status': status})
 
     # page + feature flag
+    def test_kitchen_page_has_direct_printer_picker(self):
+        html = self.client.get(reverse('App_Sales:kitchen')).content.decode()
+        self.assertIn('js/eapp_direct_print.js', html)
+        # Chuông, tự in, máy in, mẫu phiếu, hướng dẫn gom vào modal Thiết lập có tab.
+        self.assertIn('data-bs-target="#kitchenSettingsModal"', html)
+        for pane in ('kitchenPaneGeneral', 'kitchenPanePrint', 'kitchenPaneReceipt', 'kitchenPaneGuide'):
+            self.assertIn(f'id="{pane}"', html)
+        settings_modal = html[html.index('id="kitchenSettingsModal"'):]
+        self.assertIn('id="kitchenSound"', settings_modal)
+        self.assertIn('id="kitchenAutoPrint"', settings_modal)
+        self.assertIn('data-receipt-settings', settings_modal)
+        self.assertIn('data-direct-printer="kitchen"', html)
+        self.assertNotIn('data-direct-printer="receipt"', html)
+        self.assertIn('data-print-role="kitchen"', html)
+        self.assertIn("?first_only=1`, 'kitchen')", html)
+
     def test_kitchen_page_requires_feature(self):
         self.assertEqual(self.client.get(reverse('App_Sales:kitchen')).status_code, 200)
         self.tenant.show_kitchen_feature = False

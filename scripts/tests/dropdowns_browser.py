@@ -120,6 +120,21 @@ class DropdownTests(unittest.TestCase):
         search.press('Tab')
         self.assertEqual(self.page.locator(':focus').get_attribute('id'), 'next')
 
+    def test_option_swatch_renders_colour_dot_and_rejects_invalid_colour(self):
+        self.page.locator('#category').evaluate('''el => {
+          el.options[1].dataset.swatch = '#10b981';
+          el.options[3].dataset.swatch = 'url(javascript:alert(1))';
+        }''')
+        self.page.locator('#category').click()
+        swatches = self.page.locator('.eapp-dropdown-list .eapp-dropdown-swatch')
+        self.assertEqual(swatches.count(), 1)
+        self.assertEqual(swatches.first.evaluate('el => getComputedStyle(el).backgroundColor'), 'rgb(16, 185, 129)')
+        self.assertEqual(swatches.first.get_attribute('aria-hidden'), 'true')
+        option = self.page.locator('.eapp-dropdown-list').get_by_role('option', name='Dụng cụ thiết bị')
+        self.assertEqual(option.inner_text().strip(), 'Dụng cụ thiết bị')
+        option.click()
+        self.assertEqual(self.page.locator('#category').input_value(), 'tools')
+
     def test_datalist_keeps_free_text_and_emits_selection_events(self):
         self.page.locator('#suggest').fill('hop')
         self.assertEqual(self.page.locator('.eapp-dropdown-list').get_by_role('option').all_text_contents(), ['Hộp'])

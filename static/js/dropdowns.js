@@ -104,6 +104,15 @@
             row.setAttribute('aria-selected', String(state.isSelect ? option.selected : option.value === state.control.value));
             row.setAttribute('aria-disabled', String(option.disabled || !!(group && group.disabled)));
             row.textContent = !state.isSelect && label !== option.value ? option.value + ' — ' + label : label;
+            // data-swatch on <option>: colour dot before the label (e.g. theme picker). Only valid CSS colours.
+            const swatch = option.dataset.swatch;
+            if (swatch && window.CSS && CSS.supports('color', swatch)) {
+                const dot = document.createElement('span');
+                dot.className = 'eapp-dropdown-swatch';
+                dot.setAttribute('aria-hidden', 'true');
+                dot.style.background = swatch;
+                row.prepend(dot);
+            }
             row.addEventListener('pointerdown', event => event.preventDefault());
             row.addEventListener('click', event => { event.stopPropagation(); choose(state, option); });
             const index = state.rows.length;

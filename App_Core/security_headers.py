@@ -11,9 +11,10 @@ PERMISSIONS_POLICY = ', '.join(
         'microphone=()',
         'geolocation=()',
         'payment=()',
-        'usb=()',
-        'serial=()',
-        'bluetooth=()',
+        # POS in thẳng tới máy in nhiệt USB / Bluetooth (static/js/eapp_direct_print.js).
+        'usb=(self)',
+        'serial=(self)',
+        'bluetooth=(self)',
         'magnetometer=()',
         'gyroscope=()',
         'accelerometer=()',

@@ -129,6 +129,96 @@ class ReceiptPrintTests(OpsTestBase):
         self.assertContains(response, 'PHIẾU TẠM TÍNH')
         self.assertContains(response, '90.000')
 
+    def test_kitchen_autoprint_first_only_prints_once_across_devices(self):
+        """POS và màn hình bếp cùng bật tự in: chỉ một thiết bị in, tờ thứ hai không bị đóng dấu in lại."""
+        self.login(self.staff)
+        self.add_to_table(quantity=1)
+        ticket_id = self.post_json(reverse('App_Sales_API:table_kitchen_send', args=[self.table.id]), {}).json()['ticket_id']
+        url = reverse('App_Sales:kitchen_ticket_print', args=[ticket_id])
+
+        first = self.client.get(url, {'autoprint': '1', 'first_only': '1'})
+        self.assertContains(first, 'Bàn 01')
+        self.assertNotContains(first, 'IN LẠI')
+        second = self.client.get(url, {'autoprint': '1', 'first_only': '1'})
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second['X-Frame-Options'], 'SAMEORIGIN')
+        self.assertContains(second, 'đã được in ở thiết bị khác')
+        self.assertContains(second, 'eapp-print-done')
+        self.assertNotContains(second, 'Bàn 01')
+        self.assertEqual(KitchenTicket.objects.get(pk=ticket_id).print_count, 1)
+        self.assertFalse(AuditLog.objects.filter(action=AuditLog.Action.KITCHEN_REPRINT).exists())
+
+        # In tay vẫn in lại được và đóng dấu như cũ.
+        manual = self.client.get(url, {'autoprint': '1'})
+        self.assertContains(manual, 'IN LẠI (lần 2)')
+
+    def test_print_help_and_test_page(self):
+        self.login(self.staff)
+        help_page = self.client.get(reverse('App_Sales:print_help'))
+        self.assertContains(help_page, 'Hướng dẫn cài đặt máy in')
+        self.assertContains(help_page, reverse('App_Sales:print_test'))
+        self.assertContains(help_page, '--kiosk-printing http://testserver/')
+
+        test_page = self.client.get(reverse('App_Sales:print_test'), {'autoprint': '1'})
+        self.assertEqual(test_page['X-Frame-Options'], 'SAMEORIGIN')
+        self.assertContains(test_page, 'PHIẾU IN THỬ')
+        self.assertContains(test_page, 'Store 1')
+        self.assertContains(test_page, '190.000')
+        self.assertNotContains(test_page, 'direct-print"')
+        self.assertFalse(Order.objects.exists())
+        # direct=1: eapp_direct_print.js chụp trang gửi máy in nhiệt, trang không mở hộp thoại in.
+        direct_page = self.client.get(reverse('App_Sales:print_test'), {'autoprint': '1', 'direct': '1'})
+        self.assertContains(direct_page, '<body class="paper-80 direct-print font-md">')
+        self.assertContains(direct_page, "params.get('direct') !== '1'")
+
+        kitchen_user = User.objects.create_user(
+            username='ops_kitchen', password='123456', tenant=self.tenant, role=User.Role.KITCHEN
+        )
+        UserStoreAccess.objects.create(user=kitchen_user, store=self.store, is_default=True)
+        self.login(kitchen_user)
+        kitchen_help = self.client.get(reverse('App_Sales:print_help'))
+        self.assertContains(kitchen_help, 'Tự in trên màn hình bếp')
+        self.assertNotContains(kitchen_help, 'data-pref-key="eapp_pos_auto_print_receipt"')
+        self.assertEqual(self.client.get(reverse('App_Sales:print_test')).status_code, 200)
+
+    def test_pos_settings_and_orders_today_are_modals(self):
+        self.login(self.staff)
+        html = self.client.get(reverse('App_Sales:pos')).content.decode()
+        self.assertIn('id="posSettingsModal"', html)
+        self.assertIn('data-bs-target="#posSettingsModal"', html)
+        self.assertIn('data-bs-target="#ordersTodayModal"', html)
+        self.assertIn('--kiosk-printing http://testserver/', html)  # tab Hướng dẫn in
+        # Tab In ấn: chọn máy in hoá đơn và máy in phiếu bếp (USB / Bluetooth), in mẫu nhanh qua ESC/POS.
+        self.assertIn('js/eapp_direct_print.js', html)
+        self.assertIn('data-direct-printer="receipt"', html)
+        self.assertIn('data-direct-printer="kitchen"', html)  # tenant bật bếp
+        for kind in ('usb', 'serial', 'ble'):
+            self.assertIn(f'data-dp-scan="{kind}"', html)
+        self.assertIn('data-dp-sample', html)
+        self.assertIn("?first_only=1`, 'kitchen')", html)  # tự in phiếu bếp từ POS dùng máy in phiếu bếp
+        self.assertIn('id="posPrinterShortcut"', html)  # biểu tượng máy in có đèn trạng thái
+        self.assertIn('data-dp-badge', html)
+        # Tab Mẫu phiếu + hướng dẫn bật cờ Chrome để nhớ máy in Bluetooth LE.
+        self.assertIn('id="posSettingsTabReceipt"', html)
+        self.assertIn('data-receipt-settings', html)
+        self.assertIn('js/eapp_print_settings.js', html)
+        self.assertIn('chrome://flags/#enable-web-bluetooth-new-permissions-backend', html)
+        # Chuông / giọng nói đơn QR nằm trong tab Chung, không còn tab Thông báo riêng.
+        self.assertNotIn('posSettingsTabNotify', html)
+        general = html[html.index('id="posSettingsGeneral"'):html.index('id="posSettingsPrint"')]
+        self.assertIn('id="qrSoundToggle"', general)
+        self.assertIn('id="qrVoiceToggle"', general)
+        # Thiết lập nằm trong modal, không còn trong menu tài khoản.
+        menu = html[html.index('account-menu p-0'):html.index('id="posSettingsModal"')]
+        self.assertNotIn('id="storeSelector"', menu)
+        self.assertNotIn('id="autoPrintReceiptToggle"', menu)
+
+        order = self.checkout_takeaway()
+        data = self.client.get(reverse('App_Sales_API:orders_today'), {'store_id': self.store.id}).json()
+        self.assertEqual([row['order_code'] for row in data['orders']], [order.order_code])
+        self.assertEqual(data['orders'][0]['receipt_url'], reverse('App_Sales:order_receipt', args=[order.id]))
+        self.assertEqual(data['orders'][0]['refund_url'], '')  # nhân viên không hoàn tiền
+
     def test_kitchen_ticket_print(self):
         self.login(self.staff)
         self.add_to_table(quantity=2)
@@ -144,6 +234,118 @@ class ReceiptPrintTests(OpsTestBase):
         self.tenant.show_kitchen_feature = False
         self.tenant.save(update_fields=['show_kitchen_feature'])
         self.assertEqual(self.client.get(url).status_code, 403)
+
+
+class PrintSettingsTests(OpsTestBase):
+    """Tab Mẫu phiếu: nội dung phiếu in theo cửa hàng, quản lý sửa, mọi phiếu in dùng theo."""
+
+    def url(self, store):
+        return reverse('App_Sales_API:store_print_settings', args=[store.id])
+
+    def test_staff_reads_but_cannot_edit(self):
+        self.login(self.staff)
+        data = self.client.get(self.url(self.store)).json()
+        self.assertEqual(data['store_name'], 'Store 1')
+        self.assertEqual(data['settings']['footer_note'], 'Cảm ơn quý khách, hẹn gặp lại!')
+        self.assertTrue(data['settings']['show_cashier'])
+        self.assertEqual(self.post_json(self.url(self.store), {'footer_note': 'x'}).status_code, 403)
+        # Cửa hàng không được phân quyền.
+        self.assertEqual(self.client.get(self.url(self.other_store)).status_code, 403)
+
+    def test_manager_saves_normalized_settings_and_audit_log(self):
+        self.login(self.manager)
+        response = self.post_json(self.url(self.store), {
+            'header_note': '  Wifi: CafeDep  \n mk 12345678 \n3\n4\n5',
+            'footer_note': 'Hẹn gặp lại!',
+            'show_cashier': False,
+            'show_phone': 'no',  # sai kiểu: giữ mặc định
+            'font_size': 'xl',  # không hợp lệ: giữ mặc định
+            'unknown': 1,
+        })
+        self.assertEqual(response.status_code, 200)
+        settings = response.json()['settings']
+        self.assertEqual(settings['header_note'], 'Wifi: CafeDep\nmk 12345678\n3\n4')
+        self.assertEqual(settings['footer_note'], 'Hẹn gặp lại!')
+        self.assertFalse(settings['show_cashier'])
+        self.assertTrue(settings['show_phone'])
+        self.assertEqual(settings['font_size'], 'md')
+        self.assertNotIn('unknown', settings)
+        self.store.refresh_from_db()
+        self.assertFalse(self.store.print_settings['show_cashier'])
+        self.assertTrue(AuditLog.objects.filter(action=AuditLog.Action.OBJECT_UPDATE, message__contains='mẫu phiếu').exists())
+        # Lưu một phần giữ nguyên các khoá đã lưu trước.
+        self.post_json(self.url(self.store), {'font_size': 'lg'})
+        self.store.refresh_from_db()
+        self.assertEqual(self.store.print_options['footer_note'], 'Hẹn gặp lại!')
+        self.assertEqual(self.store.print_options['font_size'], 'lg')
+
+    def test_receipt_payment_rows_toggle(self):
+        self.login(self.staff)
+        order = self.checkout_takeaway(customer_paid='100000')
+        url = reverse('App_Sales:order_receipt', args=[order.id])
+        rows = ['<span>Tạm tính</span>', 'Thuế (0%)', '<span>Phương thức</span>', '<span>Khách đưa</span>', 'Tiền thừa trả khách']
+        default = self.client.get(url)
+        for row in rows:
+            self.assertContains(default, row)
+
+        self.store.print_settings = {
+            'show_subtotal': False, 'show_zero_tax': False, 'show_payment_method': False,
+            'show_customer_paid': False, 'show_change': False,
+        }
+        self.store.save()
+        hidden = self.client.get(url)
+        for row in rows:
+            self.assertNotContains(hidden, row)
+        self.assertContains(hidden, 'TỔNG CỘNG')
+
+        # Đơn có thuế: dòng thuế luôn in dù đã tắt "Thuế khi bằng 0%".
+        self.tenant.tax_percent = Decimal('8')
+        self.tenant.save(update_fields=['tax_percent', 'updated_at'])
+        taxed = self.checkout_takeaway(customer_paid='100000')
+        self.assertTrue(taxed.tax_rate)
+        self.assertContains(self.client.get(reverse('App_Sales:order_receipt', args=[taxed.id])), '<span>Thuế (8')
+
+    def test_receipt_table_bill_and_preview_follow_settings(self):
+        self.login(self.staff)
+        order = self.checkout_takeaway()
+        receipt_url = reverse('App_Sales:order_receipt', args=[order.id])
+        default_receipt = self.client.get(receipt_url)
+        self.assertContains(default_receipt, 'Thu ngân:')
+        self.assertContains(default_receipt, 'Cảm ơn quý khách, hẹn gặp lại!')
+        self.assertContains(default_receipt, '1 Lê Lợi')
+
+        self.store.payment_account_number = '0123456789'
+        self.store.print_settings = {
+            'header_note': 'Wifi: CafeDep',
+            'footer_note': '',
+            'show_cashier': False,
+            'show_address': False,
+            'show_brand': False,
+            'show_payment_qr': False,
+            'font_size': 'sm',
+        }
+        self.store.save()
+        receipt = self.client.get(receipt_url)
+        self.assertContains(receipt, 'Wifi: CafeDep')
+        self.assertNotContains(receipt, 'Thu ngân:')
+        self.assertNotContains(receipt, 'Cảm ơn quý khách')
+        self.assertNotContains(receipt, '1 Lê Lợi')
+        self.assertNotContains(receipt, '<div class="center bold">Demo</div>')
+        self.assertContains(receipt, 'font-sm')
+
+        self.add_to_table(quantity=1)
+        bill = self.client.get(reverse('App_Sales:table_bill', args=[self.table.id]))
+        self.assertContains(bill, 'Wifi: CafeDep')
+        self.assertNotContains(bill, '0123456789')
+
+        # Xem trước theo cửa hàng đang chọn; cửa hàng không được phép thì về cửa hàng mặc định.
+        self.login(self.manager)
+        preview = self.client.get(reverse('App_Sales:print_test'), {'store_id': self.other_store.id})
+        self.assertContains(preview, 'Store 2')
+        self.login(self.staff)
+        fallback = self.client.get(reverse('App_Sales:print_test'), {'store_id': self.other_store.id})
+        self.assertContains(fallback, 'Store 1')
+        self.assertContains(fallback, 'Wifi: CafeDep')
 
 
 class ShiftTests(OpsTestBase):
@@ -337,8 +539,12 @@ class RefundTests(OpsTestBase):
         self.login(self.manager)
         self.refund(order, refund_type='partial', amount='15000')
 
-        today = self.client.get(reverse('App_Sales:orders_today'))
-        self.assertEqual(today.context['total_revenue'], Decimal('75000'))
+        today = self.client.get(reverse('App_Sales_API:orders_today')).json()
+        self.assertEqual(today['total_revenue'], 75000)
+        self.assertEqual(today['total_orders'], 2)
+        refunded = next(row for row in today['orders'] if row['id'] == order.id)
+        self.assertEqual(refunded['refunded_amount'], 15000)
+        self.assertIn(f'?q={order.order_code}', refunded['refund_url'])
         history = self.client.get(reverse('App_Quanly:orders'))
         self.assertEqual(history.context['total_revenue'], Decimal('75000'))
         dashboard = self.client.get(reverse('App_Quanly:dashboard'))
@@ -460,6 +666,30 @@ class QaReportSalesTests(OpsTestBase):
         self.login(self.staff)
         self.assertEqual(self.client.get(reverse('App_Quanly:orders_export')).status_code, 403)
 
+    def test_order_export_skips_refunded_orders_in_item_and_cashier_sheets(self):
+        """NEW-03 (vòng 3): sheet "Theo món" vẫn tính doanh thu đơn đã hoàn tiền."""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        from App_Sales.services import create_refund
+
+        self.login(self.staff)
+        kept = self.checkout_takeaway(quantity=2)
+        refunded = self.checkout_takeaway(quantity=3)
+        create_refund(order=refunded, amount=refunded.total_amount, method='cash', reason='QA', user=self.manager)
+
+        self.login(self.manager)
+        workbook = load_workbook(BytesIO(self.client.get(reverse('App_Quanly:orders_export')).content))
+        items = workbook['Theo món']
+        self.assertEqual(items['C2'].value, 2)
+        self.assertEqual(items['D2'].value, 1)
+        self.assertEqual(items['E2'].value, int(kept.subtotal))
+        staff = workbook['Theo thu ngân']
+        self.assertEqual(staff['D1'].value, 'Thực thu (đ)')
+        self.assertEqual(staff['C2'].value, 1)
+        self.assertEqual(staff['D2'].value, int(kept.total_amount))
+
     def test_customer_search_without_accents(self):
         """BUG-03: tìm "khach" không ra "QA-TEST Khách"."""
         from App_Sales.models import Customer
@@ -575,12 +805,14 @@ class KitchenRoleTests(OpsTestBase):
         page = self.client.get(reverse('App_Sales:kitchen'))
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, 'Về POS')
+        self.assertNotContains(page, 'id="kitchenPaneReceipt"')  # bếp không cần tab Mẫu phiếu
+        self.assertEqual(self.post_json(reverse('App_Sales_API:store_print_settings', args=[self.store.id]), {}).status_code, 403)
         tickets = self.client.get(reverse('App_Sales_API:kitchen_tickets'), {'store_id': self.store.id}).json()
         item_id = tickets['tickets'][0]['items'][0]['id']
         done = self.post_json(reverse('App_Sales_API:kitchen_item_status', args=[item_id]), {'status': 'DONE'})
         self.assertEqual(done.status_code, 200)
 
-        self.assertEqual(self.client.get(reverse('App_Sales:orders_today')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('App_Sales_API:orders_today')).status_code, 403)
         self.assertEqual(self.post_json(reverse('App_Sales_API:checkout'), {}).status_code, 403)
         self.assertEqual(self.client.get(reverse('App_Sales_API:tables'), {'store_id': self.store.id}).status_code, 403)
         self.assertEqual(self.client.get(reverse('App_Quanly:account')).status_code, 200)

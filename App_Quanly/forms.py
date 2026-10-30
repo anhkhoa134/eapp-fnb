@@ -316,11 +316,12 @@ class CategoryForm(forms.ModelForm):
 
 
 class ProductForm(forms.ModelForm):
+    # Bắt buộc: món không gán cửa hàng không hiện ở POS / menu QR (trước đây chỉ cảnh báo rồi vẫn lưu).
     store_ids = forms.ModelMultipleChoiceField(
         queryset=Store.objects.none(),
-        required=False,
         widget=forms.CheckboxSelectMultiple,
         label='Bán tại cửa hàng',
+        error_messages={'required': 'Chọn ít nhất 1 cửa hàng bán món này.'},
     )
     image_upload = forms.ImageField(
         label='Ảnh từ máy',

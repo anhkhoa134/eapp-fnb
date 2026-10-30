@@ -301,7 +301,9 @@
             background: rgba(255, 255, 255, 0.68);
             padding: 0.22rem 0.55rem;
         }
-        .account-menu .section-label {
+        .account-menu .section-label,
+        .pos-settings .section-label {
+            display: block;
             font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 0.04em;
@@ -309,7 +311,8 @@
             font-weight: 700;
             margin-bottom: 6px;
         }
-        .account-menu .form-select {
+        .account-menu .form-select,
+        .pos-settings .form-select {
             border-radius: 10px;
             border-color: rgba(148, 163, 184, 0.45);
             background-color: rgba(255, 255, 255, 0.96);
@@ -375,6 +378,81 @@
         .account-menu .dropdown-divider {
             margin: 8px 0;
         }
+        /* --- Modal Thiết lập & Đơn hàng trong ngày --- */
+        .pos-settings-tabs .nav {
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .pos-settings-tabs .nav::-webkit-scrollbar { display: none; }
+        .pos-settings-tabs .nav-link {
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            white-space: nowrap;
+            padding: 0.4rem 0.9rem;
+        }
+        .pos-settings .account-toggle-row { padding: 0.65rem 0.8rem; }
+        /* Chấm màu của giao diện đang chọn, nằm trong ô chọn màu. */
+        .pos-settings .theme-select { padding-left: 2.4rem; }
+        .theme-current-swatch {
+            position: absolute;
+            left: 0.85rem;
+            top: 50%;
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            transform: translateY(-50%);
+            background: var(--primary-color);
+            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.15);
+            pointer-events: none;
+        }
+        .pos-guide-section { margin-bottom: 1.25rem; }
+        .pos-guide-section h2 {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #0f172a;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+            margin-bottom: 0.6rem;
+        }
+        .pos-guide-section h3 { font-size: 0.92rem; font-weight: 700; margin: 0.8rem 0 0.3rem; }
+        .pos-guide-section p,
+        .pos-guide-section li { font-size: 0.9rem; color: #334155; }
+        .orders-today-kpi {
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 12px;
+            padding: 0.55rem 0.7rem;
+            background: #f8fafc;
+            height: 100%;
+        }
+        .orders-today-kpi .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #64748b;
+            font-weight: 700;
+        }
+        .orders-today-kpi .value { font-size: 1.1rem; font-weight: 800; color: #0f172a; }
+        .orders-today-table thead th {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #64748b;
+        }
+        .ot-pill {
+            font-size: 0.72rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 0.18rem 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            white-space: nowrap;
+        }
+        .ot-pill.dine-in { background: rgba(99, 102, 241, 0.16); color: #4338ca; }
+        .ot-pill.takeaway { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+        .ot-pill.cash { background: rgba(16, 185, 129, 0.14); color: #047857; }
+        .ot-pill.pay-card { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
         .account-icon-pill {
             width: 28px;
             height: 28px;
@@ -505,8 +583,10 @@
         }
 
         .qty-btn {
-            width: 28px;
-            height: 28px;
+            /* Vùng chạm tối thiểu 44px (WCAG / Apple HIG), giống nút "+" ở menu QR. */
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
             padding: 0;
             display: flex;
             align-items: center;
@@ -1326,6 +1406,11 @@
                 </span>
                 {% endif %}
                 <ul class="navbar-nav mb-2 mb-lg-0 align-items-lg-center top-nav-tools">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="posPrinterShortcut" title="Máy in" aria-label="Máy in">
+                            <i class="fa-solid fa-print fs-5" aria-hidden="true"></i>
+                        </a>
+                    </li>
                     {% if user.tenant.show_qr_order_feature %}
                     <li class="nav-item">
                         <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();" title="Đơn QR chờ duyệt" aria-label="Đơn QR chờ duyệt">
@@ -1363,76 +1448,11 @@
                                 </div>
                             </div>
                         </li>
-                        <li class="px-3 pt-2">
-                            <div class="section-label"><i class="fa-solid fa-store me-1"></i>Cửa hàng</div>
-                            <select class="form-select form-select-sm" id="storeSelector">
-                                {% for store in stores %}
-                                <option value="{{ store.id }}" {% if default_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
-                                {% endfor %}
-                            </select>
+                        <li class="pt-2">
+                            <button type="button" class="dropdown-item account-action mx-2" data-bs-toggle="modal" data-bs-target="#posSettingsModal">
+                                <span class="account-icon-pill"><i class="fa-solid fa-sliders"></i></span>Thiết lập
+                            </button>
                         </li>
-                        <li class="px-3 pt-2 pb-2">
-                            <div class="section-label"><i class="fa-solid fa-palette me-1"></i>Màu giao diện</div>
-                            <select class="form-select form-select-sm" id="themeSelector">
-                                <option value="green">Xanh lá</option>
-                                <option value="blue">Xanh dương</option>
-                                <option value="yellow">Vàng</option>
-                                <option value="orange">Cam</option>
-                                <option value="purple">Tím</option>
-                                <option value="pink">Hồng</option>
-                            </select>
-                        </li>
-                        {% if user.tenant.show_qr_order_feature %}
-                        <li class="px-3 pb-2">
-                            <div class="section-label"><i class="fa-solid fa-volume-high me-1"></i>Thông báo QR</div>
-                            <div class="d-flex flex-column gap-2">
-                                <div class="account-toggle-row">
-                                    <div>
-                                        <div class="account-toggle-title"><i class="fa-solid fa-bell me-1 text-warning"></i>Chuông đơn mới</div>
-                                        <div class="account-toggle-subtitle">Phát tiếng chuông khi có đơn QR mới.</div>
-                                    </div>
-                                    <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="qrSoundToggle">
-                                    </div>
-                                </div>
-                                <div class="account-toggle-row">
-                                    <div>
-                                        <div class="account-toggle-title"><i class="fa-solid fa-bullhorn me-1 text-primary"></i>Giọng nói</div>
-                                        <div class="account-toggle-subtitle">Đọc thông báo bằng tiếng Việt.</div>
-                                    </div>
-                                    <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="qrVoiceToggle">
-                                    </div>
-                                </div>
-                            </div>
-                        </li>
-                        {% endif %}
-                        <li class="px-3 pb-2">
-                            <div class="section-label"><i class="fa-solid fa-print me-1"></i>In ấn</div>
-                            <div class="d-flex flex-column gap-2">
-                                <div class="account-toggle-row">
-                                    <div>
-                                        <div class="account-toggle-title"><i class="fa-solid fa-receipt me-1 text-success"></i>Tự in hoá đơn</div>
-                                        <div class="account-toggle-subtitle">In hoá đơn ngay sau khi thanh toán.</div>
-                                    </div>
-                                    <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="autoPrintReceiptToggle">
-                                    </div>
-                                </div>
-                                {% if user.tenant.show_kitchen_feature %}
-                                <div class="account-toggle-row">
-                                    <div>
-                                        <div class="account-toggle-title"><i class="fa-solid fa-fire-burner me-1 text-danger"></i>Tự in phiếu bếp</div>
-                                        <div class="account-toggle-subtitle">In phiếu bếp khi báo bếp / thanh toán mang về.</div>
-                                    </div>
-                                    <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" role="switch" id="autoPrintKitchenToggle">
-                                    </div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
                         <li class="js-pwa-install-action d-none">
                             <button class="dropdown-item account-action mx-2" type="button">
                                 <span class="account-icon-pill"><i class="fa-solid fa-download"></i></span>Cài ứng dụng
@@ -1451,9 +1471,9 @@
                             </button>
                         </li>
                         <li>
-                            <a class="dropdown-item account-action mx-2" href="{% url 'App_Sales:orders_today' %}">
+                            <button type="button" class="dropdown-item account-action mx-2" data-bs-toggle="modal" data-bs-target="#ordersTodayModal">
                                 <span class="account-icon-pill"><i class="fa-solid fa-receipt"></i></span>Đơn hàng trong ngày
-                            </a>
+                            </button>
                         </li>
                         {% if user.tenant.show_shift_feature %}
                         <li>
@@ -1939,6 +1959,244 @@
         </div>
     </div>
 
+    <!-- THIẾT LẬP POS (trước đây nằm hết trong menu tài khoản, quá dài) -->
+    <div class="modal fade" id="posSettingsModal" tabindex="-1" aria-labelledby="posSettingsTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content border-0 shadow pos-settings">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="posSettingsTitle"><i class="fa-solid fa-sliders text-primary me-2"></i>Thiết lập</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="pos-settings-tabs px-3 py-2 border-bottom">
+                    <ul class="nav nav-pills gap-1 flex-nowrap" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="posSettingsTabGeneral" data-bs-toggle="pill" data-bs-target="#posSettingsGeneral" type="button" role="tab" aria-controls="posSettingsGeneral" aria-selected="true">
+                                <i class="fa-solid fa-store me-1"></i>Chung
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="posSettingsTabPrint" data-bs-toggle="pill" data-bs-target="#posSettingsPrint" type="button" role="tab" aria-controls="posSettingsPrint" aria-selected="false">
+                                <i class="fa-solid fa-print me-1"></i>In ấn
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="posSettingsTabReceipt" data-bs-toggle="pill" data-bs-target="#posSettingsReceipt" type="button" role="tab" aria-controls="posSettingsReceipt" aria-selected="false">
+                                <i class="fa-solid fa-file-lines me-1"></i>Mẫu phiếu
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="posSettingsTabGuide" data-bs-toggle="pill" data-bs-target="#posSettingsGuide" type="button" role="tab" aria-controls="posSettingsGuide" aria-selected="false">
+                                <i class="fa-solid fa-circle-question me-1"></i>Hướng dẫn in
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="modal-body">
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="posSettingsGeneral" role="tabpanel" aria-labelledby="posSettingsTabGeneral" tabindex="0">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="section-label" for="storeSelector"><i class="fa-solid fa-store me-1"></i>Cửa hàng</label>
+                                    <select class="form-select" id="storeSelector">
+                                        {% for store in stores %}
+                                        <option value="{{ store.id }}" {% if default_store_id == store.id %}selected{% endif %}>{{ store.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% if stores|length > 1 %}<div class="form-text">Đổi cửa hàng sẽ làm trống giỏ mang về đang soạn.</div>{% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="section-label" for="themeSelector"><i class="fa-solid fa-palette me-1"></i>Màu giao diện</label>
+                                    <div class="position-relative">
+                                        <span class="theme-current-swatch" aria-hidden="true"></span>
+                                        <select class="form-select theme-select" id="themeSelector">
+                                            <option value="green">Xanh lá</option>
+                                            <option value="blue">Xanh dương</option>
+                                            <option value="yellow">Vàng</option>
+                                            <option value="orange">Cam</option>
+                                            <option value="purple">Tím</option>
+                                            <option value="pink">Hồng</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-text">Lưu riêng trên thiết bị này.</div>
+                                </div>
+                            </div>
+                            {% if user.tenant.show_qr_order_feature %}
+                            <div class="section-label mt-4"><i class="fa-solid fa-volume-high me-1"></i>Thông báo khi có đơn QR mới</div>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-bell me-1 text-warning"></i>Chuông đơn mới</div>
+                                        <div class="account-toggle-subtitle">Phát tiếng chuông khi có đơn QR mới.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="qrSoundToggle" aria-label="Chuông đơn mới">
+                                    </div>
+                                </div>
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-bullhorn me-1 text-primary"></i>Giọng nói</div>
+                                        <div class="account-toggle-subtitle">Đọc thông báo bằng tiếng Việt.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="qrVoiceToggle" aria-label="Giọng nói">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="tab-pane fade" id="posSettingsPrint" role="tabpanel" aria-labelledby="posSettingsTabPrint" tabindex="0">
+                            <div class="section-label">Thiết lập in trên thiết bị này</div>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-ruler-horizontal me-1 text-secondary"></i>Khổ giấy</div>
+                                        <div class="account-toggle-subtitle">Theo khổ cuộn giấy của máy in.</div>
+                                    </div>
+                                    <select class="form-select form-select-sm w-auto" id="posPaperSize" aria-label="Khổ giấy">
+                                        <option value="80">80 mm</option>
+                                        <option value="58">58 mm</option>
+                                    </select>
+                                </div>
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-receipt me-1 text-success"></i>Tự in hoá đơn</div>
+                                        <div class="account-toggle-subtitle">In hoá đơn ngay sau khi thanh toán.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="autoPrintReceiptToggle" aria-label="Tự in hoá đơn">
+                                    </div>
+                                </div>
+                                {% if user.tenant.show_kitchen_feature %}
+                                <div class="account-toggle-row">
+                                    <div>
+                                        <div class="account-toggle-title"><i class="fa-solid fa-fire-burner me-1 text-danger"></i>Tự in phiếu bếp</div>
+                                        <div class="account-toggle-subtitle">In phiếu bếp khi báo bếp / thanh toán mang về. Tắt nếu máy ở bếp đã bật tự in.</div>
+                                    </div>
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="autoPrintKitchenToggle" aria-label="Tự in phiếu bếp">
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-3">
+                                <button type="button" class="btn btn-success fw-semibold" data-print-url="{% url 'App_Sales:print_test' %}">
+                                    <i class="fa-solid fa-print me-1"></i>In thử
+                                </button>
+                                <a class="btn btn-outline-secondary" href="{% url 'App_Sales:print_test' %}" target="_blank" rel="noopener">
+                                    <i class="fa-regular fa-eye me-1"></i>Xem trước phiếu in thử
+                                </a>
+                            </div>
+                            <p class="small text-muted mt-3 mb-0">
+                                Chưa chọn máy in nhiệt bên dưới thì In thử mở hộp thoại in của trình duyệt. Chưa in được? Xem tab
+                                <a href="#" class="js-pos-settings-guide-link">Hướng dẫn in</a>.
+                            </p>
+
+                            <div class="section-label mt-4">Máy in nhiệt kết nối trực tiếp</div>
+                            <div class="d-flex flex-column gap-3">
+                                {% include 'App_Sales/print/_direct_printer_picker.html' with role='receipt' title='Máy in hoá đơn' icons='fa' row_class='account-toggle-row' title_class='account-toggle-title' sub_class='account-toggle-subtitle' %}
+                                {% if user.tenant.show_kitchen_feature %}
+                                {% include 'App_Sales/print/_direct_printer_picker.html' with role='kitchen' title='Máy in phiếu bếp' icons='fa' row_class='account-toggle-row' title_class='account-toggle-title' sub_class='account-toggle-subtitle' %}
+                                {% endif %}
+                            </div>
+                            <p class="small text-muted mt-2 mb-0">
+                                Đã chọn máy in thì hoá đơn, tạm tính, In thử (máy in hoá đơn) và phiếu bếp (máy in phiếu bếp) in thẳng, không hiện hộp thoại in.
+                                Chưa chọn máy in phiếu bếp thì dùng chung máy in hoá đơn. Máy in Bluetooth: thử Dò Bluetooth LE trước (VD MPT-II), không thấy máy thì bấm Dò Bluetooth.
+                            </p>
+                        </div>
+                        <div class="tab-pane fade" id="posSettingsReceipt" role="tabpanel" aria-labelledby="posSettingsTabReceipt" tabindex="0">
+                            {% include 'App_Sales/print/_receipt_settings_form.html' with store_select='#storeSelector' %}
+                        </div>
+                        <div class="tab-pane fade" id="posSettingsGuide" role="tabpanel" aria-labelledby="posSettingsTabGuide" tabindex="0">
+                            {% include 'App_Sales/print/_help_guide.html' with section_class='pos-guide-section' %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ĐƠN HÀNG TRONG NGÀY (trước đây là trang riêng /orders/today/) -->
+    <div class="modal fade" id="ordersTodayModal" tabindex="-1" aria-labelledby="ordersTodayTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title fw-bold" id="ordersTodayTitle"><i class="fa-solid fa-receipt text-primary me-2"></i>Đơn hàng trong ngày</h5>
+                        <div class="small text-muted" id="ordersTodayDate"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        {% if stores|length > 1 %}
+                        <select class="form-select form-select-sm w-auto" id="ordersTodayStore" aria-label="Lọc theo cửa hàng">
+                            <option value="">Tất cả cửa hàng</option>
+                            {% for store in stores %}
+                            <option value="{{ store.id }}">{{ store.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="ordersTodayRefresh">
+                            <i class="fa-solid fa-rotate-right me-1"></i>Làm mới
+                        </button>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <div class="orders-today-kpi">
+                                <div class="label">Tổng đơn</div>
+                                <div class="value" id="ordersTodayCount">–</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="orders-today-kpi">
+                                <div class="label">Doanh thu</div>
+                                <div class="value text-danger" id="ordersTodayRevenue">–</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="orders-today-kpi">
+                                <div class="label">TB / đơn</div>
+                                <div class="value" id="ordersTodayAvg">–</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-danger py-2 small d-none" id="ordersTodayError" role="alert"></div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0 orders-today-table">
+                            <thead>
+                                <tr>
+                                    <th>Mã đơn</th>
+                                    <th class="d-none d-sm-table-cell">Loại / Thanh toán</th>
+                                    <th class="d-none d-md-table-cell">Thu ngân</th>
+                                    <th class="text-end">Tổng tiền</th>
+                                    <th class="text-end"><span class="visually-hidden">Thao tác</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTodayBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if user.tenant.show_shift_feature %}
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Sales:shifts' %}"><i class="fa-solid fa-cash-register me-1"></i>Ca làm việc</a>
+                        {% endif %}
+                        {% if user.is_manager %}
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'App_Quanly:orders' %}"><i class="fa-solid fa-clock-rotate-left me-1"></i>Lịch sử đơn</a>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-muted" id="ordersTodayPageInfo"></span>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Phân trang">
+                            <button type="button" class="btn btn-outline-secondary" id="ordersTodayPrev" aria-label="Trang trước"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" id="ordersTodayNext" aria-label="Trang sau"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- QR ORDER APPROVAL MODAL -->
     <div class="modal fade" id="qrOrderModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -2162,6 +2420,8 @@
     </div>
 
     <script src="{% static 'js/eapp_print.js' %}"></script>
+    <script src="{% static 'js/eapp_direct_print.js' %}"></script>
+    <script src="{% static 'js/eapp_print_settings.js' %}"></script>
     <!-- Bootstrap 5.3 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     <script src="{% static 'js/eapp_dialog.js' %}"></script>
@@ -2297,6 +2557,10 @@
         };
 
         currentTheme = readStoredTheme();
+        // Chấm màu cho từng lựa chọn trong dropdown màu giao diện (dropdowns.js đọc data-swatch).
+        document.querySelectorAll('#themeSelector option').forEach((option) => {
+            if (themes[option.value]) option.dataset.swatch = themes[option.value].primary;
+        });
 
         const PLACEHOLDER_PRODUCT_IMG = "{% static 'images/placeholder-dish.svg' %}";
         // Thống nhất ký hiệu "đ" như trang quản lý / hoá đơn (Intl VND cho ra "₫").
@@ -2379,8 +2643,9 @@
         const printReceipt = (orderId) => {
             if (orderId) window.eappPrint(urlWithId(RECEIPT_URL_TEMPLATE, orderId));
         };
+        // Chỉ dùng cho tự in: first_only=1 để không in trùng khi màn hình bếp cũng bật tự in.
         const printKitchenTicket = (ticketId) => {
-            if (ticketId) window.eappPrint(urlWithId(KITCHEN_PRINT_URL_TEMPLATE, ticketId));
+            if (ticketId) window.eappPrint(`${urlWithId(KITCHEN_PRINT_URL_TEMPLATE, ticketId)}?first_only=1`, 'kitchen');
         };
         const printTableBill = () => {
             if (currentSelectedTableId === null) return;
@@ -2991,11 +3256,11 @@
                         </div>
                         <div class="d-flex align-items-center ms-2 me-3 h-100 pt-2">
                             <button class="btn btn-outline-secondary qty-btn" onclick="updateQty('${item.cartId}', -1)" aria-label="Giảm số lượng ${escapeHtml(item.name)}">
-                                <i class="fa-solid fa-minus" style="font-size: 10px;" aria-hidden="true"></i>
+                                <i class="fa-solid fa-minus" style="font-size: 13px;" aria-hidden="true"></i>
                             </button>
-                            <span class="mx-2 fw-bold" style="min-width: 20px; text-align:center;" aria-label="Số lượng">${item.qty}</span>
+                            <span class="mx-1 fw-bold" style="min-width: 24px; text-align:center;" aria-label="Số lượng">${item.qty}</span>
                             <button class="btn btn-outline-primary qty-btn" onclick="updateQty('${item.cartId}', 1)" aria-label="Tăng số lượng ${escapeHtml(item.name)}">
-                                <i class="fa-solid fa-plus" style="font-size: 10px;" aria-hidden="true"></i>
+                                <i class="fa-solid fa-plus" style="font-size: 13px;" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -5051,6 +5316,136 @@
                 showToast(`${toggle.checked ? 'Đã bật' : 'Đã tắt'} ${label.toLowerCase()}.`, toggle.checked ? 'success' : 'secondary');
             });
         });
+        // Khổ giấy dùng chung khoá với trang in (print/_base.html).
+        const PRINT_PAPER_KEY = 'eapp_print_paper';
+        const paperSelect = document.getElementById('posPaperSize');
+        if (paperSelect) {
+            try { paperSelect.value = window.localStorage.getItem(PRINT_PAPER_KEY) === '58' ? '58' : '80'; } catch (error) { /* bỏ qua */ }
+            paperSelect.addEventListener('change', () => {
+                try { window.localStorage.setItem(PRINT_PAPER_KEY, paperSelect.value); } catch (error) { /* bỏ qua */ }
+            });
+        }
+        // Máy in kết nối trực tiếp (USB / Bluetooth), xem static/js/eapp_direct_print.js.
+        document.querySelectorAll('#posSettingsPrint [data-direct-printer]').forEach((picker) => {
+            window.eappDirectPrint?.bindPicker(picker, {
+                storeName: () => document.getElementById('storeSelector')?.selectedOptions[0]?.textContent.trim() || '',
+            });
+        });
+        // Biểu tượng máy in trên thanh trên: đèn trạng thái máy in, bấm mở Thiết lập › In ấn.
+        const printerShortcut = document.getElementById('posPrinterShortcut');
+        if (printerShortcut) {
+            window.eappDirectPrint?.bindIndicator(printerShortcut, hasKitchenFeature ? ['receipt', 'kitchen'] : ['receipt']);
+            printerShortcut.addEventListener('click', (event) => {
+                event.preventDefault();
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('posSettingsModal')).show();
+                bootstrap.Tab.getOrCreateInstance(document.getElementById('posSettingsTabPrint')).show();
+            });
+        }
+        // Lỗi in thẳng (eapp_print.js): fallback = đang mở hộp thoại in thay thế.
+        window.addEventListener('eapp-print-error', (event) => {
+            const { message, fallback } = event.detail || {};
+            showToast(fallback ? `${message} Đang in qua hộp thoại.` : message, fallback ? 'warning' : 'danger');
+        });
+        document.querySelector('.js-pos-settings-guide-link')?.addEventListener('click', (event) => {
+            event.preventDefault();
+            bootstrap.Tab.getOrCreateInstance(document.getElementById('posSettingsTabGuide')).show();
+        });
+
+        // --- Đơn hàng trong ngày (modal; trước đây là trang riêng /orders/today/) ---
+        const ORDERS_TODAY_API_URL = "{% url 'App_Sales_API:orders_today' %}";
+        const ordersToday = { page: 1, numPages: 1, storeId: null, seq: 0 };
+        const ordersTodayRowHtml = (order) => {
+            const channel = order.sale_channel === 'dine_in'
+                ? `<span class="ot-pill dine-in"><i class="fa-solid fa-utensils"></i>${escapeHtml(order.table_name || 'Tại quán')}</span>`
+                : (order.sale_channel === 'takeaway' ? '<span class="ot-pill takeaway"><i class="fa-solid fa-bag-shopping"></i>Mang về</span>' : '');
+            const payment = order.payment_method === 'cash'
+                ? '<span class="ot-pill cash"><i class="fa-solid fa-money-bill-wave"></i>Tiền mặt</span>'
+                : '<span class="ot-pill pay-card"><i class="fa-regular fa-credit-card"></i>Thẻ/QR</span>';
+            let refundNote = '';
+            if (order.is_refunded) refundNote = '<div class="small text-danger fw-normal">Đã hoàn tiền</div>';
+            else if (order.refunded_amount) refundNote = `<div class="small text-danger fw-normal">-${formatCurrency(order.refunded_amount)} hoàn</div>`;
+            const showStore = !ordersToday.storeId && hasMultipleStores();
+            return `
+                <tr>
+                    <td>
+                        <div class="fw-semibold text-nowrap">${escapeHtml(order.order_code)}</div>
+                        <div class="small text-muted">${escapeHtml(order.time)}${showStore ? ` · ${escapeHtml(order.store_name)}` : ''}</div>
+                        <div class="d-flex d-sm-none flex-wrap gap-1 mt-1">${channel}${payment}</div>
+                    </td>
+                    <td class="d-none d-sm-table-cell"><div class="d-flex flex-wrap gap-1">${channel}${payment}</div></td>
+                    <td class="d-none d-md-table-cell small">${escapeHtml(order.cashier)}</td>
+                    <td class="text-end fw-semibold text-nowrap">${formatCurrency(order.total_amount)}${refundNote}</td>
+                    <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-print-url="${escapeHtml(order.receipt_url)}" title="In hoá đơn" aria-label="In hoá đơn ${escapeHtml(order.order_code)}">
+                            <i class="fa-solid fa-print"></i>
+                        </button>
+                        ${order.refund_url ? `<a class="btn btn-sm btn-outline-warning" href="${escapeHtml(order.refund_url)}" title="Hoàn tiền trong Lịch sử đơn" aria-label="Hoàn tiền đơn ${escapeHtml(order.order_code)}"><i class="fa-solid fa-rotate-left"></i></a>` : ''}
+                    </td>
+                </tr>`;
+        };
+        const setOrdersTodayMessage = (text) => {
+            document.getElementById('ordersTodayBody').innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">${escapeHtml(text)}</td></tr>`;
+        };
+        const loadOrdersToday = async () => {
+            const seq = ++ordersToday.seq;
+            const errorEl = document.getElementById('ordersTodayError');
+            errorEl.classList.add('d-none');
+            setOrdersTodayMessage('Đang tải...');
+            const params = new URLSearchParams({ page: String(ordersToday.page) });
+            if (ordersToday.storeId) params.set('store_id', String(ordersToday.storeId));
+            try {
+                const data = await fetchJson(`${ORDERS_TODAY_API_URL}?${params.toString()}`);
+                if (seq !== ordersToday.seq) return;
+                ordersToday.page = data.page;
+                ordersToday.numPages = data.num_pages;
+                document.getElementById('ordersTodayDate').textContent = `Ngày ${data.date}`;
+                document.getElementById('ordersTodayCount').textContent = new Intl.NumberFormat('vi-VN').format(data.total_orders);
+                document.getElementById('ordersTodayRevenue').textContent = formatCurrency(data.total_revenue);
+                document.getElementById('ordersTodayAvg').textContent = formatCurrency(data.avg_order);
+                if (data.orders.length) document.getElementById('ordersTodayBody').innerHTML = data.orders.map(ordersTodayRowHtml).join('');
+                else setOrdersTodayMessage('Chưa có đơn hàng nào trong ngày.');
+                document.getElementById('ordersTodayPageInfo').textContent = data.num_pages > 1 ? `Trang ${data.page}/${data.num_pages}` : '';
+                document.getElementById('ordersTodayPrev').disabled = data.page <= 1;
+                document.getElementById('ordersTodayNext').disabled = data.page >= data.num_pages;
+            } catch (error) {
+                if (seq !== ordersToday.seq) return;
+                setOrdersTodayMessage('');
+                errorEl.textContent = error.message || 'Không tải được danh sách đơn.';
+                errorEl.classList.remove('d-none');
+            }
+        };
+        document.getElementById('ordersTodayModal')?.addEventListener('show.bs.modal', () => {
+            // Mặc định xem cửa hàng đang bán; có thể chọn "Tất cả cửa hàng".
+            const storeFilter = document.getElementById('ordersTodayStore');
+            ordersToday.storeId = storeFilter ? currentStoreId : null;
+            if (storeFilter) storeFilter.value = String(currentStoreId || '');
+            ordersToday.page = 1;
+            loadOrdersToday();
+        });
+        document.getElementById('ordersTodayStore')?.addEventListener('change', (event) => {
+            ordersToday.storeId = parseInt(event.target.value || '0', 10) || null;
+            ordersToday.page = 1;
+            loadOrdersToday();
+        });
+        document.getElementById('ordersTodayRefresh')?.addEventListener('click', loadOrdersToday);
+        document.getElementById('ordersTodayPrev')?.addEventListener('click', () => {
+            if (ordersToday.page <= 1) return;
+            ordersToday.page -= 1;
+            loadOrdersToday();
+        });
+        document.getElementById('ordersTodayNext')?.addEventListener('click', () => {
+            if (ordersToday.page >= ordersToday.numPages) return;
+            ordersToday.page += 1;
+            loadOrdersToday();
+        });
+        // Liên kết "Lịch sử đơn" của nhân viên ở các trang khác trỏ về POS với ?open=orders-today.
+        (() => {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('open') !== 'orders-today') return;
+            url.searchParams.delete('open');
+            window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('ordersTodayModal')).show();
+        })();
 
         const syncStoreChip = () => {
             const chipName = document.getElementById('posStoreChipName');

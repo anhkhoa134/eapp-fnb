@@ -1,4 +1,4 @@
-"""Hồi quy cho báo cáo kiểm thử fnb.eapp.vn 29/10/2026 (validation dữ liệu ở trang quản lý)."""
+"""Hồi quy cho báo cáo kiểm thử fnb.eapp.vn 29/10/2026 và vòng 3 ngày 30/10/2026 (validation dữ liệu ở trang quản lý)."""
 
 from decimal import Decimal
 
@@ -130,11 +130,48 @@ class FormLabelTests(QaReportBase):
         promo_choices = dict(PromotionForm(tenant=self.tenant).fields['discount_type'].choices)
         self.assertNotIn('---------', promo_choices.values())
 
-    def test_product_without_store_warns_not_on_pos(self):
-        """BUG-07: món không gán cửa hàng / đơn vị không hiện ở POS mà không cảnh báo."""
-        response = self.client.post(reverse('App_Quanly:products'), {'name': 'Món A', 'is_active': 'on'}, follow=True)
+    def test_product_without_store_is_rejected(self):
+        """BUG-07 (vòng 3): món không gán cửa hàng chỉ cảnh báo rồi vẫn lưu."""
+        response = self.client.post(reverse('App_Quanly:products'), {'name': 'Món A', 'is_active': 'on'})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['open_create_modal'])
+        self.assertContains(response, 'Chọn ít nhất 1 cửa hàng bán món này.')
+        self.assertFalse(Product.objects.filter(tenant=self.tenant, name='Món A').exists())
+
+        edit_url = reverse('App_Quanly:product_edit', args=[self.product.id])
+        response = self.client.post(edit_url, {'name': 'Cà phê mới', 'is_active': 'on'}, follow=True)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, 'Cà phê')
+        self.assertContains(response, 'Chọn ít nhất 1 cửa hàng bán món này.')
+
+    def test_product_with_store_still_warns_until_unit_added(self):
+        response = self.client.post(
+            reverse('App_Quanly:products'), {'name': 'Món A', 'is_active': 'on', 'store_ids': [self.store.id]}, follow=True
+        )
         self.assertContains(response, 'chưa hiện ở POS')
         self.assertContains(response, 'Chưa hiện ở POS / menu QR')
+
+    def test_create_modal_preselects_all_stores(self):
+        response = self.client.get(reverse('App_Quanly:products'))
+        self.assertEqual(response.context['form']['store_ids'].value(), [self.store.id])
+
+    def test_product_without_store_can_be_deleted(self):
+        """Vòng 3: "QA-TEST Món R3" (không gán cửa hàng) không xoá được."""
+        orphan = Product.objects.create(tenant=self.tenant, name='QA-TEST Món R3')
+        ProductUnit.objects.create(product=orphan, name='Ly', price=Decimal('30000'))
+        self.client.post(reverse('App_Quanly:product_delete', args=[orphan.id]))
+        self.assertFalse(Product.objects.filter(id=orphan.id).exists())
+
+    def test_topping_create_error_names_the_field(self):
+        """NEW-05 (vòng 3): lỗi tạo topping chung chung."""
+        self.tenant.show_topping_feature = True
+        self.tenant.save()
+        response = self.client.post(
+            reverse('App_Quanly:toppings'),
+            {'form_type': 'topping', 'topping-name': '', 'topping-price': '5000', 'topping-is_active': 'on'},
+        )
+        messages = [str(m) for m in response.wsgi_request._messages]
+        self.assertTrue(any(m.startswith('Không thể tạo topping: ') for m in messages), messages)
 
 
 class TableAreaTests(QaReportBase):

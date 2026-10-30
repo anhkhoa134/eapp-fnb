@@ -27,7 +27,7 @@
 {% endif %}
 <div class="row total-row"><span>TẠM TÍNH</span><span>{{ total_amount|thousand_sep }}</span></div>
 <div class="center muted">(Chưa gồm khuyến mãi / ưu đãi thành viên)</div>
-{% include 'App_Sales/print/_payment_qr.html' %}
+{% if store.print_options.show_payment_qr %}{% include 'App_Sales/print/_payment_qr.html' %}{% endif %}
 <hr class="sep">
 <div class="footer-note">Phiếu này không phải hoá đơn thanh toán.</div>
 {% endblock %}

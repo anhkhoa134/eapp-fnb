@@ -4,13 +4,14 @@ import csv
 import io
 from decimal import Decimal
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from App_Sales.models import Order, OrderItem
+from App_Sales.services import sum_net_revenue
 
 # Giới hạn an toàn: xuất nhiều hơn thì thu hẹp bộ lọc ngày.
 MAX_EXPORT_ORDERS = 50000
@@ -137,9 +138,10 @@ def build_orders_xlsx(orders, *, tenant_name: str, period_label: str) -> bytes:
             cell.font = Font(bold=True)
         _money_format(ws, MONEY_COLUMNS, titles, first_row=ws.max_row)
 
-    # Báo cáo theo món: số lượng + doanh thu dòng món (trước giảm giá đơn).
+    # Báo cáo theo món: số lượng + doanh thu dòng món (trước giảm giá đơn). Bỏ đơn đã huỷ / hoàn tiền toàn bộ;
+    # hoàn một phần là số tiền trên cả đơn, không gắn với món nên không trừ được ở đây.
     by_item = (
-        OrderItem.objects.filter(order_id__in=order_ids)
+        OrderItem.objects.filter(order_id__in=order_ids, order__status=Order.Status.COMPLETED)
         .values('snapshot_product_name', 'snapshot_unit_name')
         .annotate(quantity=Sum('quantity'), revenue=Sum('line_total'), order_count=Count('order', distinct=True))
         .order_by('-revenue', 'snapshot_product_name')
@@ -159,16 +161,20 @@ def build_orders_xlsx(orders, *, tenant_name: str, period_label: str) -> bytes:
         )
     _style_header(ws_items, [30, 14, 12, 10, 18])
     _money_format(ws_items, {'Doanh thu món (đ)'}, item_titles)
+    ws_items.append([])
+    ws_items.append(['Không tính đơn đã huỷ hoặc đã hoàn tiền toàn bộ. Hoàn tiền một phần xem cột "Đã hoàn" ở sheet Đơn hàng.'])
+    ws_items.cell(row=ws_items.max_row, column=1).font = Font(italic=True, color='64748B')
 
-    # Theo thu ngân / nhân viên.
+    # Theo thu ngân / nhân viên: thực thu = tổng cộng trừ phần đã hoàn, giống cột "Thực thu" ở sheet Đơn hàng.
     by_cashier = (
         Order.objects.filter(id__in=order_ids)
+        .exclude(status=Order.Status.CANCELLED)
         .values('cashier__username', 'payment_method')
-        .annotate(order_count=Count('id'), total=Sum('total_amount'))
+        .annotate(order_count=Count('id', filter=Q(status=Order.Status.COMPLETED)), total=sum_net_revenue())
         .order_by('cashier__username', 'payment_method')
     )
     ws_staff = wb.create_sheet('Theo thu ngân')
-    staff_titles = ['Thu ngân', 'Thanh toán', 'Số đơn', 'Tổng cộng (đ)']
+    staff_titles = ['Thu ngân', 'Thanh toán', 'Số đơn', 'Thực thu (đ)']
     ws_staff.append(staff_titles)
     payment_labels = dict(Order.PaymentMethod.choices)
     for row in by_cashier:
@@ -181,7 +187,7 @@ def build_orders_xlsx(orders, *, tenant_name: str, period_label: str) -> bytes:
             ]
         )
     _style_header(ws_staff, [22, 14, 10, 16])
-    _money_format(ws_staff, {'Tổng cộng (đ)'}, staff_titles)
+    _money_format(ws_staff, {'Thực thu (đ)'}, staff_titles)
 
     wb.properties.title = f'Báo cáo bán hàng {tenant_name} {period_label}'.strip()
     output = io.BytesIO()

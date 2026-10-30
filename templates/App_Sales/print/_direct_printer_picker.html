@@ -1,0 +1,42 @@
+{% comment %}
+Khối chọn máy in nhiệt kết nối trực tiếp, gắn bằng eappDirectPrint.bindPicker() (static/js/eapp_direct_print.js).
+Tham số: role ('receipt' | 'kitchen'), title, icons ('fa' trên POS, 'bi' trên màn hình bếp),
+row_class / title_class / sub_class để khớp giao diện trang chứa.
+{% endcomment %}
+<div class="direct-printer" data-direct-printer="{{ role }}">
+    <div class="{{ row_class|default:'d-flex align-items-center justify-content-between gap-2 border rounded-3 px-3 py-2' }}">
+        <div>
+            <div class="{{ title_class|default:'fw-semibold' }}">
+                {% if icons == 'bi' %}<i class="bi bi-{% if role == 'kitchen' %}fire{% else %}receipt{% endif %} me-1"></i>{% else %}<i class="fa-solid fa-{% if role == 'kitchen' %}fire-burner text-danger{% else %}receipt text-success{% endif %} me-1"></i>{% endif %}{{ title }}
+                <span class="dp-badge dp-none ms-1" data-dp-badge>Chưa chọn</span>
+            </div>
+            <div class="{{ sub_class|default:'small text-muted' }}" data-dp-status>Chưa chọn máy in.</div>
+            <form class="d-flex gap-1 mt-1 d-none" data-dp-rename-form>
+                <input type="text" class="form-control form-control-sm" maxlength="40" placeholder="VD: Máy in quầy" aria-label="Tên máy in" data-dp-rename-input>
+                <button type="submit" class="btn btn-sm btn-success">Lưu</button>
+                <button type="button" class="btn btn-sm btn-light border" data-dp-rename-cancel>Huỷ</button>
+            </form>
+        </div>
+        <div class="d-flex flex-wrap justify-content-end gap-1">
+            <button type="button" class="btn btn-sm btn-outline-success d-none" data-dp-connect>Kết nối</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary d-none" data-dp-rename>Đặt tên</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary d-none" data-dp-forget>Bỏ chọn</button>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-2">
+        <button type="button" class="btn btn-outline-primary" data-dp-scan="ble" hidden>
+            {% if icons == 'bi' %}<i class="bi bi-bluetooth me-1"></i>{% else %}<i class="fa-brands fa-bluetooth-b me-1"></i>{% endif %}Dò Bluetooth LE
+        </button>
+        <button type="button" class="btn btn-outline-primary" data-dp-scan="serial" hidden>
+            {% if icons == 'bi' %}<i class="bi bi-bluetooth me-1"></i>{% else %}<i class="fa-brands fa-bluetooth-b me-1"></i>{% endif %}Dò Bluetooth
+        </button>
+        <button type="button" class="btn btn-outline-primary" data-dp-scan="usb" hidden>
+            {% if icons == 'bi' %}<i class="bi bi-usb-symbol me-1"></i>{% else %}<i class="fa-brands fa-usb me-1"></i>{% endif %}Dò USB
+        </button>
+        <button type="button" class="btn btn-success fw-semibold" data-dp-sample disabled>
+            {% if icons == 'bi' %}<i class="bi bi-lightning-charge-fill me-1"></i>{% else %}<i class="fa-solid fa-bolt me-1"></i>{% endif %}In mẫu nhanh
+        </button>
+    </div>
+    <div class="small mt-2" data-dp-message hidden></div>
+    <div class="small mt-2 text-warning-emphasis" data-dp-hint hidden></div>
+</div>

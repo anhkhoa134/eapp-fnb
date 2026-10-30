@@ -36,7 +36,7 @@
 | 1B.4 | Đổi mật khẩu hợp lệ | Toast *Đã đổi mật khẩu.*; vẫn đăng nhập |
 | 1B.5 | Đăng nhập **nhân viên** → avatar → *Thông tin tài khoản* | Mở trang; Doanh nghiệp chỉ xem (không có ô sửa); không có *Các gói cước* |
 | 1B.6 | Nhân viên: xem sidebar | Chỉ có *Ca làm việc* (nếu bật), *Tài khoản* và liên kết nhanh; không có Dashboard, Lịch sử đơn, Danh mục, Sản phẩm, Nhân viên… |
-| 1B.7 | Nhân viên: avatar → *Lịch sử đơn* | Chuyển tới `/orders/today/` (Đơn hàng trong ngày) |
+| 1B.7 | Nhân viên: avatar → *Lịch sử đơn* | Chuyển về POS và mở modal *Đơn hàng trong ngày* (`/?open=orders-today`) |
 
 ---
 

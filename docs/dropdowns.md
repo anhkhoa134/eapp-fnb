@@ -11,6 +11,8 @@ hoặc các sự kiện input/change dùng để gửi form và cập nhật ngh
 
 - Select có từ 8 lựa chọn tự thêm ô tìm kiếm không dấu.
 - `data-dropdown-search="true|false"` bật/tắt tìm kiếm trên select.
+- `data-swatch="<màu CSS>"` trên `<option>` hiện chấm màu trước nhãn trong popup
+  (VD chọn màu giao diện POS). Giá trị không phải màu CSS hợp lệ thì bỏ qua.
 - Datalist đơn vị nguyên liệu vẫn cho nhập đơn vị tự do.
 - Tìm khách qua API giữ logic tìm/chọn riêng, dùng chung lớp
   `eapp-dropdown-menu`, `eapp-dropdown-suggestions`, `eapp-dropdown-option`.

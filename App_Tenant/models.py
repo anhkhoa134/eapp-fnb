@@ -314,6 +314,49 @@ class Tenant(TimeStampedModel):
         return self._within_limit(self.product_count(), self.max_products)
 
 
+RECEIPT_FONT_SIZES = ('sm', 'md', 'lg')
+PRINT_NOTE_MAX_LENGTH = 200
+PRINT_NOTE_MAX_LINES = 4
+# Nội dung phiếu in của cửa hàng (POS / màn hình bếp › Thiết lập › Mẫu phiếu). Thiếu khoá thì dùng mặc định.
+PRINT_SETTINGS_DEFAULTS = {
+    'header_note': '',
+    'footer_note': 'Cảm ơn quý khách, hẹn gặp lại!',
+    'show_brand': True,
+    'show_address': True,
+    'show_phone': True,
+    'show_cashier': True,
+    'show_customer': True,
+    'show_payment_qr': True,
+    'show_subtotal': True,
+    'show_zero_tax': True,  # dòng "Thuế (0%)" khi đơn không có thuế; có thuế thì luôn in
+    'show_payment_method': True,
+    'show_customer_paid': True,
+    'show_change': True,
+    'font_size': 'md',
+}
+
+
+def normalize_print_settings(raw) -> dict:
+    """Ghép cấu hình lưu trong DB / gửi từ form với mặc định; bỏ khoá lạ và giá trị sai kiểu."""
+    data = dict(PRINT_SETTINGS_DEFAULTS)
+    if not isinstance(raw, dict):
+        return data
+    for key, default in PRINT_SETTINGS_DEFAULTS.items():
+        if key not in raw:
+            continue
+        value = raw[key]
+        if isinstance(default, bool):
+            if isinstance(value, bool):
+                data[key] = value
+        elif key == 'font_size':
+            if value in RECEIPT_FONT_SIZES:
+                data[key] = value
+        elif isinstance(value, str):
+            lines = [line.strip() for line in value.replace('\r\n', '\n').split('\n')]
+            data[key] = '\n'.join(lines[:PRINT_NOTE_MAX_LINES]).strip()[:PRINT_NOTE_MAX_LENGTH]
+    return data
+
+
 class Store(TimeStampedModel):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='stores')
     name = models.CharField(max_length=150)
@@ -326,6 +369,7 @@ class Store(TimeStampedModel):
     payment_bank_name = models.CharField(max_length=120, blank=True)
     payment_account_name = models.CharField(max_length=120, blank=True)
     payment_account_number = models.CharField(max_length=32, blank=True)
+    print_settings = models.JSONField('Mẫu phiếu in', default=dict, blank=True)
 
     class Meta:
         ordering = ['tenant__name', 'name']
@@ -365,6 +409,10 @@ class Store(TimeStampedModel):
         if self.payment_qr:
             self.payment_qr.delete(save=False)
         super().delete(*args, **kwargs)
+
+    @property
+    def print_options(self) -> dict:
+        return normalize_print_settings(self.print_settings)
 
     @property
     def table_code_prefix(self) -> str:
