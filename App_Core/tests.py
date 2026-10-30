@@ -182,7 +182,7 @@ class PwaIdentityTests(TestCase):
         response = self.client.get(reverse('pwa_service_worker'))
         js = response.content.decode()
         self.assertIn("const CACHE_PREFIX = 'eapp-fnb-';", js)
-        self.assertIn("const CACHE_NAME = 'eapp-fnb-v4';", js)
+        self.assertIn("const CACHE_NAME = 'eapp-fnb-v5';", js)
         self.assertIn('k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME', js)
         self.assertIn('/static/pwa/icons/fnb-icon-192x192.webp', js)
         self.assertNotIn('__CACHE', js)
