@@ -158,7 +158,10 @@ class BlockedTenantWebSocketTests(TenantAccessTestBase):
             ws = WebsocketCommunicator(
                 application,
                 f'/ws/pos/store/{self.store.id}/',
-                headers=[(b'cookie', f'{settings.SESSION_COOKIE_NAME}={cookie}'.encode('utf-8'))],
+                headers=[
+                    (b'cookie', f'{settings.SESSION_COOKIE_NAME}={cookie}'.encode('utf-8')),
+                    (b'origin', b'http://testserver'),
+                ],
             )
             connected, _ = await ws.connect()
             if connected:

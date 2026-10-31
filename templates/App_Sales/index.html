@@ -865,13 +865,40 @@
         .payment-modal-dialog {
             max-width: min(96vw, 1240px);
         }
+        #paymentModal .payment-due-summary p { font-size: 1.1rem; }
+        #paymentModal #modal-total-due { font-size: 1.65rem; white-space: nowrap; }
+        #paymentModal .payment-change-summary { flex-direction: column; gap: .75rem; text-align: center; }
+        #paymentModal #modal-change-due { font-size: 2.5rem !important; overflow-wrap: anywhere; }
+        #paymentModal .payment-cart-panel,
+        #paymentModal .payment-form-panel { min-width: 0; }
+        #paymentModal .payment-cart-panel {
+            display: grid;
+            grid-template-rows: auto auto auto;
+        }
+        #paymentModal #modal-cart-items { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+        #paymentModal .payment-order-summary { min-width: 0; }
+        #paymentModal .payment-order-summary .payment-due-summary { margin-bottom: 0 !important; }
+        @media (min-width: 768px) {
+            #paymentModal .payment-cart-panel {
+                min-height: min(65dvh, calc(100dvh - 12rem));
+                grid-template-rows: auto minmax(6rem, 1fr) auto;
+            }
+            #paymentModal #modal-cart-items { contain: size; }
+            #paymentModal .payment-form-panel {
+                max-height: min(65dvh, calc(100dvh - 12rem));
+                overflow-y: auto;
+                overscroll-behavior: contain;
+            }
+        }
         @media (max-width: 767.98px) {
             .payment-meta-grid {
                 gap: 0.5rem;
             }
             #paymentModal .modal-header { padding: 0.85rem 1rem; }
             #paymentModal .modal-title { font-size: 1.1rem; }
-            #paymentModal .payment-cart-panel { padding: 0.85rem 1rem !important; max-height: 220px !important; }
+            #paymentModal .payment-cart-panel { padding: 0.85rem 1rem !important; border-right: 0 !important; border-bottom: 1px solid #dee2e6; }
+            #paymentModal #modal-cart-items { max-height: min(28dvh, 220px); overflow-y: auto; }
+            #paymentModal .payment-change-summary { flex-direction: row; justify-content: space-between; text-align: left; }
             #paymentModal .payment-cart-panel > p { margin-bottom: 0.5rem !important; }
             #paymentModal .payment-form-panel { padding: 1rem !important; }
             #paymentModal .payment-due-summary {
@@ -1755,7 +1782,7 @@
 
     <!-- PAYMENT MODAL -->
     <div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-xl payment-modal-dialog">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl payment-modal-dialog">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-light border-0">
                     <h5 class="modal-title fw-bold"><i class="fa-solid fa-wallet text-primary me-2"></i>Thanh toán hóa đơn</h5>
@@ -1763,83 +1790,92 @@
                 </div>
                 <div class="modal-body p-0">
                     <div class="row g-0">
-                        <!-- Left: Cart Items -->
-                        <div class="col-md-5 bg-light p-4 border-end d-flex flex-column payment-cart-panel" style="max-height: 550px;">
+                        <!-- Left: Order, customer, promotion and totals -->
+                        <div class="col-md-6 p-4 border-end payment-cart-panel">
                             <p class="text-muted mb-3 fw-bold">Danh sách món</p>
-                            <div id="modal-cart-items" class="custom-scrollbar flex-grow-1" style="overflow-y: auto;">
+                            <div id="modal-cart-items" class="custom-scrollbar mb-3">
                                 <!-- Injected via JS -->
                             </div>
-                        </div>
-                        
-                        <!-- Right: Payment Form -->
-                        <div class="col-md-7 p-4 payment-form-panel">
-                            <div class="text-center mb-4 payment-due-summary">
-                                <p class="text-muted mb-1">Số tiền cần thanh toán</p>
-                                <h2 class="text-danger fw-bold" id="modal-total-due">0 đ</h2>
-                            </div>
 
-                            <div class="bg-light rounded-3 p-3 mb-3 payment-breakdown d-none" id="payment-breakdown">
-                                <div class="d-flex justify-content-between small mb-1">
-                                    <span class="text-muted">Tạm tính</span>
-                                    <span class="fw-semibold" id="modal-subtotal-due">0 đ</span>
-                                </div>
-                                <div class="d-flex justify-content-between small mb-0 d-none" id="modal-discount-row">
-                                    <span class="text-muted" id="modal-discount-label">Khuyến mãi</span>
-                                    <span class="fw-semibold text-success" id="modal-discount-amount">-0 đ</span>
-                                </div>
-                                <div class="d-flex justify-content-between small mt-1 mb-0 d-none" id="modal-tax-row">
-                                    <span class="text-muted" id="modal-tax-label">Thuế</span>
-                                    <span class="fw-semibold" id="modal-tax-amount">0 đ</span>
-                                </div>
-                            </div>
-
-                            <div class="payment-meta-grid" id="payment-meta-grid">
-                                <div class="payment-panel" id="payment-customer-panel">
-                                    <div class="checkout-picker-heading">
-                                        <label class="payment-section-label" for="customer-search-input"><i class="fa-solid fa-user"></i>Khách hàng</label>
-                                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="openQuickCustomerModal()" title="Tạo khách hàng" aria-label="Tạo khách hàng">+</button>
-                                    </div>
-                                    <div class="customer-picker-wrap">
-                                        <div class="input-group customer-combobox checkout-picker-input">
-                                            <input
-                                                type="text"
-                                                class="form-control"
-                                                id="customer-search-input"
-                                                placeholder="Tên/SĐT…"
-                                                autocomplete="off"
-                                                aria-autocomplete="list"
-                                                aria-expanded="false"
-                                            >
+                            <div class="payment-order-summary">
+                                <div class="payment-meta-grid" id="payment-meta-grid">
+                                    <div class="payment-panel" id="payment-customer-panel">
+                                        <div class="checkout-picker-heading">
+                                            <label class="payment-section-label" for="customer-search-input"><i class="fa-solid fa-user"></i>Khách hàng</label>
+                                            <button class="btn btn-sm btn-outline-primary" type="button" onclick="openQuickCustomerModal()" title="Tạo khách hàng" aria-label="Tạo khách hàng">+</button>
                                         </div>
-                                    </div>
-                                    <div class="selected-customer-card mt-2 d-none" id="selected-customer-row">
-                                        <div class="min-w-0">
-                                            <div class="selected-customer-head">
-                                                <div class="selected-customer-name text-truncate" id="selected-customer-name"></div>
-                                                <div id="selected-customer-tier"></div>
+                                        <div class="customer-picker-wrap">
+                                            <div class="input-group customer-combobox checkout-picker-input flex-nowrap">
+                                                <div class="checkout-clearable-input">
+                                                    <input
+                                                        type="text"
+                                                        class="form-control"
+                                                        id="customer-search-input"
+                                                        placeholder="Tên/SĐT…"
+                                                        autocomplete="off"
+                                                        aria-autocomplete="list"
+                                                        aria-expanded="false"
+                                                    >
+                                                    <button type="button" class="checkout-input-clear" id="customer-clear-button" aria-label="Xóa khách hàng" title="Xóa khách hàng" hidden>×</button>
+                                                </div>
                                             </div>
-                                            <div class="selected-customer-meta" id="selected-customer-meta"></div>
                                         </div>
-                                        <button class="btn btn-sm btn-light border flex-shrink-0" type="button" onclick="clearSelectedCustomer()">Bỏ</button>
+                                        <div class="selected-customer-card mt-2 d-none" id="selected-customer-row">
+                                            <div class="min-w-0">
+                                                <div class="selected-customer-head">
+                                                    <div class="selected-customer-name text-truncate" id="selected-customer-name"></div>
+                                                    <div id="selected-customer-tier"></div>
+                                                </div>
+                                                <div class="selected-customer-meta" id="selected-customer-meta"></div>
+                                            </div>
+                                            <button class="btn btn-sm btn-light border flex-shrink-0" type="button" onclick="clearSelectedCustomer()">Bỏ</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="payment-panel" id="payment-promotion-panel">
+                                        <div class="checkout-picker-heading">
+                                            <label class="payment-section-label" for="promotion-search-input"><i class="fa-solid fa-tag"></i>Khuyến mãi</label>
+                                            {% if user.is_manager %}<button class="btn btn-sm btn-outline-primary" type="button" onclick="openQuickPromotionModal()" title="Tạo khuyến mãi" aria-label="Tạo khuyến mãi">+</button>{% endif %}
+                                        </div>
+                                        <div class="input-group checkout-picker-input flex-nowrap">
+                                            <div class="checkout-clearable-input">
+                                                <input type="text" class="form-control" id="promotion-search-input" placeholder="Tên/mã…" aria-label="Tìm hoặc nhập mã khuyến mãi" autocomplete="off">
+                                                <button type="button" class="checkout-input-clear" id="promotion-clear-button" aria-label="Xóa khuyến mãi" title="Xóa khuyến mãi" hidden>×</button>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-primary text-nowrap" type="button" onclick="applyPromotionCode()">Áp mã</button>
+                                        </div>
+                                        <small class="d-block text-muted text-truncate mt-1 d-none" id="promotion-dropdown-label"></small>
+                                        <small class="text-success d-none" id="promotion-dropdown-discount"></small>
+                                        <div class="small text-danger mt-1 d-none" id="promotion-error" role="status"></div>
+                                        <div class="payment-mini-help mt-2 d-none" id="promotion-tier-override-note">Đang áp dụng ưu đãi hạng tốt hơn.</div>
                                     </div>
                                 </div>
 
-                                <div class="payment-panel" id="payment-promotion-panel">
-                                    <div class="checkout-picker-heading">
-                                        <label class="payment-section-label" for="promotion-search-input"><i class="fa-solid fa-tag"></i>Khuyến mãi</label>
-                                        {% if user.is_manager %}<button class="btn btn-sm btn-outline-primary" type="button" onclick="openQuickPromotionModal()" title="Tạo khuyến mãi" aria-label="Tạo khuyến mãi">+</button>{% endif %}
+                                <div class="bg-light rounded-3 p-3 mb-3 payment-breakdown d-none" id="payment-breakdown">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="text-muted">Tạm tính</span>
+                                        <span class="fw-semibold" id="modal-subtotal-due">0 đ</span>
                                     </div>
-                                    <div class="input-group checkout-picker-input flex-nowrap">
-                                        <input type="text" class="form-control" id="promotion-search-input" placeholder="Tên/mã…" aria-label="Tìm hoặc nhập mã khuyến mãi" autocomplete="off">
-                                        <button class="btn btn-sm btn-outline-primary text-nowrap" type="button" onclick="applyPromotionCode()">Áp mã</button>
+                                    <div class="d-flex justify-content-between small mb-0 d-none" id="modal-discount-row">
+                                        <span class="text-muted" id="modal-discount-label">Khuyến mãi</span>
+                                        <span class="fw-semibold text-success" id="modal-discount-amount">-0 đ</span>
                                     </div>
-                                    <small class="d-block text-muted text-truncate mt-1 d-none" id="promotion-dropdown-label"></small>
-                                    <small class="text-success d-none" id="promotion-dropdown-discount"></small>
-                                    <div class="small text-danger mt-1 d-none" id="promotion-error" role="status"></div>
-                                    <div class="payment-mini-help mt-2 d-none" id="promotion-tier-override-note">Đang áp dụng ưu đãi hạng tốt hơn.</div>
+                                    <div class="d-flex justify-content-between small mt-1 mb-0 d-none" id="modal-tax-row">
+                                        <span class="text-muted" id="modal-tax-label">Thuế</span>
+                                        <span class="fw-semibold" id="modal-tax-amount">0 đ</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center gap-2 mb-3 payment-due-summary">
+                                    <p class="fw-bold mb-0">Tổng cộng</p>
+                                    <h2 class="text-danger fw-bold mb-0" id="modal-total-due">0 đ</h2>
                                 </div>
                             </div>
 
+                        </div>
+
+                        <!-- Right: Tender and change, or card/QR payment -->
+                        <div class="col-md-6 p-4 payment-form-panel custom-scrollbar">
                             <div class="mb-3">
                                 <label class="form-label text-muted">Phương thức thanh toán</label>
                                 <div class="btn-group w-100" role="group">
@@ -1865,6 +1901,14 @@
                                 <div class="form-text" id="payment-reference-help">In trên hoá đơn và lưu ở lịch sử đơn để đối soát sao kê.</div>
                             </div>
 
+                            <div class="mb-3" id="cash-input-wrapper">
+                                <label class="form-label fw-bold" for="input-cash-received">Tiền khách đưa</label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text"><i class="fa-solid fa-money-bill text-success"></i></span>
+                                    <input type="text" class="form-control fw-bold fs-5" id="input-cash-received" placeholder="Nhập số tiền..." inputmode="numeric" oninput="formatCashInput(this)">
+                                </div>
+                            </div>
+
                             <div class="mb-3" id="quick-cash-wrapper">
                                 <label class="form-label text-muted">Gợi ý số tiền khách đưa</label>
                                 <div class="d-flex flex-wrap gap-2" id="quick-cash-container">
@@ -1872,16 +1916,8 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3" id="cash-input-wrapper">
-                                <label class="form-label text-muted">Khách đưa (đ)</label>
-                                <div class="input-group input-group-lg">
-                                    <span class="input-group-text"><i class="fa-solid fa-money-bill text-success"></i></span>
-                                    <input type="text" class="form-control fw-bold fs-5" id="input-cash-received" placeholder="Nhập số tiền..." oninput="formatCashInput(this)">
-                                </div>
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded" id="change-wrapper">
-                                <span class="fs-5 text-muted">Tiền thừa trả khách:</span>
+                            <div class="d-flex align-items-center bg-white border p-4 rounded-3 shadow-sm payment-change-summary" id="change-wrapper">
+                                <span class="text-muted fw-semibold">Tiền thừa trả khách</span>
                                 <span class="fs-4 fw-bold" id="modal-change-due">0 đ</span>
                             </div>
                         </div>
@@ -4607,6 +4643,7 @@
         };
 
         const updateSelectedCustomerUi = () => {
+            customerPicker?.syncClear();
             const row = document.getElementById('selected-customer-row');
             const nameEl = document.getElementById('selected-customer-name');
             const metaEl = document.getElementById('selected-customer-meta');
@@ -4735,6 +4772,7 @@
         );
 
         const updatePaymentTotals = () => {
+            promotionPicker?.syncClear();
             document.getElementById('btn-confirm-payment').disabled = paymentInFlight || promotionApplying;
             const promotionDiscountAmount = selectedPromotion ? Number(selectedPromotion.discount_amount || 0) : 0;
             const tierDiscountAmount = calculateSelectedTierDiscount();
@@ -5306,7 +5344,7 @@
         document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
         const customerPicker = EAPPCheckoutCombobox.create({
-            input: document.getElementById('customer-search-input'),
+            input: document.getElementById('customer-search-input'), clear: document.getElementById('customer-clear-button'),
             load: async query => {
                 const data = await fetchJson(`${API_CUSTOMERS_URL}?q=${encodeURIComponent(query)}`);
                 return (data.customers || []).map(customer => ({label: customer.name,
@@ -5316,12 +5354,11 @@
             onInput: () => { selectedCustomer = null; updateSelectedCustomerUi(); updatePaymentTotals(); },
         });
         const promotionPicker = EAPPCheckoutCombobox.create({
-            input: document.getElementById('promotion-search-input'),
+            input: document.getElementById('promotion-search-input'), clear: document.getElementById('promotion-clear-button'),
             load: async query => {
                 availablePromotions = await queryPromotions(query);
-                return [{label: 'Không áp dụng', meta: 'Bỏ khuyến mãi đang chọn', promotion: null},
-                    ...availablePromotions.map(promotion => ({label: `${promotion.code ? promotion.code + ' · ' : ''}${promotion.name}`,
-                    meta: `−${formatCurrency(promotion.discount_amount)} · ${promotionRuleText(promotion)}`, promotion}))];
+                return availablePromotions.map(promotion => ({label: `${promotion.code ? promotion.code + ' · ' : ''}${promotion.name}`,
+                    meta: `−${formatCurrency(promotion.discount_amount)} · ${promotionRuleText(promotion)}`, promotion}));
             },
             select: row => selectPromotion(row.promotion), apply: () => applyPromotionCode(),
             onInput: () => { ++promotionRequestSeq; promotionApplying = false; selectedPromotion = null; promotionError(''); updatePaymentTotals(); },

@@ -3,7 +3,7 @@
     'use strict';
     let sequence = 0;
     let opened = null;
-    function create({ input, toggle, load, select, apply, onInput, emptyText = 'Không có kết quả phù hợp.' }) {
+    function create({ input, toggle, clear, load, select, apply, onInput, emptyText = 'Không có kết quả phù hợp.' }) {
         if (!input) return null;
         const menu = document.createElement('div');
         menu.id = 'checkout-options-' + (++sequence);
@@ -22,6 +22,12 @@
         toggle?.setAttribute('aria-controls', menu.id);
         toggle?.setAttribute('aria-expanded', 'false');
         let revision = 0, timer = null, items = [], active = -1;
+        let suppressFocus = false;
+        function syncClear() {
+            if (!clear) return;
+            clear.hidden = !input.value;
+            input.classList.toggle('has-clear-value', !!input.value);
+        }
         function position() {
             if (menu.hidden) return;
             if (!input.isConnected || !input.getClientRects().length || input.disabled) return close();
@@ -127,13 +133,17 @@
                 if (current === revision && !menu.hidden) status(error.message || 'Không tải được danh sách. Vui lòng thử lại.');
             }
         }
-        input.addEventListener('focus', () => refresh(input.value.trim()));
+        input.addEventListener('focus', () => {
+            syncClear();
+            if (!suppressFocus) refresh(input.value.trim());
+        });
         input.addEventListener('click', () => {
             if (menu.hidden) refresh(input.value.trim());
         });
         input.addEventListener('input', event => {
             revision++; // Invalidate in-flight responses before the debounce, not afterwards.
             clearTimeout(timer);
+            syncClear();
             onInput?.();
             if (event.isComposing) return;
             if (show()) status('Đang tìm…');
@@ -157,6 +167,15 @@
             }
         });
         toggle?.addEventListener('click', () => menu.hidden ? refresh('') : close());
+        clear?.addEventListener('click', () => {
+            input.value = '';
+            close();
+            syncClear();
+            onInput?.();
+            suppressFocus = true;
+            input.focus({preventScroll: true});
+            suppressFocus = false;
+        });
         document.addEventListener('pointerdown', event => {
             if (event.target !== input && !toggle?.contains(event.target) && !menu.contains(event.target)) close();
         }, true);
@@ -168,7 +187,8 @@
         window.addEventListener('resize', position);
         window.visualViewport?.addEventListener('resize', position);
         window.visualViewport?.addEventListener('scroll', position);
-        const api = {close, refresh};
+        const api = {close, refresh, syncClear};
+        syncClear();
         return api;
     }
     window.EAPPCheckoutCombobox = {create};

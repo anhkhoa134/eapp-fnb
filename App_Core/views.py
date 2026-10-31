@@ -88,7 +88,7 @@ def _abs_static(request, relative_path: str) -> str:
 PWA_APP_ID = '/'  # Giữ nguyên: đổi id làm app đã cài trên máy người dùng thành "app khác".
 PWA_CACHE_PREFIX = 'eapp-fnb-'
 # Tăng khi đổi JS/CSS tĩnh có hành vi mới: cache cũ bị xoá lúc service worker activate.
-PWA_CACHE_NAME = f'{PWA_CACHE_PREFIX}v10'
+PWA_CACHE_NAME = f'{PWA_CACHE_PREFIX}v11'
 PWA_ICON_SIZES = (72, 96, 128, 144, 152, 180, 192, 384, 512)
 PWA_MASKABLE_SIZES = (192, 512)
 

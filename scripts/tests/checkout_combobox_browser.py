@@ -38,7 +38,7 @@ class CheckoutComboboxTests(unittest.TestCase):
                 input {width:110px;font-size:16px;} button {min-width:35px;min-height:35px;}
                 #cover {position:fixed;top:240px;left:0;right:0;bottom:0;background:#ddd;z-index:1090;}
             </style>
-            <div class="modal"><label for="customer">Khách hàng</label><input id="customer"><button id="recent">▼</button>
+            <div class="modal"><label for="customer">Khách hàng</label><input id="customer"><button id="clear" hidden>×</button><button id="recent">▼</button>
                 <label for="promo">Khuyến mãi</label><input id="promo"><button id="promos">▼</button></div>
             <button id="outside">Ngoài dropdown</button><div id="cover"></div>
         ''')
@@ -46,9 +46,10 @@ class CheckoutComboboxTests(unittest.TestCase):
         self.page.add_style_tag(path=str(ROOT/'static/css/checkout-combobox.css'))
         self.page.add_script_tag(path=str(ROOT/'static/js/checkout-combobox.js'))
         self.page.evaluate('''() => {
-            window.pending = []; window.picked = []; window.applied = [];
+            window.pending = []; window.picked = []; window.applied = []; window.edits = [];
             window.picker = EAPPCheckoutCombobox.create({input:document.querySelector('#customer'),
-                toggle:document.querySelector('#recent'), load:q=>new Promise((resolve,reject)=>pending.push({q,resolve,reject})),
+                toggle:document.querySelector('#recent'), clear:document.querySelector('#clear'),
+                onInput:()=>edits.push(document.querySelector('#customer').value), load:q=>new Promise((resolve,reject)=>pending.push({q,resolve,reject})),
                 select:row=>picked.push(row.label)});
             window.promoPicker = EAPPCheckoutCombobox.create({input:document.querySelector('#promo'),
                 toggle:document.querySelector('#promos'), load:async q=>[{label:q || 'SALE10'}],
@@ -118,6 +119,25 @@ class CheckoutComboboxTests(unittest.TestCase):
         expect(self.popup).to_contain_text('Đã kết nối')
         self.page.locator('#outside').click()
         expect(self.popup).to_have_count(0)
+
+    def test_clear_resets_value_and_ignores_late_search_results(self):
+        clear = self.page.locator('#clear')
+        expect(clear).to_be_hidden()
+        self.page.locator('#customer').fill('SALE10')
+        expect(clear).to_be_visible()
+        self.page.wait_for_function('pending.length === 2')
+        clear.click()
+        expect(self.page.locator('#customer')).to_have_value('')
+        expect(clear).to_be_hidden()
+        self.assertEqual(self.page.evaluate('edits[edits.length-1]'), '')
+        self.assertEqual(self.page.evaluate('document.activeElement.id'), 'customer')
+        self.resolve(0, ['Old match'])
+        self.resolve(1, ['Late match'])
+        expect(self.popup).to_have_count(0)
+        self.page.wait_for_timeout(250)
+        self.assertEqual(self.page.evaluate('pending.length'), 2)
+        self.page.evaluate("document.querySelector('#customer').value='SELECTED'; picker.syncClear()")
+        expect(clear).to_be_visible()
 
     def test_legacy_browser_fallback_escapes_modal_clipping(self):
         self.page.evaluate('''() => {

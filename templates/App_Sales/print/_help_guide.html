@@ -11,164 +11,125 @@
         white-space: pre;
         margin: 0.4rem 0 0.8rem;
     }
+    .help-note {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        padding: 0.75rem 0.9rem;
+        margin: 0.75rem 0;
+    }
+    .help-note .help-code { margin-bottom: 0.5rem; }
     .platform-tag {
         font-size: 0.72rem;
         font-weight: 700;
         border-radius: 999px;
         padding: 0.2rem 0.55rem;
+        white-space: nowrap;
     }
     .platform-tag.ok { background: #dcfce7; color: #166534; }
     .platform-tag.warn { background: #fef3c7; color: #92400e; }
     .platform-tag.no { background: #fee2e2; color: #991b1b; }
 </style>
 <section class="{{ section_class }}" id="bat-dau">
-    <h2>Bắt đầu nhanh</h2>
-    <ol class="mb-0">
-        <li><strong>Kết nối máy in với thiết bị</strong> (USB, mạng LAN/Wi-Fi hoặc Bluetooth) trong cài đặt của hệ điều hành và đặt làm <em>máy in mặc định</em>. Xem <a href="#ket-noi">mục 3</a>.</li>
-        <li>Chọn <strong>khổ giấy</strong> ở phần <em>Thiết lập in</em> cho đúng cuộn giấy (80 mm hoặc 58 mm).</li>
-        <li>Bấm <strong>In thử</strong>. Trong hộp thoại in, chọn:
-            <ul>
-                <li>Máy in: máy in nhiệt của quán;</li>
-                <li>Khổ giấy: khổ cuộn của máy in (VD 80 mm hoặc 72 mm × chiều dài tự động);</li>
-                <li>Lề: <strong>Không có</strong>; Tỉ lệ: <strong>Mặc định / 100%</strong>;</li>
-                <li>Tắt <strong>Đầu trang và chân trang</strong> (nếu không, giấy in ra có thêm ngày giờ và đường dẫn).</li>
-            </ul>
-            Trình duyệt sẽ nhớ các lựa chọn này cho lần in sau.
-        </li>
-        <li>Bật <strong>tự in</strong> ở đúng thiết bị (xem <a href="#bo-tri">mục 2</a>).</li>
-        <li>Tuỳ chọn: bật <a href="#khong-hop-thoai">in không cần hộp thoại</a> trên máy tính quầy để in ngay khi thanh toán.</li>
-    </ol>
-</section>
-
-<section class="{{ section_class }}" id="bo-tri">
-    <h2>Bố trí máy in theo mô hình quán</h2>
+    <h2>Chọn cách in</h2>
     <div class="table-responsive">
         <table class="table table-sm align-middle mb-2">
             <thead>
-                <tr><th>Mô hình</th><th>Cách bật</th></tr>
+                <tr><th>Thiết bị</th><th>Nên dùng</th></tr>
             </thead>
             <tbody>
-                <tr>
-                    <td class="fw-semibold">1 máy POS, 1 máy in</td>
-                    <td>Trên máy POS bật <em>Tự in hoá đơn</em>. Muốn in luôn phiếu bếp thì bật thêm <em>Tự in phiếu bếp từ POS</em>.</td>
-                </tr>
-                <tr>
-                    <td class="fw-semibold">Máy in ở quầy và máy in ở bếp</td>
-                    <td>Máy POS ở quầy: bật <em>Tự in hoá đơn</em>, <strong>tắt</strong> <em>Tự in phiếu bếp từ POS</em>.<br>
-                        Máy ở bếp (tablet/máy tính nối máy in bếp): mở <em>Màn hình bếp</em>, bật <em>Tự in</em>.</td>
-                </tr>
-                <tr>
-                    <td class="fw-semibold">Nhiều màn hình bếp</td>
-                    <td>Chỉ bật <em>Tự in</em> ở máy nối với máy in bếp. Nếu bật ở nhiều máy, mỗi phiếu vẫn chỉ in <strong>một lần</strong> ở máy nhận phiếu trước, nhưng không biết trước máy nào sẽ in.</td>
-                </tr>
+                <tr><td class="fw-semibold">Máy tính (Windows, Mac)</td><td><span class="platform-tag ok">In thẳng</span> hoặc in qua hộp thoại</td></tr>
+                <tr><td class="fw-semibold">Android (tablet, máy POS)</td><td><span class="platform-tag ok">In thẳng</span></td></tr>
+                <tr><td class="fw-semibold">iPhone / iPad</td><td><span class="platform-tag warn">Chỉ in qua hộp thoại</span>, máy in phải có AirPrint</td></tr>
             </tbody>
         </table>
     </div>
-    <p class="small mb-0">Mỗi thiết bị in ra máy in mặc định của chính nó. Muốn hoá đơn ra quầy và phiếu bếp ra bếp thì dùng hai thiết bị, mỗi thiết bị nối một máy in.</p>
-</section>
-
-<section class="{{ section_class }}" id="ket-noi">
-    <h2>Kết nối máy in theo loại thiết bị</h2>
-    <div class="table-responsive">
-        <table class="table table-sm align-middle mb-3">
-            <thead>
-                <tr><th>Thiết bị</th><th>USB</th><th>LAN / Wi-Fi</th><th>Bluetooth</th></tr>
-            </thead>
-            <tbody>
-                <tr><td class="fw-semibold">Máy tính Windows</td><td><span class="platform-tag ok">Được</span></td><td><span class="platform-tag ok">Được</span></td><td><span class="platform-tag warn">Cần driver</span></td></tr>
-                <tr><td class="fw-semibold">MacBook / iMac</td><td><span class="platform-tag ok">Được</span></td><td><span class="platform-tag ok">Được</span></td><td><span class="platform-tag no">Không nên</span></td></tr>
-                <tr><td class="fw-semibold">Android (tablet, máy POS)</td><td><span class="platform-tag warn">Cần app in</span></td><td><span class="platform-tag warn">Cần app in</span></td><td><span class="platform-tag warn">Cần app in</span></td></tr>
-                <tr><td class="fw-semibold">iPhone / iPad</td><td><span class="platform-tag no">Không</span></td><td><span class="platform-tag warn">Chỉ AirPrint</span></td><td><span class="platform-tag no">Không</span></td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <h3>Máy tính Windows</h3>
-    <ul>
-        <li><strong>USB:</strong> cài driver từ hãng máy in (Xprinter, Epson TM, Rongta…), cắm máy in rồi vào <em>Cài đặt › Bluetooth &amp; thiết bị › Máy in &amp; máy quét</em>, chọn máy in và <em>Đặt làm mặc định</em>. Tắt tuỳ chọn <em>Để Windows quản lý máy in mặc định</em>.</li>
-        <li><strong>LAN / Wi-Fi:</strong> in trang tự kiểm tra của máy in (thường giữ nút FEED khi bật nguồn) để xem địa chỉ IP, rồi <em>Thêm thiết bị › Thêm thủ công › Thêm máy in bằng địa chỉ IP</em>. Nên đặt IP tĩnh cho máy in để không bị đổi sau khi khởi động lại modem.</li>
-        <li><strong>Bluetooth:</strong> ghép đôi máy in trong <em>Bluetooth &amp; thiết bị</em>, Windows sẽ tạo một cổng COM. Cài driver của hãng và chọn đúng cổng COM đó (cổng <em>Outgoing</em>) khi thêm máy in. Bluetooth hay mất kết nối khi máy in tắt/bật, nên với máy cố định ở quầy hãy ưu tiên USB hoặc LAN.</li>
-    </ul>
-
-    <h3>MacBook / iMac</h3>
-    <ul>
-        <li>Vào <em>Cài đặt hệ thống › Máy in &amp; máy quét</em> để thêm máy in USB hoặc mạng. Máy in nhiệt cần driver macOS của hãng.</li>
-        <li>Hầu hết máy in nhiệt Bluetooth không có driver cho macOS. Hãy dùng USB hoặc LAN.</li>
-    </ul>
-
-    <h3>Android (tablet, máy POS cầm tay)</h3>
-    <ul>
-        <li>Chrome trên Android in qua <em>dịch vụ in</em> của hệ điều hành. Máy in nhiệt thường không có sẵn dịch vụ in, cần cài app dịch vụ in hỗ trợ máy in nhiệt (ESC/POS) của hãng máy in hoặc app bên thứ ba, rồi bật trong <em>Cài đặt › Kết nối thiết bị › In</em> (tên mục khác nhau tuỳ máy).</li>
-        <li>Máy POS Android có máy in liền thân thường kèm sẵn dịch vụ in của hãng: kiểm tra trong mục <em>In</em> của Cài đặt.</li>
-        <li>Sau khi cài, bấm <strong>In thử</strong> và chọn máy in trong hộp thoại in của Android.</li>
-    </ul>
-
-    <h3>iPhone / iPad</h3>
     <ul class="mb-0">
-        <li>iOS chỉ in được ra máy in hỗ trợ <strong>AirPrint</strong> (cùng mạng Wi-Fi). Máy in nhiệt Bluetooth hoặc USB không in được từ trình duyệt trên iPhone/iPad.</li>
-        <li>Nếu quán dùng iPad làm POS, hãy chọn máy in nhiệt có AirPrint, hoặc để một máy tính/tablet Android nối máy in và bật tự in ở đó (VD màn hình bếp).</li>
+        <li><a href="#in-truc-tiep"><strong>In thẳng</strong></a>: gửi phiếu thẳng tới máy in nhiệt USB / Bluetooth. Không cần cài máy in, không hiện hộp thoại. Dùng Chrome hoặc Edge.</li>
+        <li><a href="#ket-noi"><strong>In qua hộp thoại</strong></a>: dùng máy in đã cài trong máy (kể cả máy in mạng LAN / Wi-Fi). Mỗi lần in phải bấm nút <em>In</em>.</li>
     </ul>
 </section>
 
 <section class="{{ section_class }}" id="in-truc-tiep">
-    <h2>In thẳng tới máy in nhiệt USB / Bluetooth</h2>
-    <p>Trên <strong>Chrome hoặc Edge</strong> (máy tính, Android), eApp FnB gửi phiếu thẳng tới máy in nhiệt ESC/POS, không mở hộp thoại in và không cần cài máy in trong hệ điều hành.</p>
+    <h2>Cách 1: In thẳng (khuyên dùng)</h2>
     <ol>
-        <li>Mở <em>Thiết lập › In ấn</em> (trên POS: bấm biểu tượng máy in ở thanh trên cùng; trên màn hình bếp: nút <em>Thiết lập</em>).</li>
-        <li>Bật máy in, rồi bấm nút dò theo cách kết nối:
+        <li>Mở <em>Thiết lập › In ấn</em>.</li>
+        <li>Bật máy in, bấm nút dò:
             <ul>
-                <li><strong>Dò Bluetooth LE</strong>: thử trước với máy in Bluetooth mini (VD MPT-II), thường ổn định hơn.</li>
-                <li><strong>Dò Bluetooth</strong>: máy in Bluetooth thường; trên máy tính cần ghép đôi (pair) trong cài đặt Bluetooth trước.</li>
-                <li><strong>Dò USB</strong>: máy in cắm cáp USB. Windows cần driver WinUSB cho máy in (VD dùng công cụ Zadig).</li>
+                <li><strong>Dò Bluetooth LE</strong>: máy in Bluetooth mini (VD MPT-II). Nên thử nút này trước.</li>
+                <li><strong>Dò Bluetooth</strong>: máy in Bluetooth khác. Trên máy tính, ghép đôi máy in trong cài đặt Bluetooth trước.</li>
+                <li><strong>Dò USB</strong>: máy in cắm cáp. Windows cần cài driver WinUSB (dùng công cụ Zadig).</li>
             </ul>
         </li>
-        <li>Chọn máy in trong hộp thoại của trình duyệt, bấm <strong>In mẫu nhanh</strong> để kiểm tra. Có thể bấm <strong>Đặt tên</strong> (VD "Máy in quầy").</li>
-        <li>Trên POS chọn riêng <em>Máy in hoá đơn</em> và <em>Máy in phiếu bếp</em>; chưa chọn máy in phiếu bếp thì phiếu bếp in ra máy in hoá đơn.</li>
+        <li>Chọn máy in trong danh sách hiện ra, bấm <strong>In mẫu nhanh</strong> để thử.</li>
+        <li>Trên POS chọn <em>Máy in hoá đơn</em> và <em>Máy in phiếu bếp</em>. Bỏ trống máy in phiếu bếp thì phiếu bếp in chung máy in hoá đơn.</li>
     </ol>
-    <p class="mb-1"><strong>Đèn trạng thái máy in</strong> (cạnh tên máy in và trên biểu tượng máy in):</p>
-    <ul>
-        <li><span class="platform-tag ok">Đang kết nối</span> sẵn sàng in ngay; <span class="platform-tag ok">Đã lưu, chưa kết nối</span> sẽ tự kết nối khi in.</li>
-        <li><span class="platform-tag warn">Cần dò lại</span> trình duyệt không còn nhớ máy in: bấm nút dò và chọn lại máy.</li>
-        <li><span class="platform-tag no">Lần in gần nhất bị lỗi</span> kiểm tra máy in đã bật, còn giấy, ở gần và không kết nối với điện thoại khác, rồi bấm <em>Kết nối</em>.</li>
+
+    <div class="help-note">
+        <div class="fw-bold mb-1">Bắt buộc với máy in Bluetooth LE</div>
+        <p class="small mb-1">Nếu không làm bước này, mỗi lần tải lại trang phải dò lại máy in. Làm một lần trên mỗi máy:</p>
+        <ol class="small mb-1">
+            <li>Mở Chrome, dán vào thanh địa chỉ:</li>
+        </ol>
+        <code class="help-code">chrome://flags/#enable-web-bluetooth-new-permissions-backend</code>
+        <ol class="small mb-0" start="2">
+            <li>Chọn <strong>Enabled</strong>, bấm <strong>Relaunch</strong>.</li>
+            <li>Vào lại eApp FnB, bấm <em>Dò Bluetooth LE</em> và chọn máy in.</li>
+        </ol>
+        <p class="small text-muted mt-1 mb-0">Edge: mở <code>edge://flags</code>, tìm "Web Bluetooth" và bật mục tương tự.</p>
+    </div>
+
+    <p class="mb-1"><strong>Đèn trạng thái</strong> (cạnh tên máy in):</p>
+    <ul class="mb-0">
+        <li><span class="platform-tag ok">Đang kết nối</span> / <span class="platform-tag ok">Đã lưu, chưa kết nối</span>: in được.</li>
+        <li><span class="platform-tag warn">Cần dò lại</span>: bấm nút dò và chọn lại máy in.</li>
+        <li><span class="platform-tag no">Lần in gần nhất bị lỗi</span>: kiểm tra máy in đã bật, còn giấy, không đang nối với điện thoại khác, rồi bấm <em>Kết nối</em>.</li>
     </ul>
-    <h3>Để Chrome nhớ máy in Bluetooth LE (không phải dò lại mỗi lần tải trang)</h3>
-    <ol class="mb-1">
-        <li>Mở Chrome, dán vào thanh địa chỉ:</li>
-    </ol>
-    <code class="help-code">chrome://flags/#enable-web-bluetooth-new-permissions-backend</code>
-    <ol start="2">
-        <li>Ở mục <em>Use the new permissions backend for Web Bluetooth</em> chọn <strong>Enabled</strong>, bấm <strong>Relaunch</strong> để khởi động lại Chrome.</li>
-        <li>Vào lại eApp FnB, bấm <em>Dò Bluetooth LE</em> chọn máy in <strong>một lần</strong>. Từ đó tải lại trang vẫn in thẳng được.</li>
-    </ol>
-    <p class="small mb-0">Làm trên từng máy POS / máy bếp. Microsoft Edge: mở <code>edge://flags</code>, tìm "Web Bluetooth" và bật mục tương tự. Máy in USB và Bluetooth thường (Dò Bluetooth) trình duyệt luôn nhớ, không cần bước này. iPhone/iPad không hỗ trợ in thẳng.</p>
 </section>
 
-<section class="{{ section_class }}" id="khong-hop-thoai">
-    <h2>In không cần bấm hộp thoại</h2>
-    <p>Bình thường mỗi lần in trình duyệt đều mở hộp thoại để bấm <em>In</em>. Trên máy tính có thể cho Chrome / Edge in thẳng ra máy in:</p>
+<section class="{{ section_class }}" id="ket-noi">
+    <h2>Cách 2: In qua hộp thoại</h2>
     <ol>
-        <li>In thử một lần qua hộp thoại như ở <a href="#bat-dau">mục 1</a> để trình duyệt nhớ máy in, khổ giấy và lề.</li>
-        <li>Đóng <strong>hết</strong> cửa sổ Chrome (kể cả Chrome chạy nền ở khay hệ thống), rồi mở Chrome bằng tuỳ chọn <code>--kiosk-printing</code>:</li>
+        <li><strong>Cài máy in vào máy</strong> và đặt làm máy in mặc định:
+            <ul>
+                <li>Windows: <em>Cài đặt › Bluetooth &amp; thiết bị › Máy in &amp; máy quét</em> (cài driver của hãng trước).</li>
+                <li>Mac: <em>Cài đặt hệ thống › Máy in &amp; máy quét</em>.</li>
+                <li>Android: cài app dịch vụ in của hãng máy in.</li>
+                <li>iPhone / iPad: chỉ in được ra máy in có AirPrint, cùng mạng Wi-Fi.</li>
+                <li>Máy in mạng: đặt IP tĩnh cho máy in để không bị mất kết nối khi modem khởi động lại.</li>
+            </ul>
+        </li>
+        <li>Bấm <strong>In thử</strong>. Trong hộp thoại in chọn: đúng máy in, khổ giấy cuộn (80 mm / 58 mm), lề <strong>Không có</strong>, tỉ lệ <strong>100%</strong>, tắt <strong>Đầu trang và chân trang</strong>. Trình duyệt nhớ cho lần sau.</li>
     </ol>
-    <div class="fw-semibold small">Windows: tạo lối tắt (shortcut) trên màn hình, ô <em>Đích</em> (Target) nhập:</div>
+
+    <h3 id="khong-hop-thoai">Bỏ hộp thoại in (chỉ máy tính)</h3>
+    <p class="mb-1">In thử một lần như trên, đóng <strong>hết</strong> Chrome, rồi luôn mở eApp FnB bằng lối tắt dưới đây.</p>
+    <div class="fw-semibold small">Windows: tạo shortcut, ô <em>Target</em> nhập:</div>
     <code class="help-code">"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing {{ request.scheme }}://{{ request.get_host }}/</code>
-    <div class="fw-semibold small">Microsoft Edge:</div>
+    <div class="fw-semibold small">Edge:</div>
     <code class="help-code">"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk-printing {{ request.scheme }}://{{ request.get_host }}/</code>
-    <div class="fw-semibold small">macOS: mở Terminal và chạy:</div>
+    <div class="fw-semibold small">Mac: chạy trong Terminal:</div>
     <code class="help-code">open -na "Google Chrome" --args --kiosk-printing {{ request.scheme }}://{{ request.get_host }}/</code>
-    <p class="small mb-0">Luôn mở eApp FnB bằng lối tắt này. Muốn đổi máy in thì mở Chrome bình thường, in một lần với máy in mới, rồi mở lại bằng lối tắt. Cách này không áp dụng cho điện thoại và tablet.</p>
+    <p class="small mb-0">Muốn đổi máy in: mở Chrome bình thường, in một lần với máy in mới, rồi mở lại bằng lối tắt.</p>
+</section>
+
+<section class="{{ section_class }}" id="bo-tri">
+    <h2>Tự in ở quầy và bếp</h2>
+    <ul>
+        <li><strong>Chỉ có 1 máy in:</strong> trên POS bật <em>Tự in hoá đơn</em>. Muốn in cả phiếu bếp thì bật thêm <em>Tự in phiếu bếp</em>.</li>
+        <li><strong>Máy in quầy + máy in bếp, dùng in thẳng:</strong> trên POS chọn 2 máy in khác nhau, bật cả hai nút tự in.</li>
+        <li><strong>Máy in bếp nối với máy khác (tablet/máy tính ở bếp):</strong> trên POS tắt <em>Tự in phiếu bếp</em>. Ở máy bếp mở <em>Màn hình bếp</em>, bật <em>Tự in phiếu</em>.</li>
+    </ul>
+    <p class="small mb-0">Mỗi phiếu chỉ tự in <strong>một lần</strong>, dù nhiều máy cùng bật tự in.</p>
 </section>
 
 <section class="{{ section_class }}" id="su-co">
-    <h2>Xử lý sự cố</h2>
-    <h3 class="mt-0">Chữ quá nhỏ, phiếu chỉ chiếm một phần giấy</h3>
-    <p>Khổ giấy trong hộp thoại in đang là A4. Chọn khổ cuộn của máy in, tỉ lệ 100%, và chọn đúng khổ ở phần <em>Thiết lập in</em>.</p>
-    <h3>Giấy in có thêm ngày giờ, đường dẫn trang web</h3>
-    <p>Tắt <em>Đầu trang và chân trang</em> trong phần <em>Cài đặt khác</em> của hộp thoại in.</p>
-    <h3>Bấm in nhưng không thấy gì</h3>
-    <p>Kiểm tra máy in đã bật, còn giấy và là máy in mặc định. Mở <em>Xem trước phiếu in thử</em> rồi bấm <em>In</em> để xem hộp thoại in có hiện ra không.</p>
-    <h3>Phiếu bếp có dấu "IN LẠI"</h3>
-    <p>Chỉ xuất hiện khi có người bấm in lại phiếu đã in. Tự in chỉ in mỗi phiếu một lần dù nhiều thiết bị cùng bật. Quản lý xem lịch sử in lại trong <em>Nhật ký hoạt động</em>.</p>
-    <h3 class="mb-1">Trên iPhone/iPad, phiếu thứ hai in chậm</h3>
-    <p class="mb-0">iOS không phải lúc nào cũng báo đã in xong, nên hệ thống chờ tối đa 30 giây rồi mới in phiếu tiếp theo.</p>
+    <h2>Gặp lỗi</h2>
+    <ul class="mb-0">
+        <li><strong>Chữ nhỏ, phiếu chỉ chiếm một góc giấy:</strong> hộp thoại in đang chọn khổ A4. Chọn khổ cuộn và tỉ lệ 100%.</li>
+        <li><strong>Giấy in thêm ngày giờ, đường dẫn web:</strong> tắt <em>Đầu trang và chân trang</em> trong hộp thoại in.</li>
+        <li><strong>Bấm in mà không ra giấy:</strong> kiểm tra máy in đã bật, còn giấy, đúng máy in được chọn. Bấm <em>In thử</em> để kiểm tra lại.</li>
+        <li><strong>Phiếu bếp có chữ "IN LẠI":</strong> có người bấm in lại phiếu đã in. Quản lý xem trong <em>Nhật ký hoạt động</em>.</li>
+        <li><strong>iPhone / iPad in phiếu thứ hai chậm:</strong> hệ thống chờ tối đa 30 giây giữa hai lần in, đây là giới hạn của iOS.</li>
+    </ul>
 </section>

@@ -17,3 +17,20 @@
     .checkout-picker-input .form-control { font-size: 16px; }
     .checkout-picker-input .btn { min-height: 38px; min-width: 38px; }
 }
+.checkout-clearable-input { position: relative; display: flex; flex: 1 1 auto; min-width: 0; width: 1%; }
+.checkout-clearable-input .form-control { width: 100%; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.checkout-clearable-input .form-control.has-clear-value { padding-right: 2rem; }
+.checkout-input-clear {
+    position: absolute; top: 2px; right: 2px; bottom: 2px; z-index: 5;
+    display: flex; align-items: center; justify-content: center; width: 30px;
+    padding: 0; border: 0; border-radius: .25rem; background: transparent;
+    color: #64748b; font-size: 1.25rem; line-height: 1; cursor: pointer;
+}
+.checkout-input-clear[hidden] { display: none !important; }
+.checkout-input-clear:hover { color: #dc3545; background: #f8fafc; }
+.checkout-input-clear:focus-visible { outline: 2px solid var(--brand-primary, #10b981); outline-offset: -2px; }
+
+.checkout-clearable-input:only-child .form-control {
+    border-top-right-radius: var(--bs-border-radius, .375rem);
+    border-bottom-right-radius: var(--bs-border-radius, .375rem);
+}
