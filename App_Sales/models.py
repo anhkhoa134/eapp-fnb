@@ -320,6 +320,7 @@ class Promotion(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='promotions')
     stores = models.ManyToManyField('App_Tenant.Store', related_name='promotions', blank=True)
     name = models.CharField(max_length=150)
+    code = models.CharField('Mã khuyến mãi', max_length=40, blank=True, default='')
     discount_type = models.CharField(max_length=20, choices=DiscountType.choices)
     discount_value = models.DecimalField(max_digits=14, decimal_places=2)
     min_order_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
@@ -329,6 +330,9 @@ class Promotion(TimeStampedModel):
     is_active = models.BooleanField('Đang hoạt động', default=True)
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], condition=~models.Q(code=''), name='uq_fnb_promotion_code'),
+        ]
         indexes = [
             models.Index(fields=['tenant', 'is_active']),
             models.Index(fields=['tenant', 'valid_from', 'valid_to']),
@@ -338,6 +342,7 @@ class Promotion(TimeStampedModel):
         verbose_name_plural = 'Khuyến mãi'
 
     def clean(self):
+        self.code = (self.code or '').strip().upper()
         self.name = (self.name or '').strip()
         if not self.name:
             raise ValidationError({'name': 'Vui lòng nhập tên khuyến mãi.'})
@@ -569,7 +574,21 @@ class QROrderItemTopping(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class TableCartItem(TimeStampedModel):
+class PriceOverrideSnapshot(models.Model):
+    # Đơn giá cả món (gồm topping), giữ nguyên người chỉnh khi chuyển bàn/thu ngân khác thu tiền.
+    original_unit_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    price_override_reason = models.CharField(max_length=255, blank=True)
+    price_overridden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    price_overridden_by_name = models.CharField(max_length=150, blank=True)
+    price_overridden_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class TableCartItem(PriceOverrideSnapshot, TimeStampedModel):
     class Source(models.TextChoices):
         STAFF = 'STAFF', 'Nhân viên'
         QR = 'QR', 'QR'
@@ -640,7 +659,7 @@ class TableCartItemTopping(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
-class OrderItem(TimeStampedModel):
+class OrderItem(PriceOverrideSnapshot, TimeStampedModel):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('App_Catalog.Product', on_delete=models.SET_NULL, null=True, blank=True)
     unit = models.ForeignKey('App_Catalog.ProductUnit', on_delete=models.SET_NULL, null=True, blank=True)

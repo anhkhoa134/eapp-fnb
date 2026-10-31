@@ -196,7 +196,8 @@ class ReceiptPrintTests(OpsTestBase):
             self.assertIn(f'data-dp-scan="{kind}"', html)
         self.assertIn('data-dp-sample', html)
         self.assertIn("?first_only=1`, 'kitchen')", html)  # tự in phiếu bếp từ POS dùng máy in phiếu bếp
-        self.assertIn('id="posPrinterShortcut"', html)  # biểu tượng máy in có đèn trạng thái
+        self.assertNotIn('id="posPrinterShortcut"', html)
+        self.assertNotIn('id="nav-bell-icon"', html)
         self.assertIn('data-dp-badge', html)
         # Tab Mẫu phiếu + hướng dẫn bật cờ Chrome để nhớ máy in Bluetooth LE.
         self.assertIn('id="posSettingsTabReceipt"', html)

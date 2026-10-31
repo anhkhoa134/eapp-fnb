@@ -24,6 +24,7 @@ class AuditLog(models.Model):
         SHIFT_OPEN = 'shift.open', 'Mở ca'
         SHIFT_CLOSE = 'shift.close', 'Chốt ca'
         CART_VOID = 'cart.void', 'Huỷ món'
+        CART_PRICE_OVERRIDE = 'cart.price_override', 'Chỉnh giá bán'
         TABLE_MOVE = 'table.move', 'Chuyển bàn'
         QR_APPROVE = 'qr.approve', 'Duyệt đơn QR'
         QR_REJECT = 'qr.reject', 'Từ chối đơn QR'

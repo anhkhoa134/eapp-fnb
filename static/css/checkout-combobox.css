@@ -1,0 +1,19 @@
+.checkout-combobox-popup {
+    position: fixed; inset: auto; margin: 0; z-index: 1100;
+    box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain;
+    font-size: .875rem; text-align: left;
+}
+.checkout-combobox-popup[hidden] { display: none !important; }
+.checkout-combobox-option { min-height: 44px; padding: .6rem .7rem; cursor: pointer; overflow-wrap: anywhere; }
+.checkout-combobox-meta, .checkout-combobox-status { color: #64748b; font-size: .78rem; }
+.checkout-combobox-status { padding: .5rem .7rem; }
+.checkout-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: .3rem; margin-bottom: .35rem; }
+.checkout-picker-heading label { margin: 0 !important; }
+.checkout-picker-heading .btn { padding: .15rem .45rem; }
+.checkout-picker-input { min-width: 0; }
+.checkout-picker-input .form-control { min-width: 0; padding-left: .45rem; padding-right: .3rem; }
+.checkout-picker-input .btn { padding-left: .4rem; padding-right: .4rem; }
+@media (max-width: 767.98px) {
+    .checkout-picker-input .form-control { font-size: 16px; }
+    .checkout-picker-input .btn { min-height: 38px; min-width: 38px; }
+}

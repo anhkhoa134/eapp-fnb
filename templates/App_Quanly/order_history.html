@@ -402,7 +402,14 @@
                                 </td>
                                 <td>{{ item.snapshot_unit_name }}</td>
                                 <td class="text-center">{{ item.quantity|thousand_sep }}</td>
-                                <td class="text-end">{{ item.unit_price|thousand_sep }} đ</td>
+                                <td class="text-end">
+                                    {{ item.unit_price|thousand_sep }} đ
+                                    {% if item.original_unit_price != None %}
+                                    <div class="small text-muted"><s>{{ item.original_unit_price|thousand_sep }} đ</s></div>
+                                    <div class="small text-primary">Chỉnh bởi {{ item.price_overridden_by_name }} · {{ item.price_overridden_at|date:'d/m/Y H:i' }}</div>
+                                    {% if item.price_override_reason %}<div class="small text-muted">{{ item.price_override_reason }}</div>{% endif %}
+                                    {% endif %}
+                                </td>
                                 <td class="text-end fw-semibold">{{ item.line_total|thousand_sep }} đ</td>
                             </tr>
                             {% empty %}
@@ -615,7 +622,14 @@
                                 </td>
                                 <td>{{ item.snapshot_unit_name }}</td>
                                 <td class="text-center">{{ item.quantity|thousand_sep }}</td>
-                                <td class="text-end">{{ item.unit_price_snapshot|thousand_sep }} đ</td>
+                                <td class="text-end">
+                                    {{ item.unit_price_snapshot|thousand_sep }} đ
+                                    {% if item.original_unit_price != None %}
+                                    <div class="small text-muted"><s>{{ item.original_unit_price|thousand_sep }} đ</s></div>
+                                    <div class="small text-primary">Chỉnh bởi {{ item.price_overridden_by_name }} · {{ item.price_overridden_at|date:'d/m/Y H:i' }}</div>
+                                    {% if item.price_override_reason %}<div class="small text-muted">{{ item.price_override_reason }}</div>{% endif %}
+                                    {% endif %}
+                                </td>
                                 <td class="text-end fw-semibold">{{ item.line_total|thousand_sep }} đ</td>
                             </tr>
                             {% empty %}

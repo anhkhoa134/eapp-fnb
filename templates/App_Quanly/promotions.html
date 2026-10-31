@@ -63,7 +63,7 @@
                 <tbody>
                     {% for promotion in page_obj %}
                     <tr>
-                        <td class="fw-semibold">{{ promotion.name }}</td>
+                        <td class="fw-semibold">{{ promotion.name }}{% if promotion.code %}<div class="small text-muted">{{ promotion.code }}</div>{% endif %}</td>
                         <td>
                             {% if promotion.discount_type == 'percent' %}
                             {{ promotion.discount_value|thousand_sep }}%
@@ -104,6 +104,7 @@
                                     data-bs-target="#editPromotionModal"
                                     data-action="{% url 'App_Quanly:promotion_edit' promotion.id %}"
                                     data-name="{{ promotion.name|escape }}"
+                                    data-code="{{ promotion.code|escape }}"
                                     data-discount-type="{{ promotion.discount_type }}"
                                     data-discount-value="{{ promotion.discount_value|stringformat:'s' }}"
                                     data-min-order="{{ promotion.min_order_amount|stringformat:'s' }}"
@@ -149,6 +150,10 @@
                         <div class="full">
                             <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">Tên khuyến mãi</label>
                             {{ form.name }}{{ form.name.errors }}
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="{{ form.code.id_for_label }}">Mã khuyến mãi (tuỳ chọn)</label>
+                            {{ form.code }}{{ form.code.errors }}
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="{{ form.discount_type.id_for_label }}">Loại giảm</label>
@@ -220,6 +225,10 @@
                         <div class="full">
                             <label class="form-label fw-semibold" for="edit-promotion-name">Tên khuyến mãi</label>
                             <input class="form-control" id="edit-promotion-name" name="name" maxlength="150" placeholder="VD: Giảm 10% cuối tuần" required>
+                        </div>
+                        <div class="full">
+                            <label class="form-label fw-semibold" for="edit-promotion-code">Mã khuyến mãi (tuỳ chọn)</label>
+                            <input class="form-control" id="edit-promotion-code" name="code" maxlength="40" placeholder="VD: SALE10">
                         </div>
                         <div>
                             <label class="form-label fw-semibold" for="edit-promotion-discount-type">Loại giảm</label>
@@ -312,6 +321,9 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(location.search).get('create') === '1') {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('createPromotionModal')).show();
+    }
     // Server gửi ISO theo giờ cửa hàng (VD 2026-10-29T14:00:00+07:00): lấy nguyên phần ngày giờ,
     // không đổi sang múi giờ của máy đang mở trang.
     const toDateTimeLocal = (value) => {
@@ -324,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
             button.addEventListener('click', () => {
                 document.getElementById('editPromotionForm').action = button.dataset.action || '';
                 document.getElementById('edit-promotion-name').value = button.dataset.name || '';
+                document.getElementById('edit-promotion-code').value = button.dataset.code || '';
                 document.getElementById('edit-promotion-discount-type').value = button.dataset.discountType || 'percent';
                 document.getElementById('edit-promotion-discount-value').value = button.dataset.discountValue || '';
                 document.getElementById('edit-promotion-min-order').value = button.dataset.minOrder || '0';

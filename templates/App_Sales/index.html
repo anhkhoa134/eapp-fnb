@@ -730,6 +730,13 @@
             background: rgba(16, 185, 129, 0.08);
             padding: 0.45rem 0.52rem;
         }
+        #payment-customer-panel .selected-customer-head {
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+        #payment-customer-panel .selected-customer-name {
+            flex-basis: 100%;
+        }
         .selected-customer-card .min-w-0 {
             flex: 1 1 auto;
         }
@@ -860,8 +867,33 @@
         }
         @media (max-width: 767.98px) {
             .payment-meta-grid {
-                grid-template-columns: 1fr;
+                gap: 0.5rem;
             }
+            #paymentModal .modal-header { padding: 0.85rem 1rem; }
+            #paymentModal .modal-title { font-size: 1.1rem; }
+            #paymentModal .payment-cart-panel { padding: 0.85rem 1rem !important; max-height: 220px !important; }
+            #paymentModal .payment-cart-panel > p { margin-bottom: 0.5rem !important; }
+            #paymentModal .payment-form-panel { padding: 1rem !important; }
+            #paymentModal .payment-due-summary {
+                display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+                text-align: left !important; margin-bottom: 0.75rem !important;
+            }
+            #paymentModal .payment-due-summary p { font-size: 0.85rem; margin: 0 !important; }
+            #paymentModal #modal-total-due { font-size: 1.45rem; margin: 0; white-space: nowrap; }
+            #paymentModal .payment-breakdown { padding: 0.65rem 0.75rem !important; }
+            #paymentModal .payment-panel { padding: 0.5rem; }
+            #paymentModal .payment-section-label { font-size: 0.72rem; }
+            #paymentModal .customer-combobox .form-control { padding: 0.4rem; font-size: 16px; }
+            #paymentModal .customer-combobox .btn { padding: 0.4rem 0.5rem; }
+            #paymentModal .promotion-picker-btn { padding: 0.45rem; }
+            #paymentModal .promotion-picker-title { font-size: 0.8rem; }
+            #paymentModal .promotion-menu { width: min(290px, calc(100vw - 64px)); right: 0; left: auto; }
+            #paymentModal #change-wrapper { padding: 0.7rem !important; gap: 0.5rem; }
+            #paymentModal #change-wrapper > span:first-child { font-size: 0.9rem !important; }
+            #paymentModal #modal-change-due { font-size: 1.15rem !important; white-space: nowrap; }
+            #paymentModal .modal-footer { flex-wrap: nowrap; gap: 0.5rem; padding: 0.5rem 1rem 1rem !important; }
+            #paymentModal .modal-footer .btn { margin: 0; padding: 0.65rem 0.8rem !important; font-size: 0.875rem; white-space: nowrap; }
+            #paymentModal #btn-confirm-payment { flex: 1; min-width: 0; }
         }
 
         /* --- Mobile Floating Button --- */
@@ -1425,23 +1457,6 @@
                     <span class="pos-store-chip-name">{{ default_store_name }}</span>
                 </span>
                 {% endif %}
-                <ul class="navbar-nav mb-2 mb-lg-0 align-items-lg-center top-nav-tools">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="posPrinterShortcut" title="Máy in" aria-label="Máy in">
-                            <i class="fa-solid fa-print fs-5" aria-hidden="true"></i>
-                        </a>
-                    </li>
-                    {% if user.tenant.show_qr_order_feature %}
-                    <li class="nav-item">
-                        <a class="nav-link position-relative" href="#" onclick="event.preventDefault(); document.getElementById('tab-online').click();" title="Đơn QR chờ duyệt" aria-label="Đơn QR chờ duyệt">
-                            <i class="fa-regular fa-bell fs-5" id="nav-bell-icon" aria-hidden="true"></i>
-                            <span class="position-absolute top-25 start-75 translate-middle p-1 bg-danger border border-light rounded-circle d-none" id="nav-bell-dot">
-                                <span class="visually-hidden">Có đơn QR mới</span>
-                            </span>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
                 <div class="dropdown top-account-dropdown">
                     <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
                         <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=0D8ABC&color=fff" class="rounded-circle me-2" width="32" height="32" alt="Avatar">
@@ -1749,7 +1764,7 @@
                 <div class="modal-body p-0">
                     <div class="row g-0">
                         <!-- Left: Cart Items -->
-                        <div class="col-md-5 bg-light p-4 border-end d-flex flex-column" style="max-height: 550px;">
+                        <div class="col-md-5 bg-light p-4 border-end d-flex flex-column payment-cart-panel" style="max-height: 550px;">
                             <p class="text-muted mb-3 fw-bold">Danh sách món</p>
                             <div id="modal-cart-items" class="custom-scrollbar flex-grow-1" style="overflow-y: auto;">
                                 <!-- Injected via JS -->
@@ -1757,13 +1772,13 @@
                         </div>
                         
                         <!-- Right: Payment Form -->
-                        <div class="col-md-7 p-4">
-                            <div class="text-center mb-4">
+                        <div class="col-md-7 p-4 payment-form-panel">
+                            <div class="text-center mb-4 payment-due-summary">
                                 <p class="text-muted mb-1">Số tiền cần thanh toán</p>
                                 <h2 class="text-danger fw-bold" id="modal-total-due">0 đ</h2>
                             </div>
 
-                            <div class="bg-light rounded-3 p-3 mb-3">
+                            <div class="bg-light rounded-3 p-3 mb-3 payment-breakdown d-none" id="payment-breakdown">
                                 <div class="d-flex justify-content-between small mb-1">
                                     <span class="text-muted">Tạm tính</span>
                                     <span class="fw-semibold" id="modal-subtotal-due">0 đ</span>
@@ -1780,26 +1795,22 @@
 
                             <div class="payment-meta-grid" id="payment-meta-grid">
                                 <div class="payment-panel" id="payment-customer-panel">
-                                    <label class="payment-section-label" for="customer-search-input">
-                                        <i class="fa-solid fa-user"></i>Khách hàng
-                                    </label>
+                                    <div class="checkout-picker-heading">
+                                        <label class="payment-section-label" for="customer-search-input"><i class="fa-solid fa-user"></i>Khách hàng</label>
+                                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="openQuickCustomerModal()" title="Tạo khách hàng" aria-label="Tạo khách hàng">+</button>
+                                    </div>
                                     <div class="customer-picker-wrap">
-                                        <div class="input-group customer-combobox">
+                                        <div class="input-group customer-combobox checkout-picker-input">
                                             <input
                                                 type="text"
                                                 class="form-control"
                                                 id="customer-search-input"
-                                                placeholder="Gõ tên hoặc SĐT..."
+                                                placeholder="Tên/SĐT…"
                                                 autocomplete="off"
                                                 aria-autocomplete="list"
                                                 aria-expanded="false"
-                                                aria-controls="customer-search-results"
                                             >
-                                            <button class="btn btn-outline-primary" type="button" onclick="openQuickCustomerModal()" title="Tạo nhanh khách hàng" aria-label="Tạo nhanh khách hàng">
-                                                <i class="fa-solid fa-plus"></i>
-                                            </button>
                                         </div>
-                                        <div id="customer-search-results" class="customer-results-menu eapp-dropdown-menu eapp-dropdown-suggestions d-none"></div>
                                     </div>
                                     <div class="selected-customer-card mt-2 d-none" id="selected-customer-row">
                                         <div class="min-w-0">
@@ -1814,23 +1825,17 @@
                                 </div>
 
                                 <div class="payment-panel" id="payment-promotion-panel">
-                                    <label class="payment-section-label" for="promotion-dropdown-button">
-                                        <i class="fa-solid fa-tag"></i>Khuyến mãi
-                                    </label>
-                                    <div class="dropdown w-100 promotion-dropdown">
-                                        <button class="promotion-picker-btn" type="button" id="promotion-dropdown-button" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <span class="promotion-picker-content">
-                                                <span class="promotion-picker-line">
-                                                    <span class="promotion-picker-title text-truncate" id="promotion-dropdown-label">Không áp dụng</span>
-                                                    <span class="promotion-picker-discount d-none" id="promotion-dropdown-discount">-0 đ</span>
-                                                </span>
-                                            </span>
-                                            <i class="fa-solid fa-chevron-down text-muted flex-shrink-0"></i>
-                                        </button>
-                                        <div class="dropdown-menu promotion-menu eapp-dropdown-menu" id="promotion-dropdown-menu" aria-labelledby="promotion-dropdown-button">
-                                            <button class="dropdown-item" type="button" data-promotion-id="">Không áp dụng</button>
-                                        </div>
+                                    <div class="checkout-picker-heading">
+                                        <label class="payment-section-label" for="promotion-search-input"><i class="fa-solid fa-tag"></i>Khuyến mãi</label>
+                                        {% if user.is_manager %}<button class="btn btn-sm btn-outline-primary" type="button" onclick="openQuickPromotionModal()" title="Tạo khuyến mãi" aria-label="Tạo khuyến mãi">+</button>{% endif %}
                                     </div>
+                                    <div class="input-group checkout-picker-input flex-nowrap">
+                                        <input type="text" class="form-control" id="promotion-search-input" placeholder="Tên/mã…" aria-label="Tìm hoặc nhập mã khuyến mãi" autocomplete="off">
+                                        <button class="btn btn-sm btn-outline-primary text-nowrap" type="button" onclick="applyPromotionCode()">Áp mã</button>
+                                    </div>
+                                    <small class="d-block text-muted text-truncate mt-1 d-none" id="promotion-dropdown-label"></small>
+                                    <small class="text-success d-none" id="promotion-dropdown-discount"></small>
+                                    <div class="small text-danger mt-1 d-none" id="promotion-error" role="status"></div>
                                     <div class="payment-mini-help mt-2 d-none" id="promotion-tier-override-note">Đang áp dụng ưu đãi hạng tốt hơn.</div>
                                 </div>
                             </div>
@@ -1890,6 +1895,36 @@
         </div>
     </div>
 
+    <!-- PRICE OVERRIDE MODAL -->
+    <div class="modal fade" id="itemPriceModal" tabindex="-1" aria-labelledby="itemPriceTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <form class="modal-content" onsubmit="event.preventDefault(); saveItemPrice();">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="itemPriceTitle">Chỉnh giá bán</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="fw-semibold mb-1" id="price-item-name"></div>
+                    <p class="small text-muted mb-3">Giá gốc: <strong id="price-original-value"></strong></p>
+                    <label class="form-label" for="item-price-input">Đơn giá (đ)</label>
+                    <input type="text" class="form-control" id="item-price-input" inputmode="decimal" autocomplete="off" placeholder="VD: 45.000">
+                    <div class="form-text">Giá cho 1 món, đã gồm topping. Dùng dấu phẩy cho phần thập phân.</div>
+                    <label class="form-label mt-3" for="item-price-reason">Lý do <span class="small text-muted" id="price-reason-hint"></span></label>
+                    <input type="text" class="form-control" id="item-price-reason" maxlength="255" placeholder="VD: Khách quen">
+                    <div class="small text-muted mt-2">Thay đổi được lưu nhật ký cùng tài khoản của bạn.</div>
+                    <div class="alert alert-danger py-2 mt-2 mb-0 d-none" id="item-price-error" role="alert"></div>
+                </div>
+                <div class="modal-footer flex-nowrap gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="restore-item-price" onclick="saveItemPrice(true)">Giá gốc</button>
+                    <button type="submit" class="btn btn-primary flex-grow-1" id="save-item-price">Lưu giá</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if user.is_manager %}
+    {% include 'App_Sales/_quick_promotion_modal.html' with promotion_scope_help="Chương trình áp dụng tại cửa hàng hiện tại." %}
+    {% endif %}
     <!-- QUICK CUSTOMER MODAL -->
     <div class="modal fade" id="quickCustomerModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -2447,9 +2482,13 @@
     <script src="{% static 'js/eapp_dialog.js' %}"></script>
     
     <!-- Application Logic -->
+    <link rel="stylesheet" href="{% static 'css/checkout-combobox.css' %}">
+    <script src="{% static 'js/checkout-combobox.js' %}"></script>
+    <script src="{% static 'js/checkout-promotion.js' %}"></script>
     <script>
         const API_PRODUCTS_URL = "{% url 'App_Sales_API:products' %}";
         const API_CHECKOUT_URL = "{% url 'App_Sales_API:checkout' %}";
+        const API_CART_PRICE_URL = "{% url 'App_Sales_API:cart_price' %}";
         const API_CUSTOMERS_URL = "{% url 'App_Sales_API:customers' %}";
         const API_PROMOTIONS_URL = "{% url 'App_Sales_API:promotions' %}";
         const API_TABLES_URL = "{% url 'App_Sales_API:tables' %}";
@@ -2501,13 +2540,16 @@
         let lastTableContextId = null;
         let takeawayCart = [];
         let cart = [];
+        let hasPriceOverrideFeature = {{ user.tenant.feature_price_override_enabled|yesno:"true,false" }};
+        let priceOverrideReasonRequired = {{ user.tenant.price_override_reason_required|yesno:"true,false" }};
+        let editingPriceCartId = null;
+        let editingPriceTableId = null;
+        let priceModalInstance = null;
+        let priceSaveInFlight = false;
         let currentFilter = 'all';
         let cartSubtotalAmount = 0;
         let totalAmountDue = 0;
         let selectedCustomer = null;
-        let customerOptionMap = new Map();
-        let customerSearchTimer = null;
-        let customerSearchRequestSeq = 0;
         let hasCustomerFeature = TENANT_SHOW_CUSTOMER_FEATURE;
         let availablePromotions = [];
         let selectedPromotion = null;
@@ -3101,27 +3143,12 @@
             badge.classList.toggle('d-none', busyCount === 0);
         };
 
-        const updateNotificationBell = () => {
+        const updateOnlineOrderBadge = () => {
             if (!hasQrOrderFeature) return;
-            const pendingCount = onlineOrders.length;
-            const bellIcon = document.getElementById('nav-bell-icon');
-            const bellDot = document.getElementById('nav-bell-dot');
-            const onlineBadge = document.getElementById('nav-online-badge');
-            if (!bellIcon || !bellDot || !onlineBadge) return;
-            if (pendingCount > 0) {
-                bellIcon.classList.add('fa-solid');
-                bellIcon.classList.remove('fa-regular');
-                bellIcon.parentElement.classList.add('ringing');
-                bellDot.classList.remove('d-none');
-                onlineBadge.textContent = pendingCount;
-                onlineBadge.classList.remove('d-none');
-            } else {
-                bellIcon.classList.add('fa-regular');
-                bellIcon.classList.remove('fa-solid');
-                bellIcon.parentElement.classList.remove('ringing');
-                bellDot.classList.add('d-none');
-                onlineBadge.classList.add('d-none');
-            }
+            const badge = document.getElementById('nav-online-badge');
+            if (!badge) return;
+            badge.textContent = onlineOrders.length;
+            badge.classList.toggle('d-none', onlineOrders.length === 0);
         };
 
         // Đơn QR chờ duyệt quá lâu (khách đang đợi): đổi màu nhãn thời gian để nhân viên chú ý.
@@ -3198,7 +3225,7 @@
                         ${switchStoreHint}
                     </div>
                 `;
-                updateNotificationBell();
+                updateOnlineOrderBadge();
                 return;
             }
             container.innerHTML = '';
@@ -3224,12 +3251,94 @@
                     </div>
                 `);
             });
-            updateNotificationBell();
+            updateOnlineOrderBadge();
         };
 
         const toppingText = (toppings) => {
             if (!toppings || !toppings.length) return '';
             return toppings.map((row) => `${row.name} (+${formatCurrency(row.price)})`).join(', ');
+        };
+
+        const pricePayload = item => item.priceOverrideToken ? { price_override_token: item.priceOverrideToken } : {};
+        const applyPriceData = (item, data) => Object.assign(item, {
+            price: Number(data.price),
+            originalPrice: data.original_price === null || data.original_price === undefined ? null : Number(data.original_price),
+            priceOverrideReason: data.price_override_reason || '',
+            priceOverrideToken: data.price_override_token || null,
+        });
+
+        const openPriceModal = cartId => {
+            const item = cart.find(row => row.cartId === cartId);
+            if (!item || priceSaveInFlight || (!hasPriceOverrideFeature && !item.priceOverrideToken)) return;
+            editingPriceCartId = cartId;
+            editingPriceTableId = currentSelectedTableId;
+            document.getElementById('price-item-name').textContent = `${item.name} · ${item.size || ''}`;
+            document.getElementById('price-original-value').textContent = formatCurrency(item.originalPrice ?? item.price);
+            document.getElementById('item-price-input').value = new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 2}).format(item.price);
+            document.getElementById('item-price-input').disabled = !hasPriceOverrideFeature;
+            document.getElementById('item-price-reason').value = item.priceOverrideReason || '';
+            document.getElementById('item-price-reason').required = hasPriceOverrideFeature && priceOverrideReasonRequired;
+            document.getElementById('price-reason-hint').textContent = priceOverrideReasonRequired ? '(bắt buộc)' : '(tuỳ chọn)';
+            document.getElementById('save-item-price').disabled = !hasPriceOverrideFeature;
+            document.getElementById('restore-item-price').disabled = !item.priceOverrideToken;
+            document.getElementById('item-price-error').classList.add('d-none');
+            const modal = document.getElementById('itemPriceModal');
+            priceModalInstance = bootstrap.Modal.getOrCreateInstance(modal);
+            const offcanvas = document.getElementById('cartOffcanvas');
+            if (offcanvas.classList.contains('show') && window.matchMedia('(max-width: 991.98px)').matches) {
+                offcanvas.addEventListener('hidden.bs.offcanvas', () => priceModalInstance.show(), {once: true});
+                modal.addEventListener('hidden.bs.modal', () => bootstrap.Offcanvas.getOrCreateInstance(offcanvas).show(), {once: true});
+                dismissMobileCartOffcanvas();
+            } else priceModalInstance.show();
+        };
+
+        const saveItemPrice = async (restore = false) => {
+            if (priceSaveInFlight) return;
+            const item = cart.find(row => row.cartId === editingPriceCartId);
+            if (!item || editingPriceTableId !== currentSelectedTableId) return;
+            const errorBox = document.getElementById('item-price-error');
+            errorBox.classList.add('d-none');
+            const raw = document.getElementById('item-price-input').value.trim();
+            const price = Number(raw.replace(/\./g, '').replace(',', '.'));
+            const reason = document.getElementById('item-price-reason').value.trim();
+            try {
+                if (!restore) {
+                    if (!hasPriceOverrideFeature) throw new Error('Tính năng chỉnh giá đang tắt.');
+                    if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(raw) || !Number.isFinite(price) || price < 0 || price > 999999999999) {
+                        throw new Error('Nhập giá hợp lệ, ví dụ 45.000 hoặc 45.000,50; tối đa 999.999.999.999 đ.');
+                    }
+                    if (priceOverrideReasonRequired && !reason) throw new Error('Vui lòng nhập lý do chỉnh giá.');
+                }
+                priceSaveInFlight = true;
+                document.getElementById('save-item-price').disabled = true;
+                document.getElementById('restore-item-price').disabled = true;
+                const payload = {override_price: restore ? null : price.toFixed(2), price_override_reason: reason};
+                if (item.tableItemId && currentSelectedTableId !== null) {
+                    const data = await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, {
+                        method: 'PATCH', body: JSON.stringify(payload),
+                    });
+                    applyPriceData(item, data.item);
+                    loadTablesFromApi().catch(() => null);
+                } else {
+                    const data = await fetchJson(API_CART_PRICE_URL, {
+                        method: 'POST', body: JSON.stringify({
+                            ...payload, ...pricePayload(item), store_id: currentStoreId,
+                            product_id: item.id, unit_id: item.unitId, topping_ids: item.toppingIds || [],
+                        }),
+                    });
+                    applyPriceData(item, data);
+                }
+                renderCart();
+                priceModalInstance.hide();
+                showToast(restore ? 'Đã khôi phục giá gốc.' : 'Đã lưu giá bán và nhật ký.', 'success');
+            } catch (error) {
+                errorBox.textContent = error.message;
+                errorBox.classList.remove('d-none');
+            } finally {
+                priceSaveInFlight = false;
+                document.getElementById('save-item-price').disabled = !hasPriceOverrideFeature;
+                document.getElementById('restore-item-price').disabled = !item.priceOverrideToken;
+            }
         };
 
         const renderCart = () => {
@@ -3266,10 +3375,12 @@
                             <h6 class="mb-1 text-truncate" style="max-width: 90%;">${escapeHtml(item.name)} ${sourceHtml}</h6>
                             <span class="badge bg-secondary mb-1">${escapeHtml(item.size || '')}</span>${kitchenBadgeHtml(item)}
                             <div class="d-flex align-items-center flex-wrap">
+                                ${item.priceOverrideToken ? `<small class="text-muted text-decoration-line-through me-1" title="Giá gốc">${formatCurrency(item.originalPrice)}</small>` : ''}
                                 <small class="text-danger fw-bold me-2">${item.qty > 1
                                     ? `${formatCurrency(item.price)} × ${item.qty} = ${formatCurrency(item.price * item.qty)}`
                                     : formatCurrency(item.price)}</small>
-                                <button class="btn btn-sm text-secondary p-0" onclick="openNoteModal('${item.cartId}')" title="Ghi chú" aria-label="Ghi chú cho ${escapeHtml(item.name)}"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                ${hasPriceOverrideFeature || item.priceOverrideToken ? `<button type="button" class="btn btn-sm text-primary px-2 py-1" onclick="openPriceModal('${item.cartId}')" title="Chỉnh giá bán" aria-label="Chỉnh giá bán ${escapeHtml(item.name)}"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>` : ''}
+                                <button class="btn btn-sm text-secondary px-1" onclick="openNoteModal('${item.cartId}')" title="Ghi chú" aria-label="Ghi chú cho ${escapeHtml(item.name)}"><i class="fa-regular fa-comment" aria-hidden="true"></i></button>
                             </div>
                             ${toppingHtml}
                             ${noteHtml}
@@ -3353,6 +3464,8 @@
             if (!currentStoreId) return;
             const params = new URLSearchParams({ store_id: currentStoreId });
             const payload = await fetchJson(`${API_PRODUCTS_URL}?${params.toString()}`);
+            hasPriceOverrideFeature = !!payload.price_override_enabled;
+            priceOverrideReasonRequired = !!payload.price_override_reason_required;
 
             const st = payload.store || {};
             storePaymentInfo = {
@@ -3628,6 +3741,9 @@
                 name: item.name,
                 size: item.size,
                 price: Number(item.price || 0),
+                originalPrice: item.original_price === null ? null : Number(item.original_price),
+                priceOverrideReason: item.price_override_reason || '',
+                priceOverrideToken: item.price_override_token || null,
                 qty: item.qty,
                 note: item.note || '',
                 source: item.source || 'STAFF',
@@ -3792,6 +3908,7 @@
                         quantity: item.qty,
                         note: item.note || '',
                         topping_ids: item.toppingIds || [],
+                        ...pricePayload(item),
                     })),
                 }),
             });
@@ -3889,6 +4006,9 @@
                     name: item.name,
                     size: item.size || '',
                     price: Number(item.price || 0),
+                    originalPrice: item.originalPrice,
+                    priceOverrideReason: item.priceOverrideReason,
+                    priceOverrideToken: item.priceOverrideToken,
                     qty: item.qty,
                     note: item.note || '',
                     source: item.source || 'STAFF',
@@ -4225,8 +4345,11 @@
                     showToast(error.message, 'danger');
                 }
             } else {
-                const cartId = buildTakeawayCartId({ productId, unitId, toppingIds });
-                const existing = cart.find((item) => item.cartId === cartId && (item.note || '') === (note || ''));
+                const baseId = buildTakeawayCartId({ productId, unitId, toppingIds });
+                const cartId = `${baseId}::${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                const existing = cart.find((item) => !item.priceOverrideToken && item.id === productId && item.unitId === unitId &&
+                    buildTakeawayCartId({productId: item.id, unitId: item.unitId, toppingIds: item.toppingIds || []}) === baseId &&
+                    (item.note || '') === (note || ''));
                 if (existing) {
                     existing.qty += 1;
                 } else {
@@ -4468,12 +4591,6 @@
             updatePaymentMetaVisibility();
         };
 
-        const customerOptionValue = (customer) => {
-            const tier = customer.tier_label || customer.tier || 'Member';
-            const points = Number(customer.points_balance || 0);
-            return `${customer.name} - ${customer.phone} - ${tier} - ${points} điểm`;
-        };
-
         const normalizeCustomerTierKey = (customer) => {
             const rawTier = String(customer?.tier || customer?.tier_label || 'member').toLowerCase();
             if (rawTier.includes('vip')) return 'vip';
@@ -4524,106 +4641,14 @@
         const clearSelectedCustomer = () => {
             selectedCustomer = null;
             const input = document.getElementById('customer-search-input');
-            const results = document.getElementById('customer-search-results');
             if (input) input.value = '';
-            if (results) {
-                results.innerHTML = '';
-                results.classList.add('d-none');
-            }
-            customerOptionMap.clear();
+            hideCustomerResults();
             updateSelectedCustomerUi();
             updatePaymentTotals();
         };
 
-        const hideCustomerResults = () => {
-            const results = document.getElementById('customer-search-results');
-            const input = document.getElementById('customer-search-input');
-            if (results) results.classList.add('d-none');
-            if (input) input.setAttribute('aria-expanded', 'false');
-        };
-
-        const showCustomerResults = () => {
-            const results = document.getElementById('customer-search-results');
-            const input = document.getElementById('customer-search-input');
-            if (results && results.innerHTML.trim()) {
-                results.classList.remove('d-none');
-                if (input) input.setAttribute('aria-expanded', 'true');
-            }
-        };
-
-        const renderCustomerOptions = (customers) => {
-            const results = document.getElementById('customer-search-results');
-            if (!results) return;
-            customerOptionMap = new Map();
-            results.innerHTML = '';
-            if (!customers.length) {
-                const query = (document.getElementById('customer-search-input')?.value || '').trim();
-                if (query.length >= 2) {
-                    results.innerHTML = '<div class="customer-result-empty">Không tìm thấy khách phù hợp.</div>';
-                    showCustomerResults();
-                } else {
-                    hideCustomerResults();
-                }
-                return;
-            }
-            customers.forEach((customer) => {
-                const value = customerOptionValue(customer);
-                customerOptionMap.set(value, customer);
-                const item = document.createElement('button');
-                item.type = 'button';
-                item.className = 'customer-result-item eapp-dropdown-option';
-                item.dataset.customerValue = value;
-                const points = Number(customer.points_balance || 0);
-                const discountPercent = Number(customer.tier_discount_percent || 0);
-                const discountText = discountPercent > 0 ? ` · Ưu đãi ${discountPercent}%` : '';
-                item.innerHTML = `
-                    <div class="customer-result-head">
-                        <div class="customer-result-name text-truncate">${escapeHtml(customer.name || '')}</div>
-                        ${customerTierBadgeHtml(customer)}
-                    </div>
-                    <div class="customer-result-meta">${escapeHtml(customer.phone || '')} · ${points} điểm${discountText}</div>
-                `;
-                item.addEventListener('click', () => setSelectedCustomer(customer));
-                results.appendChild(item);
-            });
-            showCustomerResults();
-        };
-
-        const searchCustomers = async (query) => {
-            const q = (query ?? document.getElementById('customer-search-input')?.value ?? '').trim();
-            if (!q || q.length < 2) {
-                renderCustomerOptions([]);
-                return;
-            }
-            const requestSeq = ++customerSearchRequestSeq;
-            try {
-                const payload = await fetchJson(`${API_CUSTOMERS_URL}?q=${encodeURIComponent(q)}`);
-                if (requestSeq !== customerSearchRequestSeq) return;
-                const customers = payload.customers || [];
-                renderCustomerOptions(customers);
-                updatePaymentMetaVisibility();
-            } catch (error) {
-                if (requestSeq !== customerSearchRequestSeq) return;
-                showToast(error.message || 'Không thể tìm khách hàng.', 'danger');
-            }
-        };
-
-        const scheduleCustomerSearch = () => {
-            const input = document.getElementById('customer-search-input');
-            if (!input) return;
-            const value = input.value.trim();
-            const matched = customerOptionMap.get(value);
-            if (matched) {
-                setSelectedCustomer(matched);
-                return;
-            }
-            if (selectedCustomer && value !== `${selectedCustomer.name} - ${selectedCustomer.phone}`) {
-                selectedCustomer = null;
-                updateSelectedCustomerUi();
-            }
-            window.clearTimeout(customerSearchTimer);
-            customerSearchTimer = window.setTimeout(() => searchCustomers(value), 250);
-        };
+        const hideCustomerResults = () => customerPicker?.close();
+        const searchCustomers = query => customerPicker?.refresh(query || '');
 
         const openQuickCustomerModal = () => {
             const modalEl = document.getElementById('quickCustomerModal');
@@ -4637,8 +4662,13 @@
                 phoneEl.value = phoneGuess;
             }
             if (!quickCustomerModalInstance) quickCustomerModalInstance = new bootstrap.Modal(modalEl);
-            quickCustomerModalInstance.show();
-            setTimeout(() => (nameEl?.value ? phoneEl : nameEl)?.focus(), 180);
+            const paymentEl = document.getElementById('paymentModal');
+            if (paymentEl.classList.contains('show')) {
+                paymentEl.addEventListener('hidden.bs.modal', () => quickCustomerModalInstance.show(), {once: true});
+                modalEl.addEventListener('hidden.bs.modal', () => paymentModalInstance.show(), {once: true});
+                paymentModalInstance.hide();
+            } else quickCustomerModalInstance.show();
+            modalEl.addEventListener('shown.bs.modal', () => (nameEl?.value ? phoneEl : nameEl)?.focus(), {once: true});
         };
 
         const createQuickCustomer = async () => {
@@ -4658,7 +4688,7 @@
                     body: JSON.stringify({ name, phone }),
                 });
                 setSelectedCustomer(payload.customer);
-                renderCustomerOptions(payload.customer ? [payload.customer] : []);
+                hideCustomerResults();
                 if (nameEl) nameEl.value = '';
                 if (phoneEl) phoneEl.value = '';
                 if (quickCustomerModalInstance) quickCustomerModalInstance.hide();
@@ -4683,7 +4713,11 @@
         const renderTaxRow = (taxableAmount) => {
             const taxAmount = calculateTaxAmount(taxableAmount);
             const row = document.getElementById('modal-tax-row');
-            if (row) row.classList.toggle('d-none', TENANT_TAX_PERCENT <= 0);
+            if (row) row.classList.toggle('d-none', taxAmount <= 0);
+            // Không lặp lại tổng tiền khi không có thuế hay giảm giá thực tế.
+            document.getElementById('payment-breakdown')?.classList.toggle(
+                'd-none', taxAmount <= 0 && currentDiscountAmount <= 0
+            );
             const label = document.getElementById('modal-tax-label');
             if (label) label.textContent = `Thuế (${TENANT_TAX_PERCENT.toLocaleString('vi-VN')}%)`;
             const amountEl = document.getElementById('modal-tax-amount');
@@ -4701,6 +4735,7 @@
         );
 
         const updatePaymentTotals = () => {
+            document.getElementById('btn-confirm-payment').disabled = paymentInFlight || promotionApplying;
             const promotionDiscountAmount = selectedPromotion ? Number(selectedPromotion.discount_amount || 0) : 0;
             const tierDiscountAmount = calculateSelectedTierDiscount();
             if (tierDiscountAmount > promotionDiscountAmount) {
@@ -4750,6 +4785,7 @@
             const label = document.getElementById('promotion-dropdown-label');
             const discount = document.getElementById('promotion-dropdown-discount');
             if (!label) return;
+            label.classList.toggle('d-none', !selectedPromotion);
             if (selectedPromotion) {
                 label.textContent = selectedPromotion.name || 'Khuyến mãi';
                 if (discount) {
@@ -4757,7 +4793,7 @@
                     discount.classList.remove('d-none');
                 }
             } else {
-                label.textContent = 'Không áp dụng';
+                label.textContent = '';
                 if (discount) {
                     discount.textContent = '';
                     discount.classList.add('d-none');
@@ -4765,85 +4801,81 @@
             }
         };
 
-        const selectPromotion = (promotionId) => {
-            selectedPromotion = promotionId
-                ? availablePromotions.find((promotion) => Number(promotion.id) === Number(promotionId)) || null
-                : null;
-            updatePaymentTotals();
-            renderPromotionDropdown();
+        let promotionRequestSeq = 0;
+        let promotionApplying = false;
+        const promotionError = text => {
+            const el = document.getElementById('promotion-error');
+            el.textContent = text || '';
+            el.classList.toggle('d-none', !text);
         };
-
-        const renderPromotionDropdown = () => {
-            const menu = document.getElementById('promotion-dropdown-menu');
-            if (!menu) return;
-            menu.innerHTML = '';
-            const noneItem = document.createElement('button');
-            noneItem.className = `dropdown-item ${!selectedPromotion ? 'active' : ''}`;
-            noneItem.type = 'button';
-            noneItem.innerHTML = `
-                <div class="promotion-option-main">
-                    <span class="promotion-option-title">Không áp dụng</span>
-                    <span class="promotion-option-side">
-                        <i class="fa-solid fa-check promotion-option-check"></i>
-                    </span>
-                </div>
-                <div class="promotion-option-meta">Giữ nguyên tổng tiền hóa đơn</div>
-            `;
-            noneItem.addEventListener('click', () => selectPromotion(null));
-            menu.appendChild(noneItem);
-
-            if (!availablePromotions.length) {
-                const empty = document.createElement('div');
-                empty.className = 'promotion-empty-state';
-                empty.textContent = 'Không có khuyến mãi hợp lệ.';
-                menu.appendChild(empty);
-                renderSelectedPromotionButton();
-                return;
-            }
-
-            availablePromotions.forEach((promotion) => {
-                const item = document.createElement('button');
-                item.className = `dropdown-item ${selectedPromotion && Number(selectedPromotion.id) === Number(promotion.id) ? 'active' : ''}`;
-                item.type = 'button';
-                item.innerHTML = `
-                    <div class="promotion-option-main">
-                        <span class="promotion-option-title">${escapeHtml(promotion.name || 'Khuyến mãi')}</span>
-                        <span class="promotion-option-side">
-                            <span class="promotion-discount">-${formatCurrency(promotion.discount_amount || 0)}</span>
-                            <i class="fa-solid fa-check promotion-option-check"></i>
-                        </span>
-                    </div>
-                    <div class="promotion-option-meta">${escapeHtml(promotion.discount_type_label || '')} · ${escapeHtml(promotionRuleText(promotion))}</div>
-                `;
-                item.addEventListener('click', () => selectPromotion(promotion.id));
-                menu.appendChild(item);
-            });
-            renderSelectedPromotionButton();
+        const queryPromotions = async (query = '', code = '', promotionId = null) => {
+            const params = new URLSearchParams({store_id: currentStoreId, subtotal: cartSubtotalAmount, q: query});
+            if (code) params.set('code', code);
+            if (promotionId) params.set('promotion_id', promotionId);
+            const payload = await fetchJson(`${API_PROMOTIONS_URL}?${params}`);
+            return payload.promotions || [];
         };
-
-        const loadPromotionsForPayment = async () => {
-            const menu = document.getElementById('promotion-dropdown-menu');
-            if (!menu || !currentStoreId) return;
-            availablePromotions = [];
-            selectedPromotion = null;
-            renderPromotionDropdown();
-            if (!hasPromotionFeature) {
-                updatePaymentMetaVisibility();
+        const selectPromotion = async promotion => {
+            const revision = ++promotionRequestSeq;
+            promotionPicker?.close();
+            promotionError('');
+            if (!promotion) {
+                promotionApplying = false;
+                selectedPromotion = null;
+                document.getElementById('promotion-search-input').value = '';
                 updatePaymentTotals();
                 return;
             }
+            promotionApplying = true;
+            document.getElementById('btn-confirm-payment').disabled = true;
             try {
-                const payload = await fetchJson(`${API_PROMOTIONS_URL}?store_id=${currentStoreId}&subtotal=${encodeURIComponent(cartSubtotalAmount)}`);
-                availablePromotions = payload.promotions || [];
-                renderPromotionDropdown();
+                const rows = await queryPromotions('', promotion.code || '', promotion.id);
+                if (revision !== promotionRequestSeq) return;
+                const match = rows.find(row => Number(row.id) === Number(promotion.id));
+                if (!match) throw new Error('Khuyến mãi không còn hợp lệ với đơn hiện tại.');
+                selectedPromotion = match;
+                document.getElementById('promotion-search-input').value = match.code || match.name;
             } catch (error) {
-                showToast(error.message || 'Không thể tải khuyến mãi.', 'warning');
+                if (revision !== promotionRequestSeq) return;
+                selectedPromotion = null;
+                promotionError(error.message);
+            } finally {
+                if (revision === promotionRequestSeq) { promotionApplying = false; updatePaymentTotals(); }
             }
+        };
+        const applyPromotionCode = async () => {
+            const code = document.getElementById('promotion-search-input').value.trim();
+            if (!code) return selectPromotion(null);
+            const revision = ++promotionRequestSeq;
+            promotionPicker?.close();
+            promotionApplying = true;
+            promotionError('');
+            document.getElementById('btn-confirm-payment').disabled = true;
+            try {
+                const rows = await queryPromotions('', code);
+                if (revision !== promotionRequestSeq) return;
+                if (!rows.length) throw new Error('Mã khuyến mãi không hợp lệ.');
+                selectedPromotion = rows[0];
+                document.getElementById('promotion-search-input').value = selectedPromotion.code;
+            } catch (error) {
+                if (revision !== promotionRequestSeq) return;
+                selectedPromotion = null;
+                promotionError(error.message);
+            } finally {
+                if (revision === promotionRequestSeq) { promotionApplying = false; updatePaymentTotals(); }
+            }
+        };
+        const loadPromotionsForPayment = async () => {
+            ++promotionRequestSeq;
+            promotionApplying = false;
+            promotionPicker?.close();
+            selectedPromotion = null;
+            document.getElementById('promotion-search-input').value = '';
+            promotionError('');
             updatePaymentMetaVisibility();
             updatePaymentTotals();
         };
-
-        const handlePromotionChange = (promotionId = null) => selectPromotion(promotionId);
+        const handlePromotionChange = promotionId => selectPromotion(availablePromotions.find(row => Number(row.id) === Number(promotionId)) || null);
 
         const syncPaymentMethodUi = () => {
             const method = getSelectedPaymentMethod();
@@ -5118,6 +5150,7 @@
                 showToast('Vui lòng chọn cửa hàng hợp lệ.', 'danger');
                 return;
             }
+            if (promotionApplying) { showToast('Đang kiểm tra khuyến mãi, vui lòng chờ.', 'warning'); return; }
             if (paymentInFlight) return;
             paymentInFlight = true;
             const confirmBtn = document.getElementById('btn-confirm-payment');
@@ -5159,6 +5192,7 @@
                                 quantity: item.qty,
                                 note: item.note || '',
                                 topping_ids: item.toppingIds || [],
+                                ...pricePayload(item),
                             })),
                         }),
                     });
@@ -5271,33 +5305,43 @@
         syncMobileSearchToggleVisibility();
         document.getElementById('payment-cash')?.addEventListener('change', syncPaymentMethodUi);
         document.getElementById('payment-card')?.addEventListener('change', syncPaymentMethodUi);
-        document.getElementById('customer-search-input')?.addEventListener('input', scheduleCustomerSearch);
-        document.getElementById('customer-search-input')?.addEventListener('change', scheduleCustomerSearch);
-        document.getElementById('customer-search-input')?.addEventListener('focus', () => {
-            const value = document.getElementById('customer-search-input')?.value.trim() || '';
-            if (value.length >= 2) {
-                showCustomerResults();
-            }
+        const customerPicker = EAPPCheckoutCombobox.create({
+            input: document.getElementById('customer-search-input'),
+            load: async query => {
+                const data = await fetchJson(`${API_CUSTOMERS_URL}?q=${encodeURIComponent(query)}`);
+                return (data.customers || []).map(customer => ({label: customer.name,
+                    meta: `${customer.phone} · ${customer.tier_label || ''} · ${customer.points_balance || 0} điểm`, customer}));
+            },
+            select: row => setSelectedCustomer(row.customer),
+            onInput: () => { selectedCustomer = null; updateSelectedCustomerUi(); updatePaymentTotals(); },
         });
-        document.getElementById('customer-search-input')?.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                const firstResult = document.querySelector('#customer-search-results .customer-result-item');
-                if (firstResult && !document.getElementById('customer-search-results')?.classList.contains('d-none')) {
-                    firstResult.click();
-                } else {
-                    scheduleCustomerSearch();
-                }
-            }
-            if (event.key === 'Escape') {
-                hideCustomerResults();
-            }
+        const promotionPicker = EAPPCheckoutCombobox.create({
+            input: document.getElementById('promotion-search-input'),
+            load: async query => {
+                availablePromotions = await queryPromotions(query);
+                return [{label: 'Không áp dụng', meta: 'Bỏ khuyến mãi đang chọn', promotion: null},
+                    ...availablePromotions.map(promotion => ({label: `${promotion.code ? promotion.code + ' · ' : ''}${promotion.name}`,
+                    meta: `−${formatCurrency(promotion.discount_amount)} · ${promotionRuleText(promotion)}`, promotion}))];
+            },
+            select: row => selectPromotion(row.promotion), apply: () => applyPromotionCode(),
+            onInput: () => { ++promotionRequestSeq; promotionApplying = false; selectedPromotion = null; promotionError(''); updatePaymentTotals(); },
         });
-        document.addEventListener('click', (event) => {
-            if (!event.target.closest('#payment-customer-panel')) {
-                hideCustomerResults();
-            }
+        const quickPromotion = EAPPQuickPromotion.create({
+            payment: document.getElementById('paymentModal'), input: document.getElementById('promotion-search-input'),
+            closePickers: () => { customerPicker?.close(); promotionPicker?.close(); },
+            save: async fields => {
+                const data = await fetchJson("{% url 'App_Sales_API:promotions_quick_add' %}", {
+                    method: 'POST', body: JSON.stringify({...fields, store_id: currentStoreId}),
+                });
+                return data.promotion;
+            },
+            selected: async promotion => {
+                document.getElementById('promotion-search-input').value = promotion.code;
+                await selectPromotion(promotion);
+                if (!selectedPromotion) promotionError(`Đã tạo mã ${promotion.code}. ${document.getElementById('promotion-error').textContent}`);
+            },
         });
+        window.openQuickPromotionModal = () => quickPromotion?.open();
         document.getElementById('quick-customer-modal-name')?.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
@@ -5351,16 +5395,6 @@
                 storeName: () => document.getElementById('storeSelector')?.selectedOptions[0]?.textContent.trim() || '',
             });
         });
-        // Biểu tượng máy in trên thanh trên: đèn trạng thái máy in, bấm mở Thiết lập › In ấn.
-        const printerShortcut = document.getElementById('posPrinterShortcut');
-        if (printerShortcut) {
-            window.eappDirectPrint?.bindIndicator(printerShortcut, hasKitchenFeature ? ['receipt', 'kitchen'] : ['receipt']);
-            printerShortcut.addEventListener('click', (event) => {
-                event.preventDefault();
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('posSettingsModal')).show();
-                bootstrap.Tab.getOrCreateInstance(document.getElementById('posSettingsTabPrint')).show();
-            });
-        }
         // Lỗi in thẳng (eapp_print.js): fallback = đang mở hộp thoại in thay thế.
         window.addEventListener('eapp-print-error', (event) => {
             const { message, fallback } = event.detail || {};
@@ -5551,6 +5585,8 @@
         window.confirmOptions = confirmOptions;
         window.updateOptionsPrice = updateOptionsPrice;
         window.updateQty = updateQty;
+        window.openPriceModal = openPriceModal;
+        window.saveItemPrice = saveItemPrice;
         window.removeCartItem = removeCartItem;
         window.clearCart = clearCart;
         window.executeClearCart = executeClearCart;
@@ -5564,6 +5600,7 @@
         window.createQuickCustomer = createQuickCustomer;
         window.clearSelectedCustomer = clearSelectedCustomer;
         window.handlePromotionChange = handlePromotionChange;
+        window.applyPromotionCode = applyPromotionCode;
         window.formatCashInput = formatCashInput;
         window.setCashReceived = setCashReceived;
         window.processPayment = processPayment;

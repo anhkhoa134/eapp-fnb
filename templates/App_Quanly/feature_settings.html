@@ -45,6 +45,9 @@
             <button type="submit" class="btn btn-primary">
                 <i class="bi bi-check2 me-1"></i>Lưu cấu hình
             </button>
+            <a class="btn btn-outline-secondary ms-2" href="{% url 'App_Quanly:audit_log' %}?action=cart.price_override">
+                <i class="bi bi-pencil-square me-1"></i>Nhật ký chỉnh giá
+            </a>
             {% if tenant_obj.show_kitchen_feature %}
             <a class="btn btn-outline-danger ms-2" href="{% url 'App_Sales:kitchen' %}" target="_blank" rel="noopener">
                 <i class="bi bi-fire me-1"></i>Mở màn hình bếp

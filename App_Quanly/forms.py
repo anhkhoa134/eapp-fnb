@@ -161,6 +161,15 @@ class TenantTaxSettingsForm(forms.ModelForm):
 class TenantFeatureSettingsForm(forms.ModelForm):
     # field -> (icon bootstrap-icons, mô tả hiển thị ở trang Cấu hình tính năng)
     FEATURE_META = {
+        'feature_price_override_enabled': (
+            'bi-pencil-square',
+            'Cho phép nhân viên chỉnh đơn giá từng món trong giỏ hàng (gồm topping). '
+            'Lưu nhật ký giá trước/sau, người chỉnh và lý do; không thay đổi giá trong danh mục.',
+        ),
+        'price_override_reason_required': (
+            'bi-chat-left-text',
+            'Yêu cầu nhập lý do khi chỉnh giá bán. Chỉ áp dụng khi tính năng chỉnh giá được bật.',
+        ),
         'show_store_feature': (
             'bi-shop',
             'Mặc định doanh nghiệp chỉ dùng 1 cửa hàng. Bật để thêm và quản lý nhiều cửa hàng (chi nhánh). '
@@ -215,6 +224,8 @@ class TenantFeatureSettingsForm(forms.ModelForm):
             'show_kitchen_feature',
             'show_shift_feature',
             'show_recipe_feature',
+            'feature_price_override_enabled',
+            'price_override_reason_required',
         ]
         labels = {
             'show_store_feature': 'Cửa hàng (nhiều chi nhánh)',
@@ -732,6 +743,7 @@ class PromotionForm(forms.ModelForm):
         model = Promotion
         fields = [
             'name',
+            'code',
             'discount_type',
             'discount_value',
             'min_order_amount',
@@ -757,6 +769,7 @@ class PromotionForm(forms.ModelForm):
         }
         widgets = {
             'name': forms.TextInput(attrs={'placeholder': 'VD: Giảm 10% cuối tuần'}),
+            'code': forms.TextInput(attrs={'placeholder': 'VD: SALE10 (tuỳ chọn)', 'autocomplete': 'off'}),
             'discount_value': forms.TextInput(attrs={'placeholder': 'VD: 10 hoặc 50000', 'inputmode': 'decimal', 'autocomplete': 'off'}),
             'min_order_amount': forms.TextInput(attrs={'placeholder': 'VD: 100000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
             'max_discount_amount': forms.TextInput(attrs={'placeholder': 'VD: 50000', 'inputmode': 'numeric', 'autocomplete': 'off'}),
@@ -791,6 +804,16 @@ class PromotionForm(forms.ModelForm):
                 if store.tenant_id != tenant.id:
                     raise ValidationError('Cửa hàng chọn không thuộc doanh nghiệp hiện tại.')
         return cleaned
+
+    def clean_code(self):
+        code = (self.cleaned_data.get('code') or '').strip().upper()
+        if code and self.tenant:
+            matches = Promotion.objects.filter(tenant=self.tenant, code__iexact=code)
+            if self.instance.pk:
+                matches = matches.exclude(pk=self.instance.pk)
+            if matches.exists():
+                raise ValidationError('Mã khuyến mãi đã tồn tại trong doanh nghiệp.')
+        return code
 
     def clean_discount_value(self):
         value = self.cleaned_data.get('discount_value')

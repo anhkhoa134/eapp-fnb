@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Prefetch, Q, Sum
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Prefetch, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,10 +20,10 @@ from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from App_Accounts.permissions import kitchen_access_required, staff_or_manager_required
+from App_Accounts.permissions import kitchen_access_required, manager_required, staff_or_manager_required
 from App_Core.audit import Action, log_action
 from App_Core.templatetags.number_format import thousand_sep
-from App_Sales import kitchen, shifts
+from App_Sales import kitchen, pricing, shifts
 from App_Catalog.models import PLACEHOLDER_PRODUCT_IMAGE, Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, parse_topping_ids, resolve_product_topping_links
 from App_Sales.models import (
@@ -129,6 +129,14 @@ def _serialize_table_cart_item(item: TableCartItem):
         'name': item.snapshot_product_name,
         'size': item.snapshot_unit_name,
         'price': float(item.unit_price_snapshot),
+        'original_price': float(item.original_unit_price) if item.original_unit_price is not None else None,
+        'price_override_reason': item.price_override_reason,
+        'price_overridden_by': item.price_overridden_by_name,
+        'price_override_token': pricing.sign_override(
+            tenant_id=item.tenant_id, store_id=item.store_id, unit_id=item.unit_id,
+            topping_ids=[row.topping_id for row in toppings if row.topping_id],
+            price=item.unit_price_snapshot, metadata=pricing.snapshot(item),
+        ),
         'qty': item.quantity,
         'note': item.note,
         'source': item.source,
@@ -244,6 +252,7 @@ def _serialize_promotion(promotion: Promotion, *, subtotal: Decimal):
     return {
         'id': promotion.id,
         'name': promotion.name,
+        'code': promotion.code,
         'discount_type': promotion.discount_type,
         'discount_type_label': promotion.get_discount_type_display(),
         'discount_value': float(promotion.discount_value),
@@ -334,6 +343,8 @@ def _upsert_table_cart_item(
     source=TableCartItem.Source.STAFF,
     qr_order=None,
     kitchen_sent_quantity=0,
+    override_price=None,
+    price_metadata=None,
 ):
     note = (note or '').strip()[:255]
     quantity = int(quantity)
@@ -344,6 +355,8 @@ def _upsert_table_cart_item(
     for topping_row in snapshot_toppings:
         topping_total += topping_row['price']
     effective_unit_price = base_unit_price + topping_total
+    if override_price is not None:
+        effective_unit_price = override_price
 
     candidates = (
         TableCartItem.objects.filter(
@@ -353,6 +366,7 @@ def _upsert_table_cart_item(
             unit=unit,
             note=note,
             source=source,
+            original_unit_price__isnull=True,
         )
         .prefetch_related('toppings')
         .order_by('id')
@@ -360,6 +374,8 @@ def _upsert_table_cart_item(
     snapshot_signature = _topping_signature(snapshot_toppings)
     existing = None
     for candidate in candidates:
+        if override_price is not None:
+            break  # Keep differently priced lines and their editors separate.
         if _table_item_topping_signature(candidate) == snapshot_signature:
             existing = candidate
             break
@@ -389,6 +405,7 @@ def _upsert_table_cart_item(
         source=source,
         qr_order=qr_order,
         kitchen_sent_quantity=kitchen_sent_quantity,
+        **(price_metadata or {}),
     )
     _replace_table_item_toppings(table_item=created, snapshot_rows=snapshot_toppings)
     return created
@@ -601,6 +618,8 @@ def api_products(request):
             },
             'categories': categories,
             'products': products,
+            'price_override_enabled': user.tenant.feature_price_override_enabled,
+            'price_override_reason_required': user.tenant.price_override_reason_required,
         }
     )
 
@@ -621,7 +640,7 @@ def api_customers(request):
         customers = Customer.objects.filter(tenant=user.tenant, is_active=True)
         if q:
             customers = customers.filter(customer_search_q(q))
-        rows = [_serialize_customer(row) for row in customers.order_by('name', 'id')[:12]]
+        rows = [_serialize_customer(row) for row in customers.order_by(F('last_order_at').desc(nulls_last=True), '-created_at', 'id')[:30]]
         return JsonResponse({'customers': rows, 'has_customers': has_customers})
 
     payload = _parse_json_request(request)
@@ -656,6 +675,49 @@ def api_customers(request):
     return JsonResponse({'customer': _serialize_customer(customer)}, status=201)
 
 
+@manager_required
+@require_POST
+def api_quick_create_promotion(request):
+    from App_Quanly.forms import PromotionForm
+
+    tenant = request.user.tenant
+    if not tenant:
+        return _json_error('Tài khoản chưa được gán doanh nghiệp.', 400)
+    if not tenant.promotion_feature_enabled:
+        return _json_error('Tính năng khuyến mãi đang tắt.', 403)
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.', 400)
+    store_id = payload.get('store_id')
+    if store_id is not None and (isinstance(store_id, bool) or not str(store_id).isascii()
+                                 or not str(store_id).isdigit() or len(str(store_id)) > 18):
+        return _json_error('Cửa hàng không hợp lệ.', 400)
+    store = get_accessible_store_or_default(request.user, store_id)
+    if not store:
+        return _json_error('Cửa hàng không hợp lệ hoặc không có quyền truy cập.', 403)
+    fields = ('name', 'code', 'discount_type', 'discount_value', 'min_order_amount', 'max_discount_amount')
+    data = {key: payload.get(key, '') for key in fields}
+    if any(value is not None and not isinstance(value, (str, int, float)) or isinstance(value, bool) for value in data.values()):
+        return _json_error('Dữ liệu khuyến mãi không hợp lệ.', 400)
+    if data['discount_type'] == 'amount':
+        data['discount_type'] = Promotion.DiscountType.FIXED
+    data.update(is_active=True, store_ids=[store.pk])
+    form = PromotionForm(data, tenant=tenant)
+    form.fields['code'].required = True
+    if not form.is_valid():
+        return _json_error('; '.join(f'{form.fields[key].label if key in form.fields else "Khuyến mãi"}: {message}'
+                                    for key, errors in form.errors.items() for message in errors), 400)
+    try:
+        with transaction.atomic():
+            promotion = form.save(commit=False)
+            promotion.tenant = tenant
+            promotion.save()
+            promotion.stores.set([store])
+    except (IntegrityError, ValidationError):
+        return _json_error('Mã khuyến mãi đã tồn tại hoặc dữ liệu không hợp lệ.', 400)
+    return JsonResponse({'promotion': {'id': promotion.pk, 'code': promotion.code, 'name': promotion.name}}, status=201)
+
+
 @login_required
 @staff_or_manager_required
 @require_GET
@@ -679,6 +741,22 @@ def api_promotions(request):
 
     has_promotions = Promotion.objects.filter(tenant=user.tenant).exists()
     promotions = get_available_promotions(tenant=user.tenant, store=store, subtotal=subtotal)
+    promotion_id = request.GET.get('promotion_id')
+    if promotion_id:
+        if not promotion_id.isdigit():
+            return _json_error('Khuyến mãi không hợp lệ.')
+        promotions = promotions.filter(pk=promotion_id)
+    code = (request.GET.get('code') or '').strip().upper()
+    query = (request.GET.get('q') or '').strip()
+    if code:
+        promotions = promotions.filter(code__iexact=code)
+        if not promotions.exists():
+            return _json_error('Mã khuyến mãi không hợp lệ, hết hạn hoặc chưa đủ điều kiện áp dụng.')
+    elif query:
+        promotions = promotions.filter(Q(name__icontains=query) | Q(code__icontains=query))
+    promotions = promotions.annotate(last_used=Max('orders__created_at')).order_by(
+        F('last_used').desc(nulls_last=True), '-created_at', 'id'
+    )
     return JsonResponse(
         {
             'promotions': [_serialize_promotion(row, subtotal=subtotal) for row in promotions[:30]],
@@ -816,6 +894,60 @@ def _takeaway_extra_kitchen_rows(qr_order, prepared_items, kitchen_rows):
 @login_required
 @staff_or_manager_required
 @require_POST
+@transaction.atomic
+def api_cart_price(request):
+    """Chứng thực và ghi nhật ký ngay khi chỉnh giá giỏ mang về, trước lúc thanh toán."""
+    payload = _parse_json_request(request)
+    if payload is None:
+        return _json_error('Payload JSON không hợp lệ.')
+    store = get_accessible_store_or_default(request.user, payload.get('store_id'))
+    if not store:
+        return _json_error('Không có quyền truy cập cửa hàng.', 403)
+    unit = _resolve_product_unit_for_store(
+        tenant=request.user.tenant, store=store, product_id=payload.get('product_id'), unit_id=payload.get('unit_id'),
+    )
+    if not unit:
+        return _json_error('Món hoặc đơn vị không hợp lệ.')
+    try:
+        if not request.user.tenant.show_topping_feature and _has_requested_toppings(payload.get('topping_ids')):
+            raise ValueError('Tính năng topping đang tắt.')
+        links = _resolve_topping_links_for_unit(unit=unit, raw_topping_ids=payload.get('topping_ids'))
+        topping_ids = [link.topping_id for link in links]
+        automatic = get_effective_unit_price(unit=unit, store_id=store.pk) + calc_toppings_total(links)
+        previous, old_metadata = pricing.resolve_override(
+            payload, tenant=request.user.tenant, store_id=store.pk, unit_id=unit.pk,
+            topping_ids=topping_ids, check_enabled=False,
+        ) if payload.get('price_override_token') else (None, {})
+        restored = payload.get('override_price') is None
+        if restored:
+            price, metadata = automatic, pricing.clear_snapshot()
+        else:
+            price = pricing.parse_price(payload['override_price'])
+            metadata = pricing.new_snapshot(
+                tenant=request.user.tenant, user=request.user,
+                original_price=automatic, reason=payload.get('price_override_reason', ''),
+            )
+    except ValueError as exc:
+        return _json_error(str(exc), getattr(exc, 'status', 400))
+    if not restored or previous is not None:
+        pricing.log_price_change(
+            request, store_id=store.pk, obj=unit, before=previous if previous is not None else automatic,
+            after=price, metadata=old_metadata if restored else metadata, restored=restored,
+            extra={'product_id': unit.product_id, 'unit_id': unit.pk, 'topping_ids': topping_ids, 'context': 'takeaway'},
+        )
+    return JsonResponse({
+        'price': float(price), 'original_price': None if restored else float(automatic),
+        'price_override_reason': metadata['price_override_reason'],
+        'price_override_token': pricing.sign_override(
+            tenant_id=request.user.tenant_id, store_id=store.pk, unit_id=unit.pk,
+            topping_ids=topping_ids, price=price, metadata=metadata,
+        ),
+    })
+
+
+@login_required
+@staff_or_manager_required
+@require_POST
 def api_checkout(request):
     user = request.user
     if not user.tenant_id:
@@ -901,8 +1033,19 @@ def api_checkout(request):
                 base_price = get_effective_unit_price(unit=unit, store_id=store.id)
                 topping_total = calc_toppings_total(topping_links)
                 effective_unit_price = base_price + topping_total
+                try:
+                    override_price, price_metadata = pricing.resolve_override(
+                        item, tenant=user.tenant, store_id=store.pk, unit_id=unit.pk,
+                        topping_ids=[link.topping_id for link in topping_links],
+                    )
+                except pricing.PriceOverrideError as exc:
+                    return _json_error(str(exc), exc.status)
+                if override_price is not None:
+                    effective_unit_price = override_price
                 line_total = effective_unit_price * quantity
                 subtotal += line_total
+                if subtotal > MAX_MONEY_AMOUNT:
+                    return _json_error('Tổng tiền vượt giới hạn cho phép.')
                 prepared_items.append(
                     {
                         'product': unit.product,
@@ -910,6 +1053,7 @@ def api_checkout(request):
                         'quantity': quantity,
                         'note': note,
                         'unit_price': effective_unit_price,
+                        'price_metadata': price_metadata,
                         'line_total': line_total,
                         'snapshot_toppings': _snapshot_rows_from_product_toppings(topping_links),
                     }
@@ -926,6 +1070,8 @@ def api_checkout(request):
                 subtotal=subtotal, tax_rate=user.tenant.tax_rate, promotion=promotion, customer=customer
             )
             total_amount = totals['total_amount']
+            if total_amount > MAX_MONEY_AMOUNT:
+                return _json_error('Tổng tiền sau thuế vượt giới hạn cho phép.')
 
             if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
                 return _json_error('Khách đưa chưa đủ tiền.', 400)
@@ -965,6 +1111,7 @@ def api_checkout(request):
                     quantity=item['quantity'],
                     note=item['note'],
                     line_total=item['line_total'],
+                    **item['price_metadata'],
                 )
                 OrderItemTopping.objects.bulk_create(
                     [
@@ -1250,6 +1397,13 @@ def api_table_import_takeaway(request, table_id):
         except ValueError as exc:
             return _json_error(str(exc), 400)
 
+        try:
+            override_price, price_metadata = pricing.resolve_override(
+                row, tenant=user.tenant, store_id=table.store_id, unit_id=unit.pk,
+                topping_ids=[link.topping_id for link in topping_links],
+            )
+        except pricing.PriceOverrideError as exc:
+            return _json_error(str(exc), exc.status)
         prepared_rows.append(
             {
                 'unit': unit,
@@ -1257,6 +1411,8 @@ def api_table_import_takeaway(request, table_id):
                 'note': note,
                 'base_unit_price': get_effective_unit_price(unit=unit, store_id=table.store.id),
                 'snapshot_toppings': _snapshot_rows_from_product_toppings(topping_links),
+                'override_price': override_price,
+                'price_metadata': price_metadata,
             }
         )
 
@@ -1272,6 +1428,8 @@ def api_table_import_takeaway(request, table_id):
                 snapshot_toppings=row['snapshot_toppings'],
                 note=row['note'],
                 source=TableCartItem.Source.STAFF,
+                override_price=row['override_price'],
+                price_metadata=row['price_metadata'],
             )
 
     return JsonResponse(
@@ -1373,6 +1531,8 @@ def api_table_cart_move_to(request, table_id):
                 source=item.source,
                 qr_order=item.qr_order if item.qr_order_id else None,
                 kitchen_sent_quantity=item.kitchen_sent_quantity,
+                override_price=item.unit_price_snapshot if item.original_unit_price is not None else None,
+                price_metadata=pricing.snapshot(item),
             )
             kitchen.move_kitchen_links(source_item=item, target_item=target_item)
 
@@ -1513,6 +1673,31 @@ def api_table_cart_item(request, table_id, item_id):
             item.delete()
         return JsonResponse({'detail': 'Đã xóa item khỏi bàn.', 'summary': _table_cart_summary(table)})
 
+    price_metadata = None
+    before_price = item.unit_price_snapshot
+    before_metadata = pricing.snapshot(item)
+    if 'override_price' in payload:
+        if not item.unit_id:
+            return _json_error('Món đã xoá khỏi danh mục, không thể chỉnh giá.')
+        automatic = (
+            new_unit_price if new_topping_rows is not None else
+            get_effective_unit_price(unit=item.unit, store_id=table.store_id) +
+            sum((top.snapshot_price for top in item.toppings.all()), Decimal('0'))
+        )
+        try:
+            if payload['override_price'] is None:
+                next_price, price_metadata = automatic, pricing.clear_snapshot()
+            else:
+                next_price = pricing.parse_price(payload['override_price'])
+                price_metadata = pricing.new_snapshot(
+                    tenant=user.tenant, user=user, original_price=automatic,
+                    reason=payload.get('price_override_reason', ''),
+                )
+            if next_price * (quantity if quantity is not None else item.quantity) > MAX_MONEY_AMOUNT:
+                raise pricing.PriceOverrideError('Thành tiền của món vượt giới hạn cho phép.')
+        except pricing.PriceOverrideError as exc:
+            return _json_error(str(exc), exc.status)
+
     voided_quantity = 0
     with transaction.atomic():
         note_changed = False
@@ -1530,9 +1715,19 @@ def api_table_cart_item(request, table_id, item_id):
             kitchen.sync_kitchen_on_item_modified(item)
 
         update_fields = ['note', 'quantity', 'kitchen_sent_quantity', 'updated_at']
+        if price_metadata is not None:
+            item.unit_price_snapshot = next_price
+            for key, value in price_metadata.items():
+                setattr(item, key, value)
+            update_fields.extend(['unit_price_snapshot', *pricing.SNAPSHOT_FIELDS])
         if new_topping_rows is not None:
-            item.unit_price_snapshot = new_unit_price
-            update_fields.append('unit_price_snapshot')
+            if price_metadata is None:
+                if item.original_unit_price is None:
+                    item.unit_price_snapshot = new_unit_price
+                    update_fields.append('unit_price_snapshot')
+                else:
+                    item.original_unit_price = new_unit_price
+                    update_fields.append('original_unit_price')
             if _topping_signature(new_topping_rows) != _table_item_topping_signature(item):
                 kitchen.sync_kitchen_on_item_modified(item)
             item.save(update_fields=update_fields)
@@ -1542,6 +1737,14 @@ def api_table_cart_item(request, table_id, item_id):
             item.save(update_fields=update_fields)
         if voided_quantity:
             _log_cart_void(request, item, voided_quantity, reason)
+        if price_metadata is not None and (payload['override_price'] is not None or before_metadata['original_unit_price'] is not None):
+            pricing.log_price_change(
+                request, store_id=table.store_id, obj=item, before=before_price, after=item.unit_price_snapshot,
+                metadata=before_metadata if payload['override_price'] is None else price_metadata,
+                restored=payload['override_price'] is None,
+                extra={'table_id': table.pk, 'table_name': table.name, 'product': item.snapshot_product_name,
+                       'unit': item.snapshot_unit_name, 'quantity': item.quantity},
+            )
     return JsonResponse({'item': _serialize_table_cart_item(item), 'summary': _table_cart_summary(table)})
 
 
@@ -1605,7 +1808,11 @@ def api_table_checkout(request, table_id):
 
             subtotal = Decimal('0')
             for item in cart_items:
+                if item.original_unit_price is not None and not user.tenant.feature_price_override_enabled:
+                    return _json_error('Tính năng chỉnh giá đang tắt. Vui lòng khôi phục giá gốc trước khi thanh toán.', 403)
                 subtotal += item.unit_price_snapshot * item.quantity
+                if subtotal > MAX_MONEY_AMOUNT:
+                    return _json_error('Tổng tiền vượt giới hạn cho phép.')
 
             try:
                 customer, promotion = _resolve_checkout_discounts(
@@ -1618,6 +1825,8 @@ def api_table_checkout(request, table_id):
                 subtotal=subtotal, tax_rate=user.tenant.tax_rate, promotion=promotion, customer=customer
             )
             total_amount = totals['total_amount']
+            if total_amount > MAX_MONEY_AMOUNT:
+                return _json_error('Tổng tiền sau thuế vượt giới hạn cho phép.')
 
             if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
                 return _json_error('Khách đưa chưa đủ tiền.', 400)
@@ -1658,6 +1867,7 @@ def api_table_checkout(request, table_id):
                     quantity=item.quantity,
                     note=item.note,
                     line_total=item.unit_price_snapshot * item.quantity,
+                    **pricing.snapshot(item),
                 )
                 OrderItemTopping.objects.bulk_create(
                     [

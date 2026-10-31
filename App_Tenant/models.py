@@ -130,6 +130,8 @@ class Tenant(TimeStampedModel):
     show_kitchen_feature = models.BooleanField('Màn hình bếp (báo bếp)', default=False)
     show_shift_feature = models.BooleanField('Ca làm việc (chốt ca)', default=False)
     show_recipe_feature = models.BooleanField('Định mức nguyên liệu', default=False)
+    feature_price_override_enabled = models.BooleanField('Cho phép chỉnh giá khi bán hàng', default=False)
+    price_override_reason_required = models.BooleanField('Bắt buộc nhập lý do chỉnh giá', default=False)
     tax_percent = models.DecimalField(
         'Thuế (%)',
         max_digits=5,

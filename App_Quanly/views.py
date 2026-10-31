@@ -838,6 +838,7 @@ AUDIT_ACTION_GROUPS = [
             Action.ORDER_DELETE,
             Action.ORDER_REPRINT,
             Action.CART_VOID,
+            Action.CART_PRICE_OVERRIDE,
             Action.TABLE_MOVE,
             Action.QR_APPROVE,
             Action.QR_REJECT,
@@ -855,6 +856,7 @@ AUDIT_SENSITIVE_ACTIONS = {
     Action.ORDER_DELETE,
     Action.ORDER_REPRINT,
     Action.CART_VOID,
+    Action.CART_PRICE_OVERRIDE,
     Action.LOGIN_FAILED,
     Action.OBJECT_DELETE,
 }
@@ -1041,7 +1043,7 @@ def promotion_list_create(request):
     if selected_store.isdigit():
         promotions = promotions.filter(Q(stores__id=int(selected_store)) | Q(stores__isnull=True)).distinct()
     if selected_q:
-        promotions = promotions.filter(name__icontains=selected_q)
+        promotions = promotions.filter(Q(name__icontains=selected_q) | Q(code__icontains=selected_q))
 
     form = PromotionForm(request.POST or None, tenant=tenant)
     if request.method == 'POST' and form.is_valid():
