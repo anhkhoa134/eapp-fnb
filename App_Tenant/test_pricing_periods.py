@@ -5,12 +5,12 @@ from .models import SubscriptionPlan
 
 class PricingPeriodTests(TestCase):
     def test_seeded_monthly_prices_preserve_annual_prices(self):
-        for slug, month, year in [('co-ban', 90000, 990000), ('chuyen-nghiep', 199000, 1990000)]:
+        for slug, month, year in [('co-ban', 90000, 990000), ('chuyen-nghiep', 190000, 1990000)]:
             with self.subTest(slug=slug):
                 plan = SubscriptionPlan.objects.get(slug=slug)
                 self.assertEqual(plan.price_monthly, month)
                 self.assertEqual(plan.price_yearly, year)
-                self.assertEqual(plan.yearly_savings_percent, 17 if slug == 'chuyen-nghiep' else 8)
+                self.assertEqual(plan.yearly_savings_percent, 13 if slug == 'chuyen-nghiep' else 8)
 
     def test_savings_follow_configured_prices(self):
         plan = SubscriptionPlan.objects.get(slug='co-ban')
