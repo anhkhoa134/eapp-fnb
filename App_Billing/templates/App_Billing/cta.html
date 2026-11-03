@@ -1,4 +1,14 @@
 <div class="billing-plan-action">
-  <button type="button" class="{{ button_class }}" data-billing-select="{{ key }}" data-label-month="{{ action.month.label }}" data-label-year="{{ action.year.label }}" data-disabled-month="{{ action.month.disabled|yesno:'true,false' }}" data-disabled-year="{{ action.year.disabled|yesno:'true,false' }}"{% if action.month.disabled %} disabled{% endif %}>{{ action.month.label }}</button>
+  <button type="button" class="{{ button_class }} billing-cta" data-billing-variant="{{ action.month.variant }}" data-variant-month="{{ action.month.variant }}" data-variant-year="{{ action.year.variant }}" data-billing-select="{{ key }}" data-label-month="{{ action.month.label }}" data-label-year="{{ action.year.label }}" data-disabled-month="{{ action.month.disabled|yesno:'true,false' }}" data-disabled-year="{{ action.year.disabled|yesno:'true,false' }}"{% if action.month.disabled %} disabled{% endif %}>
+    <svg class="billing-cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+      <g data-cta-icon="select"><path d="M5 12h14m-6-6 6 6-6 6"/></g>
+      <g data-cta-icon="renew"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 2l1 4M4 12l1 4a8 8 0 0 0 13 2"/></g>
+      <g data-cta-icon="switch"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></g>
+      <g data-cta-icon="current"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></g>
+      <g data-cta-icon="downgrade"><path d="M12 4v14m-5-5 5 5 5-5M5 21h14"/></g>
+      <g data-cta-icon="pending"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+    </svg>
+    <span class="billing-cta-label">{{ action.month.label }}</span>
+  </button>
   <small class="billing-current-caption" data-billing-caption="{{ key }}"{% if not action.caption %} hidden{% endif %}>{{ action.caption }}</small>
 </div>

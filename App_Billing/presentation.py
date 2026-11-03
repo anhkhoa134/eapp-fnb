@@ -52,21 +52,22 @@ def request_presentation(request):
         item = {'free': free, 'caption': caption}
         for cycle, label in (('month', 'tháng'), ('year', 'năm')):
             disabled = bool(authenticated and account is None)
-            text = 'Chọn gói này'
+            text, variant = 'Chọn gói này', 'select'
             if free:
                 text = 'Đang sử dụng' if current else ('Chuyển về miễn phí' if authenticated else 'Bắt đầu miễn phí')
                 disabled = disabled or current
+                variant = 'current' if current else ('downgrade' if authenticated else 'select')
             elif current:
                 if state['cycle'] == cycle:
-                    text = 'Gia hạn gói'
+                    text, variant = 'Gia hạn gói', 'renew'
                 elif state['cycle'] in ('month', 'year'):
-                    text = f'Chuyển sang gói {label}'
+                    text, variant = f'Chuyển sang gói {label}', 'switch'
                 else:
-                    text = f'Gia hạn theo {label}'
+                    text, variant = f'Gia hạn theo {label}', 'renew'
             elif state and not state['active'] and state['plan'] == key:
                 text = 'Đăng ký lại'
             if pending and pending.plan_key == key and (free or pending.billing_cycle == cycle):
-                text, disabled = 'Đang chờ xử lý', True
-            item[cycle] = {'label': text, 'disabled': disabled}
+                text, disabled, variant = 'Đang chờ xử lý', True, 'pending'
+            item[cycle] = {'label': text, 'disabled': disabled, 'variant': variant}
         actions[key] = item
     return {'account': account, 'state': state, 'pending': pending, 'actions': actions}

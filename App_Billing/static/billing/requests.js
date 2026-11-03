@@ -49,6 +49,7 @@
                 for (const cycle of ['month', 'year']) {
                     button.setAttribute(`data-label-${cycle}`, action[cycle].label);
                     button.setAttribute(`data-disabled-${cycle}`, String(action[cycle].disabled));
+                    button.setAttribute(`data-variant-${cycle}`, action[cycle].variant || 'select');
                 }
                 const caption = button.parentElement.querySelector('[data-billing-caption]');
                 if (caption) { caption.textContent = action.caption; caption.hidden = !action.caption; }
@@ -56,7 +57,9 @@
                 if (option) option.disabled = action.free && action.month.disabled;
             }
             const cycle = cycleFor(button);
-            button.textContent = button.getAttribute(`data-label-${cycle}`) || 'Chọn gói này';
+            const label = button.querySelector('.billing-cta-label');
+            if (label) label.textContent = button.getAttribute(`data-label-${cycle}`) || 'Chọn gói này';
+            button.dataset.billingVariant = button.getAttribute(`data-variant-${cycle}`) || 'select';
             button.disabled = button.getAttribute(`data-disabled-${cycle}`) === 'true';
         });
     }

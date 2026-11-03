@@ -45,3 +45,5 @@ Chạy `python manage.py test App_Billing --noinput`. Bộ test kiểm tra quy�
 - Gói khác: “Chọn gói này”; trả phí → miễn phí: “Chuyển về miễn phí”, form/hồ sơ ghi “Không thời hạn”. Khách chưa đăng nhập: “Bắt đầu miễn phí”.
 - Đúng gói/kỳ hạn có yêu cầu chờ: “Đang chờ xử lý”, có thể hủy trong lịch sử.
 - Mỗi lần kích hoạt lưu `activation_snapshot` (gói, bản ghi hoặc ngày bắt đầu/kết thúc) trên yêu cầu. Chỉ nhận kỳ hạn từ yêu cầu đã duyệt khớp gói thực tế; thao tác sửa gói thủ công làm snapshot không còn khớp sẽ không giữ nhầm kỳ hạn cũ. Các bản ghi PM/Photo cũ có mã liên kết yêu cầu chính xác vẫn đọc được kỳ hạn. Dữ liệu cũ không đủ thông tin hiển thị “Chưa xác định kỳ hạn” và “Gia hạn theo tháng/năm”; không suy đoán bằng cách chia số ngày còn lại.
+
+CTA dùng màu và icon theo hành động: xanh dương (chọn/đăng ký), xanh lá (gia hạn), tím (đổi kỳ hạn), vàng nhạt (chờ xử lý), xám có dấu kiểm (đang dùng miễn phí), viền xám (chuyển về miễn phí). Nhãn, màu và icon cùng cập nhật khi đổi tab hoặc làm mới lịch sử; nút chờ/đang dùng không có hiệu ứng hover. Có viền focus bàn phím và hỗ trợ giảm chuyển động.
