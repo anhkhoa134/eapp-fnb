@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 from . import adapter
 from .models import PaymentAttempt, SubscriptionRequest
+from .presentation import current_subscription, is_free
 
 
 def add_months(value, months):
@@ -35,6 +36,11 @@ def submit_request(request, *, plan_key, billing_cycle, customer_note, client_to
     plan = next((p for p in adapter.plans() if p['key'] == plan_key), None)
     if plan is None or billing_cycle not in SubscriptionRequest.Cycle.values:
         raise ValidationError('Gói hoặc kỳ hạn không hợp lệ.')
+    free = is_free(plan_key)
+    if free:
+        billing_cycle = 'none'
+    elif billing_cycle == 'none':
+        raise ValidationError('Vui lòng chọn kỳ hạn tháng hoặc năm cho gói trả phí.')
     existing = SubscriptionRequest.objects.filter(account=account, client_token=client_token).first()
     if existing:
         if existing.plan_key != plan_key or existing.billing_cycle != billing_cycle:
@@ -45,12 +51,19 @@ def submit_request(request, *, plan_key, billing_cycle, customer_note, client_to
         if pending.plan_key == plan_key and pending.billing_cycle == billing_cycle:
             return pending
         raise ValidationError('Bạn đã có yêu cầu chờ xử lý. Hãy hủy yêu cầu cũ trước khi chọn gói khác.')
+    current = current_subscription(account)
+    same = current['active'] and current['plan'] == plan_key
+    if free and same:
+        raise ValidationError('Bạn đang sử dụng gói miễn phí không thời hạn, không cần gia hạn.')
+    kind = 'change'
+    if same:
+        kind = 'cycle_change' if current['cycle'] in ('month', 'year') and current['cycle'] != billing_cycle else 'renewal'
     item = SubscriptionRequest.objects.create(
         account=account, requested_by=request.user, client_token=client_token,
         reference=f'{settings.BILLING_REFERENCE_PREFIX}{uuid.uuid4().hex[:16].upper()}',
         plan_key=plan['key'], plan_name=plan['name'], billing_cycle=billing_cycle,
-        kind='renewal' if adapter.current_plan_key(account) == plan_key else 'change',
-        amount_vnd=plan[billing_cycle], customer_note=customer_note,
+        kind=kind,
+        amount_vnd=0 if free else plan[billing_cycle], customer_note=customer_note,
     )
     PaymentAttempt.objects.create(request=item, expected_amount_vnd=item.amount_vnd)
     return item
@@ -68,11 +81,12 @@ def _activate(item, account, *, reviewer, note, amount):
         raise ValidationError('Yêu cầu đã được xử lý.')
     item.approved_amount_vnd = amount
     adapter.activate(account, item)
+    item.activation_snapshot = adapter.subscription_snapshot(account)
     item.status = SubscriptionRequest.Status.APPROVED
     item.review_note = note
     item.reviewed_by = reviewer
     item.reviewed_at = item.activated_at = timezone.now()
-    item.save(update_fields=['status', 'approved_amount_vnd', 'review_note', 'reviewed_by', 'reviewed_at', 'activated_at'])
+    item.save(update_fields=['status', 'approved_amount_vnd', 'review_note', 'reviewed_by', 'reviewed_at', 'activated_at', 'activation_snapshot'])
     return item
 
 

@@ -125,7 +125,7 @@ class BillingTests(TestCase):
         else:
             self.assertEqual(end, services.add_months(today, 1) - timedelta(days=1))
         renewal = self.submit(billing_cycle='year')
-        self.assertEqual(renewal.kind, 'renewal')
+        self.assertEqual(renewal.kind, 'cycle_change')
         self.assertEqual(renewal.amount_vnd, self.paid['year'])
         services.review_request(renewal.pk, self.admin, decision='approved')
         expected = services.add_months(timezone.localtime(end), 12) if settings.BILLING_APPLICATION == 'pm' else services.add_months(end + timedelta(days=1), 12) - timedelta(days=1)
@@ -216,7 +216,8 @@ class BillingTests(TestCase):
             url = reverse({'fnb': 'App_Quanly:account', 'pos': 'App_Accounts:account', 'photo': 'accounts:pricing'}[app])
         item = self.submit()
         response = self.client.get(url)
-        self.assertContains(response, 'Chọn gói này', count=4)
+        self.assertContains(response, 'data-billing-select=', count=4)
+        self.assertContains(response, 'Đang sử dụng')
         self.assertContains(response, 'id="billingRequestModal"', count=1)
         self.assertContains(response, 'Lịch sử yêu cầu')
         self.assertContains(response, item.reference)
@@ -232,6 +233,8 @@ class BillingTests(TestCase):
         self.assertEqual(adapter.current_plan_key(self.account), free['key'])
         change.refresh_from_db()
         self.assertEqual(change.approved_amount_vnd, 0)
+        self.assertEqual(change.billing_cycle, 'none')
+        self.assertEqual(change.months, 0)
         if settings.BILLING_APPLICATION in ('pm', 'pos', 'fnb'):
             self.assertIsNone(self.expiry())
 
@@ -245,3 +248,78 @@ class BillingTests(TestCase):
             services.record_verified_payment(payment.pk, transaction_id='bad-quote', amount_vnd=1)
         item.refresh_from_db()
         self.assertEqual(item.status, 'pending')
+
+
+    def test_free_current_cta_disabled_and_backend_rejects_renewal(self):
+        from .presentation import request_presentation
+        free = next(p for p in adapter.plans() if p['key'] in ('free', 'mien-phi'))
+        action = request_presentation(self.request)['actions'][free['key']]
+        for cycle in ('month', 'year'):
+            self.assertEqual(action[cycle]['label'], 'Đang sử dụng')
+            self.assertTrue(action[cycle]['disabled'])
+            self.assertEqual(self.client.post(self.url, self.payload(plan_key=free['key'], billing_cycle=cycle)).status_code, 400)
+        self.assertEqual(SubscriptionRequest.objects.count(), 0)
+
+    def test_current_cycle_cta_and_pending_switch(self):
+        from .presentation import current_subscription, request_presentation
+        item = self.submit()
+        services.review_request(item.pk, self.admin, decision='approved')
+        self.assertEqual(current_subscription(self.account)['cycle'], 'month')
+        action = request_presentation(self.request)['actions'][self.paid['key']]
+        self.assertEqual(action['month']['label'], 'Gia hạn gói')
+        self.assertEqual(action['year']['label'], 'Chuyển sang gói năm')
+        self.assertEqual(action['caption'], 'Gói hiện tại · Theo tháng')
+        switch = self.submit(billing_cycle='year')
+        self.assertEqual(switch.kind, 'cycle_change')
+        pending = self.client.get(self.url).json()['actions'][self.paid['key']]
+        self.assertEqual(pending['year']['label'], 'Đang chờ xử lý')
+        self.assertTrue(pending['year']['disabled'])
+        self.assertFalse(pending['month']['disabled'])
+        self.assertEqual(current_subscription(self.account)['cycle'], 'month')
+        services.review_request(switch.pk, self.admin, decision='approved')
+        action = request_presentation(self.request)['actions'][self.paid['key']]
+        self.assertEqual(action['year']['label'], 'Gia hạn gói')
+        self.assertEqual(action['month']['label'], 'Chuyển sang gói tháng')
+        self.assertEqual(self.submit(billing_cycle='year').kind, 'renewal')
+
+    def test_free_downgrade_and_paid_requires_a_cycle(self):
+        from .presentation import request_presentation
+        self.assertEqual(self.client.post(self.url, self.payload(billing_cycle='none')).status_code, 400)
+        item = self.submit()
+        services.review_request(item.pk, self.admin, decision='approved')
+        free = next(p for p in adapter.plans() if p['key'] in ('free', 'mien-phi'))
+        action = request_presentation(self.request)['actions'][free['key']]
+        self.assertEqual(action['month']['label'], 'Chuyển về miễn phí')
+        self.assertFalse(action['month']['disabled'])
+        change = self.submit(plan_key=free['key'], billing_cycle='year')
+        self.assertEqual(change.billing_cycle, 'none')
+        self.assertEqual(change.get_billing_cycle_display(), 'Không thời hạn')
+
+    def test_external_grant_change_invalidates_recorded_cycle(self):
+        from .presentation import current_subscription, request_presentation
+        item = self.submit()
+        services.review_request(item.pk, self.admin, decision='approved')
+        app = settings.BILLING_APPLICATION
+        end = self.expiry() + timedelta(days=1)
+        if app == 'pm':
+            from App_Accounts.models import UserSubscription
+            UserSubscription.objects.filter(user=self.user, status='active').update(ended_at=end)
+        elif app == 'photo':
+            from App_Subscription.models import Subscription
+            Subscription.objects.filter(photographer__user=self.user, end_date__gte=timezone.localdate()).update(end_date=end)
+        else:
+            field = 'subscription_ends_on' if app == 'fnb' else 'subscription_expires_on'
+            type(self.account).objects.filter(pk=self.account.pk).update(**{field: end})
+        self.assertIsNone(current_subscription(self.account)['cycle'])
+        action = request_presentation(self.request)['actions'][self.paid['key']]
+        self.assertEqual(action['month']['label'], 'Gia hạn theo tháng')
+        self.assertEqual(action['year']['label'], 'Gia hạn theo năm')
+
+    def test_legacy_grants_do_not_guess_cycle_from_duration(self):
+        from .presentation import current_subscription
+        item = self.submit(billing_cycle='year')
+        services.review_request(item.pk, self.admin, decision='approved')
+        SubscriptionRequest.objects.filter(pk=item.pk).update(activation_snapshot={})
+        # PM/Photo have an exact grant-to-request reference; tenants did not store one.
+        expected = 'year' if settings.BILLING_APPLICATION in ('pm', 'photo') else None
+        self.assertEqual(current_subscription(self.account)['cycle'], expected)

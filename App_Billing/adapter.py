@@ -37,3 +37,13 @@ def activate(account, item):
     account.subscription_starts_on = original_start if same and old_end and old_end >= today else today
     account.subscription_ends_on = None if plan.is_free else add_months(start, item.months) - timedelta(days=1)
     account.save()
+
+
+def subscription_snapshot(account):
+    account.refresh_from_db()
+    start, end = account.subscription_starts_on, account.subscription_ends_on
+    today = timezone.localdate()
+    key = current_plan_key(account)
+    return {'plan': key, 'start': start.isoformat() if start else None,
+            'end': end.isoformat() if end else None,
+            'active': key == 'mien-phi' or ((start is None or start <= today) and (end is None or end >= today))}

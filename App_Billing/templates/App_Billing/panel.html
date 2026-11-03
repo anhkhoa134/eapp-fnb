@@ -1,5 +1,5 @@
 {% load static billing_tags %}
-<link rel="stylesheet" href="{% static 'billing/requests.css' %}?v=20261103-1">
+<link rel="stylesheet" href="{% static 'billing/requests.css' %}?v=20261103-2">
 <section class="billing-support-panel">
   <div class="billing-support-heading"><span class="billing-support-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-3a9 9 0 0 1 18 0v3M21 17v1a3 3 0 0 1-3 3h-4"/><rect x="3" y="11" width="4" height="7" rx="2"/><rect x="17" y="11" width="4" height="7" rx="2"/></svg></span><div>
     <h3>Hỗ trợ kỹ thuật &amp; Tư vấn triển khai</h3>
@@ -38,8 +38,8 @@
         <div class="alert alert-info" data-billing-pending{% if not billing_pending %} hidden{% endif %}>Bạn đang có yêu cầu chờ xử lý. Có thể xem hoặc hủy yêu cầu trong lịch sử.</div>
         <div class="billing-request-error" data-billing-form-message role="alert" hidden></div>
         <div class="billing-form-grid">
-          <label for="billingPlan">Gói yêu cầu<select id="billingPlan" name="plan_key" class="form-select" required>{% for plan in billing_plans %}<option value="{{ plan.key }}" data-price-month="{{ plan.month|default_if_none:'' }}" data-price-year="{{ plan.year|default_if_none:'' }}">{{ plan.name }}</option>{% endfor %}</select></label>
-          <label for="billingCycle">Kỳ hạn<select id="billingCycle" name="billing_cycle" class="form-select"><option value="month">Theo tháng (1 tháng)</option><option value="year">Theo năm (12 tháng)</option></select></label>
+          <label for="billingPlan">Gói yêu cầu<select id="billingPlan" name="plan_key" class="form-select" required>{% for plan in billing_plans %}<option value="{{ plan.key }}" data-free="{{ plan.is_free|yesno:'true,false' }}"{% if plan.disabled %} disabled{% endif %} data-price-month="{{ plan.month|default_if_none:'' }}" data-price-year="{{ plan.year|default_if_none:'' }}">{{ plan.name }}</option>{% endfor %}</select></label>
+          <label for="billingCycle" data-billing-cycle-field>Kỳ hạn<select id="billingCycle" name="billing_cycle" class="form-select"><option value="month">Theo tháng (1 tháng)</option><option value="year">Theo năm (12 tháng)</option><option value="none" hidden disabled>Không thời hạn</option></select></label>
           <label class="billing-form-note" for="billingNote">Ghi chú của khách hàng<textarea id="billingNote" name="customer_note" rows="3" maxlength="2000" class="form-control" placeholder="VD: Gia hạn gói đang dùng hoặc cần hỗ trợ chuyển dữ liệu"></textarea></label>
         </div>
         <div class="billing-request-summary" data-billing-estimate role="status" aria-live="polite"></div>
@@ -49,4 +49,4 @@
   </div>
 </div>
 {% endif %}
-<script src="{% static 'billing/requests.js' %}?v=20261103-1" defer></script>
+<script src="{% static 'billing/requests.js' %}?v=20261103-2" defer></script>

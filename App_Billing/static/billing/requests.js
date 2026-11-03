@@ -38,11 +38,43 @@
         }
         return data;
     }
+    const cycleFor = (button) => {
+        const pricing = button.closest('[data-billing-period], [data-pricing-period]');
+        return pricing?.dataset.billingPeriod || pricing?.dataset.pricingPeriod || 'month';
+    };
+    function updateActions(actions) {
+        document.querySelectorAll('[data-billing-select]').forEach((button) => {
+            const action = actions?.[button.dataset.billingSelect];
+            if (action) {
+                for (const cycle of ['month', 'year']) {
+                    button.setAttribute(`data-label-${cycle}`, action[cycle].label);
+                    button.setAttribute(`data-disabled-${cycle}`, String(action[cycle].disabled));
+                }
+                const caption = button.parentElement.querySelector('[data-billing-caption]');
+                if (caption) { caption.textContent = action.caption; caption.hidden = !action.caption; }
+                const option = Array.from(form()?.elements.plan_key.options || []).find((item) => item.value === button.dataset.billingSelect);
+                if (option) option.disabled = action.free && action.month.disabled;
+            }
+            const cycle = cycleFor(button);
+            button.textContent = button.getAttribute(`data-label-${cycle}`) || 'Chọn gói này';
+            button.disabled = button.getAttribute(`data-disabled-${cycle}`) === 'true';
+        });
+    }
     function estimate() {
         const currentForm = form();
         if (!currentForm) return;
         const option = currentForm.elements.plan_key.selectedOptions[0];
-        const cycle = currentForm.elements.billing_cycle.value;
+        const free = option?.dataset.free === 'true';
+        const cycleField = currentForm.elements.billing_cycle;
+        currentForm.querySelector('[data-billing-cycle-field]').hidden = free;
+        for (const choice of cycleField.options) choice.disabled = free ? choice.value !== 'none' : choice.value === 'none';
+        if (free) cycleField.value = 'none';
+        else if (cycleField.value === 'none' || !cycleField.value) cycleField.value = 'month';
+        if (free) {
+            message('[data-billing-estimate]', 'Miễn phí · Không thời hạn. Chuyển gói có hiệu lực sau khi quản trị viên xác nhận.');
+            return;
+        }
+        const cycle = cycleField.value;
         const price = option?.getAttribute(`data-price-${cycle}`);
         message('[data-billing-estimate]', price === '' || price == null ? 'Giá liên hệ: quản trị viên sẽ báo giá sau khi nhận yêu cầu.' : `Tạm tính: ${money(Number(price))} cho ${cycle === 'year' ? '12 tháng' : '1 tháng'}.`);
     }
@@ -55,6 +87,7 @@
     }
     async function refresh() {
         cleanupModal();
+        updateActions();
         const root = panel();
         if (!root || root.dataset.canManage !== 'true' || loading) return;
         loading = true;
@@ -62,6 +95,7 @@
             const data = await request(`${root.dataset.endpoint}?page=${page}`);
             if (!root.isConnected) return;
             page = data.page;
+            updateActions(data.actions);
             const pending = document.querySelector('[data-billing-pending]');
             if (pending) pending.hidden = !data.pending;
             const body = root.querySelector('[data-billing-history]');
@@ -88,8 +122,18 @@
         finally { loading = false; }
     }
     document.addEventListener('click', async (event) => {
+        const periodButton = event.target.closest('[data-billing-period-button], [data-pricing-period-button]');
+        if (periodButton) {
+            const pricing = periodButton.closest('[data-billing-period], [data-pricing-period]');
+            const cycle = periodButton.dataset.billingPeriodButton || periodButton.dataset.pricingPeriodButton;
+            if (pricing && ['month', 'year'].includes(cycle)) {
+                if (pricing.hasAttribute('data-billing-period')) pricing.dataset.billingPeriod = cycle;
+                else pricing.dataset.pricingPeriod = cycle;
+                updateActions();
+            }
+        }
         const select = event.target.closest('[data-billing-select]');
-        if (select) {
+        if (select && !select.disabled) {
             cleanupModal();
             const root = panel();
             if (!root) return;
@@ -99,9 +143,8 @@
                 return;
             }
             const currentForm = form();
-            const pricing = select.closest('[data-billing-period], [data-pricing-period]');
             currentForm.elements.plan_key.value = select.dataset.billingSelect;
-            currentForm.elements.billing_cycle.value = pricing?.dataset.billingPeriod || pricing?.dataset.pricingPeriod || 'month';
+            currentForm.elements.billing_cycle.value = cycleFor(select);
             message('[data-billing-form-message]', ''); estimate();
             const modal = document.getElementById('billingRequestModal');
             // Move out of transformed cards/tab panels so the backdrop never covers the form.

@@ -4,8 +4,8 @@
 
 ## Sử dụng
 
-- Trang gói mặc định theo tháng. “Chọn gói này” mở form đã chọn đúng gói và kỳ hạn đang xem. Chọn lại gói hiện tại để gia hạn.
-- Yêu cầu lưu gói, kỳ hạn 1/12 tháng, giá backend tại thời điểm gửi và ghi chú. Khách có thể hủy yêu cầu đang chờ. Mỗi tài khoản/doanh nghiệp chỉ có một yêu cầu chờ xử lý.
+- Trang gói mặc định theo tháng. “Chọn gói này” mở form đã chọn đúng gói và kỳ hạn đang xem. Chọn lại gói trả phí hiện tại để gia hạn.
+- Yêu cầu lưu gói, kỳ hạn 1/12 tháng (miễn phí: không thời hạn), giá backend tại thời điểm gửi và ghi chú. Khách có thể hủy yêu cầu đang chờ. Mỗi tài khoản/doanh nghiệp chỉ có một yêu cầu chờ xử lý.
 - POS/FnB: chỉ quản lý doanh nghiệp đang hoạt động được gửi và xem lịch sử. PM/Photo: theo tài khoản đăng nhập. Người chưa đăng nhập Photo được chuyển đến đăng nhập.
 - Django Admin → **Yêu cầu gói dịch vụ** → **Xem và xử lý**. Chỉ superuser được duyệt, từ chối hoặc hủy; duyệt phải xác nhận đã thanh toán/thỏa thuận. Gói liên hệ cần nhập số tiền báo giá; gói niêm yết phải khớp giá đã lưu.
 - Cùng gói còn hạn: nối tiếp thời hạn còn lại theo tháng lịch. Đổi gói hoặc gói hết hạn: bắt đầu từ lúc duyệt. Đổi gói không tự tính hoàn tiền/bù trừ; quản trị viên xác nhận thỏa thuận trước khi duyệt.
@@ -37,3 +37,11 @@ Không gọi `record_verified_payment` trực tiếp từ dữ liệu chưa xác
 Sau khi cập nhật mã từng app, chạy `python manage.py migrate --noinput`, `python manage.py collectstatic --noinput` rồi khởi động lại dịch vụ theo quy trình hiện có. Migration chỉ thêm bảng yêu cầu/thanh toán, không sửa gói hay thời hạn của khách hiện tại.
 
 Chạy `python manage.py test App_Billing --noinput`. Bộ test kiểm tra quyền/CSRF, tách tài khoản, giá server, trùng yêu cầu, duyệt/từ chối/hủy, giá liên hệ, tháng lịch, gia hạn giữ phần còn lại, chống kích hoạt lặp, và render trang tài khoản.
+
+## CTA và kỳ hạn hiện tại
+
+- Miễn phí đang dùng: “Đang sử dụng”, vô hiệu hóa ở cả hai tab; không có gia hạn.
+- Cùng gói trả phí, cùng kỳ hạn: “Gia hạn gói”. Khác kỳ hạn: “Chuyển sang gói tháng/năm”, ghi lịch sử là “Đổi kỳ hạn”. Việc duyệt vẫn cộng thời hạn mới sau phần còn lại của cùng gói.
+- Gói khác: “Chọn gói này”; trả phí → miễn phí: “Chuyển về miễn phí”, form/hồ sơ ghi “Không thời hạn”. Khách chưa đăng nhập: “Bắt đầu miễn phí”.
+- Đúng gói/kỳ hạn có yêu cầu chờ: “Đang chờ xử lý”, có thể hủy trong lịch sử.
+- Mỗi lần kích hoạt lưu `activation_snapshot` (gói, bản ghi hoặc ngày bắt đầu/kết thúc) trên yêu cầu. Chỉ nhận kỳ hạn từ yêu cầu đã duyệt khớp gói thực tế; thao tác sửa gói thủ công làm snapshot không còn khớp sẽ không giữ nhầm kỳ hạn cũ. Các bản ghi PM/Photo cũ có mã liên kết yêu cầu chính xác vẫn đọc được kỳ hạn. Dữ liệu cũ không đủ thông tin hiển thị “Chưa xác định kỳ hạn” và “Gia hạn theo tháng/năm”; không suy đoán bằng cách chia số ngày còn lại.

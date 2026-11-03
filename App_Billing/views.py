@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 from .forms import SubscriptionRequestForm
+from .presentation import request_presentation
 from .models import SubscriptionRequest
 from .services import account_for, cancel_request, money, submit_request
 
@@ -42,7 +43,7 @@ def requests_view(request):
         return JsonResponse({'message': 'Đã gửi yêu cầu. Quản trị viên sẽ xác nhận và kích hoạt gói.', 'item': serialize(item), 'next_client_token': str(uuid.uuid4())}, status=201)
     items = SubscriptionRequest.objects.filter(account=account)
     page = Paginator(items, 20).get_page(request.GET.get('page', 1))
-    return JsonResponse({'items': [serialize(item) for item in page], 'page': page.number, 'pages': page.paginator.num_pages, 'pending': items.filter(status='pending').exists()})
+    return JsonResponse({'items': [serialize(item) for item in page], 'page': page.number, 'pages': page.paginator.num_pages, 'pending': items.filter(status='pending').exists(), 'actions': request_presentation(request)['actions']})
 
 
 @never_cache
