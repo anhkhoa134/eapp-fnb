@@ -1,0 +1,9 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/pricing-period.css' %}?v=20261103-1">
+<div class="billing-period-switch">
+    <div class="billing-period-options" role="group" aria-label="Hiển thị giá theo">
+        <button type="button" class="billing-period-button" data-billing-period-button="month" aria-pressed="true">Theo tháng</button>
+        <button type="button" class="billing-period-button" data-billing-period-button="year" aria-pressed="false">Theo năm <span class="billing-yearly-promo">Ưu đãi</span></button>
+    </div>
+</div>
+<script src="{% static 'js/pricing-period.js' %}?v=20261103-1" defer></script>

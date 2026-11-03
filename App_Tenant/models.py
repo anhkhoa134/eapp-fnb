@@ -51,6 +51,7 @@ class SubscriptionPlan(TimeStampedModel):
 
     name = models.CharField('Tên gói', max_length=100)
     slug = models.SlugField(max_length=120, unique=True)
+    price_monthly = models.DecimalField('Giá / tháng', max_digits=12, decimal_places=0, default=0, validators=[MinValueValidator(0)])
     price_yearly = models.DecimalField('Giá / năm', max_digits=12, decimal_places=0, default=0)
     is_contact_price = models.BooleanField(
         'Giá liên hệ',
@@ -102,7 +103,14 @@ class SubscriptionPlan(TimeStampedModel):
 
     @property
     def is_free(self) -> bool:
-        return not self.is_contact_price and not self.price_yearly
+        return not self.is_contact_price and not self.price_yearly and not self.price_monthly
+
+    @property
+    def yearly_savings_percent(self):
+        monthly_total = self.price_monthly * 12
+        if self.is_contact_price or not 0 < self.price_yearly < monthly_total:
+            return 0
+        return round((monthly_total - self.price_yearly) * 100 / monthly_total)
 
     def save(self, *args, **kwargs):
         if not self.slug:
