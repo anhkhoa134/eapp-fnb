@@ -7,6 +7,7 @@ from App_Core import views as core_views
 from App_Core.admin_views import demo_seed_reset_confirm
 
 urlpatterns = [
+    path('accounts/billing/', include('App_Billing.urls')),
     path('manifest.webmanifest', core_views.manifest_view, name='pwa_manifest'),
     path('sw.js', core_views.service_worker_view, name='pwa_service_worker'),
     path('offline/', core_views.offline_view, name='pwa_offline'),

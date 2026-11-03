@@ -1,0 +1,52 @@
+{% load static billing_tags %}
+<link rel="stylesheet" href="{% static 'billing/requests.css' %}?v=20261103-1">
+<section class="billing-support-panel">
+  <div class="billing-support-heading"><span class="billing-support-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-3a9 9 0 0 1 18 0v3M21 17v1a3 3 0 0 1-3 3h-4"/><rect x="3" y="11" width="4" height="7" rx="2"/><rect x="17" y="11" width="4" height="7" rx="2"/></svg></span><div>
+    <h3>Hỗ trợ kỹ thuật &amp; Tư vấn triển khai</h3>
+    <p>Bạn cần tư vấn chọn gói hoặc hỗ trợ triển khai? Đội ngũ eApp sẵn sàng hỗ trợ bạn qua Zalo và Email.</p>
+  </div></div>
+  <div class="billing-support-links">
+    <a href="https://zalo.me/0989408926" target="_blank" rel="noopener noreferrer"><span>Zalo 1</span>0989.408.926</a>
+    <a href="https://zalo.me/0707080405" target="_blank" rel="noopener noreferrer"><span>Zalo 2</span>0707.080.405</a>
+    <a href="mailto:admin@eapp.vn"><span>Email</span>admin@eapp.vn</a>
+  </div>
+</section>
+<section class="billing-history-panel" data-billing-requests data-endpoint="{% url 'billing:requests' %}" data-can-manage="{{ billing_can_manage|yesno:'true,false' }}" data-login-url="{% if not billing_authenticated %}{{ billing_login_url }}{% endif %}">
+  <div class="billing-history-heading"><h3>Lịch sử yêu cầu</h3>{% if billing_can_manage %}<button type="button" class="btn btn-sm btn-outline-secondary" data-billing-refresh>Làm mới</button>{% endif %}</div>
+  <div data-billing-feedback role="status" aria-live="polite"></div>
+  {% if billing_can_manage %}
+  <div class="table-responsive"><table class="table billing-history-table">
+    <thead><tr><th>Ngày / Mã yêu cầu</th><th>Gói</th><th>Kỳ hạn</th><th>Số tiền</th><th>Trạng thái</th><th>Phản hồi</th><th></th></tr></thead>
+    <tbody data-billing-history>
+      {% for item in billing_history %}
+      <tr><td>{{ item.created_at|date:'d/m/Y H:i' }}<small class="d-block">{{ item.reference }}</small></td><td>{{ item.plan_name }}<small class="d-block">{{ item.get_kind_display }}</small></td><td>{{ item.get_billing_cycle_display }}</td><td>{% if item.approved_amount_vnd is not None %}{{ item.approved_amount_vnd|billing_money }}{% elif item.amount_vnd is not None %}{{ item.amount_vnd|billing_money }}{% else %}Liên hệ báo giá{% endif %}</td><td><span class="billing-status billing-status--{{ item.status }}">{{ item.get_status_display }}</span></td><td>{{ item.review_note|default:'—' }}</td><td>{% if item.status == 'pending' %}<button type="button" class="btn btn-sm btn-outline-secondary" data-billing-cancel="{{ item.id }}">Hủy</button>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Chưa có yêu cầu nâng cấp hoặc gia hạn.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <div class="billing-history-pagination"><button type="button" class="btn btn-sm btn-outline-secondary" data-billing-prev disabled>Trước</button><span data-billing-page>Trang 1</span><button type="button" class="btn btn-sm btn-outline-secondary" data-billing-next>Tiếp</button></div>
+  {% elif not billing_authenticated %}<p class="text-muted mb-0"><a href="{{ billing_login_url }}">Đăng nhập</a> để gửi yêu cầu và xem lịch sử.</p>
+  {% else %}<p class="text-muted mb-0">Chỉ người quản lý tài khoản được gửi và xem yêu cầu gói dịch vụ.</p>{% endif %}
+</section>
+{% if billing_can_manage %}
+<div class="modal fade billing-request-modal" id="billingRequestModal" tabindex="-1" aria-labelledby="billingRequestTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <form class="modal-content" data-billing-request-form action="{% url 'billing:requests' %}" method="post">
+      {% csrf_token %}<input type="hidden" name="client_token" value="{{ billing_token }}">
+      <div class="modal-header"><h2 class="modal-title" id="billingRequestTitle">Yêu cầu đổi / gia hạn gói</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
+      <div class="modal-body">
+        <p class="billing-modal-intro">Quản trị viên sẽ xác nhận giá, thanh toán và thời hạn trước khi kích hoạt. Gửi yêu cầu không tự thu tiền.</p>
+        <div class="alert alert-info" data-billing-pending{% if not billing_pending %} hidden{% endif %}>Bạn đang có yêu cầu chờ xử lý. Có thể xem hoặc hủy yêu cầu trong lịch sử.</div>
+        <div class="billing-request-error" data-billing-form-message role="alert" hidden></div>
+        <div class="billing-form-grid">
+          <label for="billingPlan">Gói yêu cầu<select id="billingPlan" name="plan_key" class="form-select" required>{% for plan in billing_plans %}<option value="{{ plan.key }}" data-price-month="{{ plan.month|default_if_none:'' }}" data-price-year="{{ plan.year|default_if_none:'' }}">{{ plan.name }}</option>{% endfor %}</select></label>
+          <label for="billingCycle">Kỳ hạn<select id="billingCycle" name="billing_cycle" class="form-select"><option value="month">Theo tháng (1 tháng)</option><option value="year">Theo năm (12 tháng)</option></select></label>
+          <label class="billing-form-note" for="billingNote">Ghi chú của khách hàng<textarea id="billingNote" name="customer_note" rows="3" maxlength="2000" class="form-control" placeholder="VD: Gia hạn gói đang dùng hoặc cần hỗ trợ chuyển dữ liệu"></textarea></label>
+        </div>
+        <div class="billing-request-summary" data-billing-estimate role="status" aria-live="polite"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Đóng</button><button type="submit" class="btn btn-primary" data-billing-submit>Gửi yêu cầu</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+<script src="{% static 'billing/requests.js' %}?v=20261103-1" defer></script>

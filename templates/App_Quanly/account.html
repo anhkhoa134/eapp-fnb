@@ -1,5 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
-{% load number_format %}
+{% load number_format billing_tags %}
 
 {% block quanly_content %}
 <div class="row g-3">
@@ -220,8 +220,7 @@
         </h2>
         <p class="text-muted small mb-4">
             Chọn gói phù hợp với quy mô quán của bạn. Tài khoản đăng ký mới bắt đầu với gói Miễn phí.
-            Để nâng cấp, vui lòng liên hệ Zalo
-            <a href="https://zalo.me/{{ contact_zalo }}" target="_blank" rel="noopener noreferrer">{{ contact_zalo }}</a>.
+            Chọn gói để gửi yêu cầu đổi hoặc gia hạn.
         </p>
         {% include 'includes/_pricing_period.html' %}
         <div class="acct-plans-grid">
@@ -282,20 +281,11 @@
                     <i class="bi bi-calendar-check me-1"></i>Hiệu lực: {% include 'App_Quanly/_plan_period.html' %}
                 </div>
                 {% endif %}
-                <div class="acct-plan-cta">
-                    {% if current_plan and current_plan.pk == plan.pk %}
-                    <button type="button" class="btn btn-sm btn-light border w-100" disabled>
-                        <i class="bi bi-check2 me-1"></i>Gói hiện tại
-                    </button>
-                    {% else %}
-                    <a class="btn btn-sm btn-primary w-100" href="https://zalo.me/{{ contact_zalo }}" target="_blank" rel="noopener noreferrer">
-                        <i class="bi bi-chat-dots me-1"></i>{% if current_plan and plan.sort_order < current_plan.sort_order %}Đổi gói qua Zalo{% else %}Nâng cấp qua Zalo{% endif %}
-                    </a>
-                    {% endif %}
-                </div>
+                <div class="acct-plan-cta"><button type="button" class="btn btn-sm btn-primary w-100" data-billing-select="{{ plan.slug }}">Chọn gói này</button></div>
             </div>
             {% endfor %}
         </div>
+        {% billing_panel %}
     </div>
 </div>
 {% endif %}

@@ -66,6 +66,7 @@ def env_required(key):
     return value
 
 INSTALLED_APPS = [
+    'App_Billing.apps.BillingConfig',
     *(['jazzmin'] if importlib.util.find_spec('jazzmin') else []),
     'django.contrib.admin',
     'django.contrib.auth',
@@ -341,3 +342,8 @@ LOGGING = {
         },
     },
 }
+
+# Subscription requests are independent of payment-provider adapters.
+BILLING_APPLICATION = 'fnb'
+BILLING_ACCOUNT_MODEL = 'App_Tenant.Tenant'
+BILLING_REFERENCE_PREFIX = 'FNB'

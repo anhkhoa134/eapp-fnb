@@ -1,0 +1,11 @@
+{% extends 'admin/base_site.html' %}
+{% block content %}
+<div class="module" style="max-width:800px;padding:24px">
+  <h2>{{ item.reference }} · {{ item.plan_name }}</h2>
+  <p><strong>{{ item.account }}</strong> · {{ item.get_billing_cycle_display }} · {{ item.get_kind_display }}</p>
+  <p>Ghi chú khách hàng: {{ item.customer_note|default:'—' }}</p>
+  {% if item.status == 'pending' %}
+  <form method="post">{% csrf_token %}{{ form.as_p }}<input type="submit" value="Xác nhận xử lý" class="default"></form>
+  {% else %}<p>{{ item.get_status_display }} · {{ item.review_note }}</p>{% endif %}
+</div>
+{% endblock %}
