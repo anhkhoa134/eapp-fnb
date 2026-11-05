@@ -2,9 +2,14 @@
  * In qua iframe ẩn: tải trang in với ?autoprint=1, trang in tự gọi window.print()
  * rồi báo lại (postMessage) để gỡ iframe. Các lệnh in được xếp hàng lần lượt để
  * hộp thoại in không chồng nhau. Nút có [data-print-url] được gắn sẵn.
+ * Trang có nạp eapp_direct_print.js và đã chọn máy in nhiệt thì in thẳng tới máy đó
+ * (eappPrint(url, 'kitchen') / data-print-role="kitchen" dùng máy in phiếu bếp).
  */
 (() => {
-    const PRINT_TIMEOUT_MS = 120000;
+    // Chrome/Edge máy tính chặn script khi hộp thoại in đang mở, nên mốc này chỉ chạy sau khi đóng hộp thoại.
+    // Trình duyệt không chặn và không phát "afterprint" (một số bản iOS) thì đây là lúc gỡ iframe:
+    // trước đây 120 giây làm phiếu in sau (VD phiếu bếp sau hoá đơn) phải chờ 2 phút.
+    const PRINT_TIMEOUT_MS = 30000;
     let queue = Promise.resolve();
 
     const printOnce = (url) => new Promise((resolve) => {
@@ -34,9 +39,27 @@
         document.body.appendChild(frame);
     });
 
-    const eappPrint = (url) => {
+    // Thiết bị đã chọn máy in nhiệt (eapp_direct_print.js): in thẳng, không mở hộp thoại.
+    // Chỉ quay về hộp thoại khi chưa kết nối được máy in (trang in chưa tải nên máy chủ chưa đếm lần in);
+    // lỗi sau đó thì báo qua sự kiện "eapp-print-error", không mở hộp thoại để tránh in hai lần.
+    // role: 'receipt' (hoá đơn, tạm tính, in thử) hoặc 'kitchen' (phiếu bếp), chọn máy in tương ứng.
+    const printDirectOrDialog = async (url, role) => {
+        const direct = window.eappDirectPrint;
+        if (!direct || !direct.current(role)) return printOnce(url);
+        try {
+            await direct.printUrl(url, role);
+        } catch (error) {
+            const fallback = error && error.code === 'NO_DEVICE';
+            window.dispatchEvent(new CustomEvent('eapp-print-error', {
+                detail: { message: (error && error.message) || 'Không in được.', fallback },
+            }));
+            if (fallback) await printOnce(url);
+        }
+    };
+
+    const eappPrint = (url, role = 'receipt') => {
         if (!url) return queue;
-        queue = queue.then(() => printOnce(url)).catch(() => null);
+        queue = queue.then(() => printDirectOrDialog(url, role)).catch(() => null);
         return queue;
     };
 
@@ -46,6 +69,6 @@
         const trigger = event.target.closest('[data-print-url]');
         if (!trigger) return;
         event.preventDefault();
-        eappPrint(trigger.dataset.printUrl);
+        eappPrint(trigger.dataset.printUrl, trigger.dataset.printRole || 'receipt');
     });
 })();

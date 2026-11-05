@@ -36,10 +36,17 @@ class LogoutSecurityTests(TestCase):
         )
         UserStoreAccess.objects.create(user=self.user, store=store, is_default=True)
 
-    def test_logout_get_method_not_allowed(self):
+    def test_logout_get_shows_confirmation_without_logging_out(self):
         self.client.login(username='manager_logout', password='123456')
         res = self.client.get(reverse('App_Accounts:logout'))
-        self.assertEqual(res.status_code, 405)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Đăng xuất khỏi eApp FnB?')
+        self.assertContains(res, 'method="post"')
+        self.assertIn('_auth_user_id', self.client.session)
+
+    def test_logout_get_anonymous_redirects_to_login(self):
+        res = self.client.get(reverse('App_Accounts:logout'))
+        self.assertRedirects(res, reverse('App_Accounts:login'), fetch_redirect_response=False)
 
     def test_logout_post_success(self):
         self.client.login(username='manager_logout', password='123456')

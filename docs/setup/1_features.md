@@ -6,7 +6,7 @@ Hệ thống POS **multi-tenant** cho F&B (quán cà phê, nhà hàng nhỏ), te
 | Không gian | URL | Người dùng |
 |---|---|---|
 | POS bán hàng | `/` | Nhân viên, quản lý |
-| Đơn trong ngày | `/orders/today/` | Nhân viên, quản lý |
+| Đơn trong ngày | Modal trên POS (menu tài khoản), API `/api/pos/orders/today/` | Nhân viên, quản lý |
 | Màn hình bếp | `/kitchen/` | Nhân viên, quản lý (khi bật tính năng) |
 | Ca làm việc | `/shifts/` | Nhân viên, quản lý (khi bật tính năng) |
 | Trang in (hoá đơn, tạm tính, phiếu bếp, báo cáo ca) | `/orders/<id>/receipt/`, `/tables/<id>/bill/`, `/kitchen/tickets/<id>/print/`, `/shifts/<id>/print/` | Nhân viên, quản lý |

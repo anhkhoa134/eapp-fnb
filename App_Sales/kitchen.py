@@ -97,14 +97,12 @@ def unsent_kitchen_quantity(table) -> int:
     )
 
 
-def send_table_cart_to_kitchen(*, table, user=None, order=None):
-    """Báo bếp phần số lượng chưa gửi của giỏ bàn. Phải gọi trong transaction.atomic."""
-    items = list(
-        TableCartItem.objects.select_for_update()
-        .filter(table=table)
-        .prefetch_related('toppings')
-        .order_by('created_at', 'id')
-    )
+def send_table_cart_to_kitchen(*, table, user=None, order=None, item_ids=None):
+    """Báo bếp phần số lượng chưa gửi của giỏ bàn (hoặc chỉ các dòng item_ids). Phải gọi trong transaction.atomic."""
+    items_qs = TableCartItem.objects.select_for_update().filter(table=table)
+    if item_ids is not None:
+        items_qs = items_qs.filter(id__in=item_ids)
+    items = list(items_qs.prefetch_related('toppings').order_by('created_at', 'id'))
     rows = []
     sent_ids = []
     for item in items:

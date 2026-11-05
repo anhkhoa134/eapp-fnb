@@ -89,7 +89,7 @@ redis-server
 - POS: `http://127.0.0.1:8002/`
 - Login: `http://127.0.0.1:8002/accounts/login/`
 - Quản lý: `http://127.0.0.1:8002/quanly/`
-- Đơn hôm nay: `http://127.0.0.1:8002/orders/today/`
+- Đơn hôm nay: modal trên POS (menu tài khoản › *Đơn hàng trong ngày*), hoặc `http://127.0.0.1:8002/?open=orders-today`
 - Menu online (xem menu + đặt mang đi): `http://127.0.0.1:8002/demo/`
 - Public QR ordering: `http://127.0.0.1:8002/demo/qr/?table_code=<CODE>&token=<TOKEN>`
 

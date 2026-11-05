@@ -51,6 +51,7 @@ class SubscriptionPlan(TimeStampedModel):
 
     name = models.CharField('Tên gói', max_length=100)
     slug = models.SlugField(max_length=120, unique=True)
+    price_monthly = models.DecimalField('Giá / tháng', max_digits=12, decimal_places=0, default=0, validators=[MinValueValidator(0)])
     price_yearly = models.DecimalField('Giá / năm', max_digits=12, decimal_places=0, default=0)
     is_contact_price = models.BooleanField(
         'Giá liên hệ',
@@ -102,7 +103,14 @@ class SubscriptionPlan(TimeStampedModel):
 
     @property
     def is_free(self) -> bool:
-        return not self.is_contact_price and not self.price_yearly
+        return not self.is_contact_price and not self.price_yearly and not self.price_monthly
+
+    @property
+    def yearly_savings_percent(self):
+        monthly_total = self.price_monthly * 12
+        if self.is_contact_price or not 0 < self.price_yearly < monthly_total:
+            return 0
+        return round((monthly_total - self.price_yearly) * 100 / monthly_total)
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -130,6 +138,8 @@ class Tenant(TimeStampedModel):
     show_kitchen_feature = models.BooleanField('Màn hình bếp (báo bếp)', default=False)
     show_shift_feature = models.BooleanField('Ca làm việc (chốt ca)', default=False)
     show_recipe_feature = models.BooleanField('Định mức nguyên liệu', default=False)
+    feature_price_override_enabled = models.BooleanField('Cho phép chỉnh giá khi bán hàng', default=False)
+    price_override_reason_required = models.BooleanField('Bắt buộc nhập lý do chỉnh giá', default=False)
     tax_percent = models.DecimalField(
         'Thuế (%)',
         max_digits=5,
@@ -288,7 +298,7 @@ class Tenant(TimeStampedModel):
     def staff_user_count(self) -> int:
         from App_Accounts.models import User
 
-        return User.objects.filter(tenant_id=self.pk, role=User.Role.STAFF).count()
+        return User.objects.filter(tenant_id=self.pk, role__in=User.EMPLOYEE_ROLES).count()
 
     def product_count(self) -> int:
         from App_Catalog.models import Product
@@ -314,6 +324,49 @@ class Tenant(TimeStampedModel):
         return self._within_limit(self.product_count(), self.max_products)
 
 
+RECEIPT_FONT_SIZES = ('sm', 'md', 'lg')
+PRINT_NOTE_MAX_LENGTH = 200
+PRINT_NOTE_MAX_LINES = 4
+# Nội dung phiếu in của cửa hàng (POS / màn hình bếp › Thiết lập › Mẫu phiếu). Thiếu khoá thì dùng mặc định.
+PRINT_SETTINGS_DEFAULTS = {
+    'header_note': '',
+    'footer_note': 'Cảm ơn quý khách, hẹn gặp lại!',
+    'show_brand': True,
+    'show_address': True,
+    'show_phone': True,
+    'show_cashier': True,
+    'show_customer': True,
+    'show_payment_qr': True,
+    'show_subtotal': True,
+    'show_zero_tax': True,  # dòng "Thuế (0%)" khi đơn không có thuế; có thuế thì luôn in
+    'show_payment_method': True,
+    'show_customer_paid': True,
+    'show_change': True,
+    'font_size': 'md',
+}
+
+
+def normalize_print_settings(raw) -> dict:
+    """Ghép cấu hình lưu trong DB / gửi từ form với mặc định; bỏ khoá lạ và giá trị sai kiểu."""
+    data = dict(PRINT_SETTINGS_DEFAULTS)
+    if not isinstance(raw, dict):
+        return data
+    for key, default in PRINT_SETTINGS_DEFAULTS.items():
+        if key not in raw:
+            continue
+        value = raw[key]
+        if isinstance(default, bool):
+            if isinstance(value, bool):
+                data[key] = value
+        elif key == 'font_size':
+            if value in RECEIPT_FONT_SIZES:
+                data[key] = value
+        elif isinstance(value, str):
+            lines = [line.strip() for line in value.replace('\r\n', '\n').split('\n')]
+            data[key] = '\n'.join(lines[:PRINT_NOTE_MAX_LINES]).strip()[:PRINT_NOTE_MAX_LENGTH]
+    return data
+
+
 class Store(TimeStampedModel):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='stores')
     name = models.CharField(max_length=150)
@@ -326,6 +379,7 @@ class Store(TimeStampedModel):
     payment_bank_name = models.CharField(max_length=120, blank=True)
     payment_account_name = models.CharField(max_length=120, blank=True)
     payment_account_number = models.CharField(max_length=32, blank=True)
+    print_settings = models.JSONField('Mẫu phiếu in', default=dict, blank=True)
 
     class Meta:
         ordering = ['tenant__name', 'name']
@@ -340,6 +394,8 @@ class Store(TimeStampedModel):
         indexes = [
             models.Index(fields=['tenant', 'is_active']),
         ]
+        verbose_name = 'Cửa hàng'
+        verbose_name_plural = 'Cửa hàng'
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -363,6 +419,25 @@ class Store(TimeStampedModel):
         if self.payment_qr:
             self.payment_qr.delete(save=False)
         super().delete(*args, **kwargs)
+
+    @property
+    def print_options(self) -> dict:
+        return normalize_print_settings(self.print_settings)
+
+    @property
+    def table_code_prefix(self) -> str:
+        """Tiền tố mã bàn lấy từ tên cửa hàng: "CN Trung Tâm" -> "TT", "Chi nhánh Gò Vấp" -> "GV".
+
+        Trước đây seed lấy 3 ký tự đầu của slug nên mọi chi nhánh "CN …" đều ra mã "CN--01".
+        """
+        words = [w for w in slugify(self.name.replace('đ', 'd').replace('Đ', 'D')).split('-') if w]
+        while len(words) > 1 and words[0] in {'cn', 'chi', 'nhanh'}:
+            words = words[1:]
+        if len(words) > 1:
+            prefix = ''.join(word[0] for word in words)[:4]
+        else:
+            prefix = words[0][:3] if words else ''
+        return prefix.upper() or 'BAN'
 
     def __str__(self):
         return f'{self.tenant.name} - {self.name}'

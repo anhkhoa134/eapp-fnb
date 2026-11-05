@@ -175,11 +175,34 @@
     }
 </style>
 
+{% if setup_steps %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <h2 class="h6 fw-bold mb-1"><i class="bi bi-rocket-takeoff me-2 text-success" aria-hidden="true"></i>Bắt đầu với eApp FnB</h2>
+        <p class="small text-muted mb-2">Hoàn thành các bước sau để quán bắt đầu bán hàng.</p>
+        <ol class="list-unstyled mb-0 d-grid gap-1">
+            {% for step in setup_steps %}
+            <li class="d-flex align-items-center gap-2">
+                {% if step.done %}
+                <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
+                <span class="text-muted text-decoration-line-through">{{ step.label }}</span>
+                <span class="visually-hidden">(đã xong)</span>
+                {% else %}
+                <i class="bi bi-circle text-secondary" aria-hidden="true"></i>
+                <a href="{{ step.url }}" class="fw-semibold">{{ step.label }}</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+</div>
+{% endif %}
+
 <div class="brand-hero card mb-3">
     <div class="card-body p-3 p-lg-4">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
             <div>
-                <div class="hero-title">Revenue Command Center</div>
+                <div class="hero-title">Tổng quan doanh thu</div>
                 <p class="hero-sub">Bảng điều hành KPI doanh thu theo doanh nghiệp, giúp theo dõi nhịp bán hàng theo thời gian thực tế vận hành.</p>
             </div>
             <div class="hero-chip-wrap">
@@ -227,6 +250,9 @@
                 <a class="btn btn-outline-secondary" href="{% url 'App_Quanly:dashboard' %}">
                     <i class="bi bi-x-lg me-1"></i>Xóa bộ lọc
                 </a>
+                <a class="btn btn-light" href="{% url 'App_Quanly:orders_export' %}?format=xlsx&amp;date_from={{ date_from|urlencode }}&amp;date_to={{ date_to|urlencode }}{% if selected_store %}&amp;store={{ selected_store }}{% endif %}">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Xuất Excel
+                </a>
             </div>
         </form>
     </div>
@@ -266,7 +292,7 @@
                         <div>
                             <div class="kpi-label">Giá trị đơn trung bình</div>
                             <div class="kpi-value">{{ avg_order_value|thousand_sep }} đ</div>
-                            <div class="kpi-hint">AOV toàn bộ đơn trong bộ lọc</div>
+                            <div class="kpi-hint">Doanh thu chia cho số đơn trong bộ lọc</div>
                         </div>
                     </div>
                 </div>
@@ -403,7 +429,7 @@
 {{ chart_store_names|json_script:"chart-store-names" }}
 {{ chart_store_values|json_script:"chart-store-values" }}
 
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous"></script>
 <script>
     const parseChartJson = (id, fallback = []) => {
         const el = document.getElementById(id);
@@ -507,7 +533,10 @@
         const paymentEl = document.getElementById('paymentMixDonutChart');
         if (paymentEl) {
             const paymentChart = echarts.init(paymentEl);
-            const paymentData = paymentNames.map((name, index) => ({ name, value: paymentValues[index] || 0 }));
+            // Bỏ phần 0 đơn: tránh nhãn "0%" thừa trên vòng tròn.
+            const paymentData = paymentNames
+                .map((name, index) => ({ name, value: paymentValues[index] || 0 }))
+                .filter((row) => row.value > 0);
             paymentChart.setOption({
                 color: ['#2563eb', '#0ea5e9'],
                 tooltip: {

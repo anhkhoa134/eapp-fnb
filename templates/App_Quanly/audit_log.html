@@ -1,4 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
+{% load audit_format %}
 
 {% block extra_css %}
 {{ block.super }}
@@ -136,7 +137,7 @@
                         </td>
                         <td>{{ log.store.name|default:'—' }}</td>
                         <td>
-                            {{ log.message }}
+                            {% if log.extra.changes %}{{ log.message|audit_headline }}{% else %}{{ log.message }}{% endif %}
                             {% if log.extra.changes %}
                             <ul class="audit-changes">
                                 {% for change in log.extra.changes %}

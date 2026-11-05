@@ -164,10 +164,10 @@ class SalesApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.content.decode('utf-8')
         self.assertIn('id="quickCustomerModal"', html)
-        self.assertIn('id="customer-search-results"', html)
-        self.assertIn('customer-results-menu', html)
-        self.assertIn('id="promotion-dropdown-button"', html)
-        self.assertIn('id="promotion-dropdown-menu"', html)
+        self.assertNotIn('id="customer-recent-toggle"', html)
+        self.assertIn('js/checkout-combobox.js', html)
+        self.assertNotIn('id="promotion-dropdown-button"', html)
+        self.assertIn('id="promotion-search-input"', html)
         self.assertIn('const TENANT_SHOW_CUSTOMER_FEATURE = true;', html)
         self.assertIn('const TENANT_SHOW_PROMOTION_FEATURE = true;', html)
         self.assertIn('const TENANT_SHOW_TOPPING_FEATURE = true;', html)
@@ -977,7 +977,7 @@ class SalesApiTests(TestCase):
         self.assertIn(pending_order.id, order_ids)
         self.assertNotIn(cancelled_order.id, order_ids)
 
-    def test_orders_today_page_staff_only_sees_accessible_store_orders(self):
+    def test_orders_today_api_staff_only_sees_accessible_store_orders(self):
         allow_order = Order.objects.create(
             tenant=self.tenant,
             store=self.store_1,
@@ -1003,14 +1003,18 @@ class SalesApiTests(TestCase):
             change_amount=Decimal('0'),
         )
 
-        url = reverse('App_Sales:orders_today')
+        url = reverse('App_Sales_API:orders_today')
         res = self.client.get(url)
         self.assertEqual(res.status_code, 200)
-        html = res.content.decode('utf-8')
-        self.assertIn(allow_order.order_code, html)
-        self.assertNotIn(deny_order.order_code, html)
+        codes = [row['order_code'] for row in res.json()['orders']]
+        self.assertIn(allow_order.order_code, codes)
+        self.assertNotIn(deny_order.order_code, codes)
+        # Lọc cửa hàng không có quyền thì bỏ qua bộ lọc, không lộ đơn của cửa hàng đó.
+        res = self.client.get(url, {'store_id': self.store_2.id})
+        codes = [row['order_code'] for row in res.json()['orders']]
+        self.assertNotIn(deny_order.order_code, codes)
 
-    def test_orders_today_page_manager_can_access(self):
+    def test_orders_today_api_manager_can_access(self):
         manager = User.objects.create_user(
             username='manager_today',
             password='123456',
@@ -1021,7 +1025,7 @@ class SalesApiTests(TestCase):
 
         self.client.logout()
         self.client.login(username='manager_today', password='123456')
-        res = self.client.get(reverse('App_Sales:orders_today'))
+        res = self.client.get(reverse('App_Sales_API:orders_today'))
         self.assertEqual(res.status_code, 200)
 
 
@@ -1238,10 +1242,10 @@ class PosJsIntegrationSmokeTests(TestCase):
         self.assertIn('id="payment-cash"', html)
         self.assertIn('id="payment-card"', html)
         self.assertIn('id="customer-search-input"', html)
-        self.assertIn('id="customer-search-results"', html)
+        self.assertNotIn('id="customer-recent-toggle"', html)
         self.assertIn('id="quickCustomerModal"', html)
-        self.assertIn('id="promotion-dropdown-button"', html)
-        self.assertIn('id="promotion-dropdown-menu"', html)
+        self.assertNotIn('id="promotion-dropdown-button"', html)
+        self.assertIn('id="promotion-search-input"', html)
         self.assertIn('id="category-filter-container"', html)
         self.assertIn('id="themeSelector"', html)
         self.assertIn('Đơn hàng trong ngày', html)

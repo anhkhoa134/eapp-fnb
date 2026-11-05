@@ -66,6 +66,7 @@ def env_required(key):
     return value
 
 INSTALLED_APPS = [
+    'App_Billing.apps.BillingConfig',
     *(['jazzmin'] if importlib.util.find_spec('jazzmin') else []),
     'django.contrib.admin',
     'django.contrib.auth',
@@ -125,6 +126,8 @@ JAZZMIN_SETTINGS = {
 MIDDLEWARE = [
     'Project.health.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # CSP + Permissions-Policy (báo cáo QA 29/10/2026, BUG-20).
+    'App_Core.security_headers.SecurityHeadersMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     # Trước CommonMiddleware để APPEND_SLASH (404→301) chạy trước khi đổi 404→redirect.
@@ -339,3 +342,8 @@ LOGGING = {
         },
     },
 }
+
+# Subscription requests are independent of payment-provider adapters.
+BILLING_APPLICATION = 'fnb'
+BILLING_ACCOUNT_MODEL = 'App_Tenant.Tenant'
+BILLING_REFERENCE_PREFIX = 'FNB'

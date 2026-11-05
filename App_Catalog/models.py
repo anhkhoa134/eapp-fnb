@@ -8,6 +8,25 @@ from App_Core.models import TimeStampedModel
 from App_Core.tenant_media_paths import product_image_file_upload_to, product_image_thumbnail_upload_to
 
 
+# Ảnh mặc định có thương hiệu khi món chưa có ảnh (static path; trước đây ảnh xám "Product" của placehold.co).
+PLACEHOLDER_PRODUCT_IMAGE = 'images/placeholder-dish.svg'
+
+# Trần giá cho một món / topping: chặn gõ nhầm thừa số 0 (vd. 99.999.999.999đ).
+MAX_PRICE_VND = Decimal('100000000')
+
+
+def validate_price_vnd(price, *, allow_zero, label='Giá'):
+    """Giá bán / giá topping: không âm, không vượt trần; giá bán của món phải > 0."""
+    if price is None:
+        return
+    if price < 0:
+        raise ValidationError(f'{label} không được âm.')
+    if price == 0 and not allow_zero:
+        raise ValidationError(f'{label} phải lớn hơn 0 đ.')
+    if price > MAX_PRICE_VND:
+        raise ValidationError(f'{label} tối đa 100.000.000 đ.')
+
+
 def _build_unique_slug(queryset, source_name, fallback='item'):
     base_slug = slugify(source_name) or fallback
     candidate = base_slug
@@ -20,7 +39,7 @@ def _build_unique_slug(queryset, source_name, fallback='item'):
 
 class Category(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='categories')
-    name = models.CharField(max_length=120)
+    name = models.CharField('Tên danh mục', max_length=120)
     slug = models.SlugField(max_length=140)
     description = models.TextField(blank=True)
     is_active = models.BooleanField('Đang hoạt động', default=True)
@@ -30,6 +49,8 @@ class Category(TimeStampedModel):
             models.UniqueConstraint(fields=['tenant', 'slug'], name='uq_category_tenant_slug'),
         ]
         ordering = ['name']
+        verbose_name = 'Danh mục'
+        verbose_name_plural = 'Danh mục'
 
     def save(self, *args, **kwargs):
         self.slug = _build_unique_slug(
@@ -45,8 +66,10 @@ class Category(TimeStampedModel):
 
 class Product(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='products')
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
-    name = models.CharField(max_length=180)
+    category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products', verbose_name='Danh mục'
+    )
+    name = models.CharField('Tên món', max_length=180)
     slug = models.SlugField(max_length=180)
     description = models.TextField('Mô tả', blank=True)
     image_url = models.URLField(blank=True)
@@ -63,6 +86,8 @@ class Product(TimeStampedModel):
             models.Index(fields=['tenant', 'name']),
         ]
         ordering = ['name']
+        verbose_name = 'Sản phẩm'
+        verbose_name_plural = 'Sản phẩm'
 
     def clean(self):
         if not self.category_id:
@@ -98,6 +123,14 @@ class Product(TimeStampedModel):
         return (self.image_url or '').strip()
 
     @property
+    def display_description(self) -> str:
+        """Mô tả hiển thị cho khách / POS. Ẩn câu mẫu "Sản phẩm <tên món>" của dữ liệu seed cũ."""
+        text = (self.description or '').strip()
+        if text.casefold() == f'sản phẩm {self.name}'.strip().casefold():
+            return ''
+        return text
+
+    @property
     def catalog_image_url(self) -> str:
         return self.get_catalog_image_url()
 
@@ -116,8 +149,8 @@ class Product(TimeStampedModel):
 
 class ProductUnit(TimeStampedModel):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='units')
-    name = models.CharField(max_length=120)
-    price = models.DecimalField(max_digits=14, decimal_places=2)
+    name = models.CharField('Tên đơn vị', max_length=120)
+    price = models.DecimalField('Giá bán', max_digits=14, decimal_places=2)
     sku = models.CharField(max_length=120, blank=True)
     is_active = models.BooleanField('Đang hoạt động', default=True)
     display_order = models.PositiveIntegerField(default=0)
@@ -127,6 +160,8 @@ class ProductUnit(TimeStampedModel):
             models.UniqueConstraint(fields=['product', 'name'], name='uq_product_unit_name'),
         ]
         ordering = ['display_order', 'id']
+        verbose_name = 'Đơn vị bán'
+        verbose_name_plural = 'Đơn vị bán'
 
     def __str__(self):
         return f'{self.product.name} - {self.name}'
@@ -134,10 +169,10 @@ class ProductUnit(TimeStampedModel):
 
 class Topping(TimeStampedModel):
     tenant = models.ForeignKey('App_Tenant.Tenant', on_delete=models.CASCADE, related_name='toppings')
-    name = models.CharField(max_length=120)
+    name = models.CharField('Tên topping', max_length=120)
     slug = models.SlugField(max_length=140)
     is_active = models.BooleanField('Đang hoạt động', default=True)
-    price = models.DecimalField(max_digits=14, decimal_places=2, default=0, blank=True)
+    price = models.DecimalField('Giá topping', max_digits=14, decimal_places=2, default=0, blank=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -145,6 +180,8 @@ class Topping(TimeStampedModel):
             models.UniqueConstraint(fields=['tenant', 'slug'], name='uq_topping_tenant_slug'),
         ]
         ordering = ['display_order', 'name', 'id']
+        verbose_name = 'Topping'
+        verbose_name_plural = 'Topping'
 
     def save(self, *args, **kwargs):
         self.slug = _build_unique_slug(
@@ -174,6 +211,11 @@ class ProductTopping(TimeStampedModel):
             models.Index(fields=['topping', 'is_active']),
         ]
         ordering = ['display_order', 'id']
+        verbose_name = 'Topping của món'
+        verbose_name_plural = 'Topping của món'
+
+    def __str__(self):
+        return f'{self.topping.name} cho {self.product.name}'
 
     def clean(self):
         # Let field-level validation surface required errors first.
@@ -181,7 +223,7 @@ class ProductTopping(TimeStampedModel):
             return
         if self.product.tenant_id != self.topping.tenant_id:
             raise ValidationError('Sản phẩm và topping phải cùng doanh nghiệp.')
-        if self.price < Decimal('0'):
+        if self.price is not None and self.price < Decimal('0'):
             raise ValidationError('Giá topping phải >= 0.')
 
     def save(self, *args, **kwargs):
@@ -198,6 +240,11 @@ class StoreCategory(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(fields=['store', 'category'], name='uq_store_category'),
         ]
+        verbose_name = 'Danh mục theo cửa hàng'
+        verbose_name_plural = 'Danh mục theo cửa hàng'
+
+    def __str__(self):
+        return f'{self.category.name} tại {self.store.name}'
 
     def clean(self):
         if self.store.tenant_id != self.category.tenant_id:
@@ -221,6 +268,11 @@ class StoreProduct(TimeStampedModel):
         indexes = [
             models.Index(fields=['store', 'is_available']),
         ]
+        verbose_name = 'Món theo cửa hàng'
+        verbose_name_plural = 'Món theo cửa hàng'
+
+    def __str__(self):
+        return f'{self.product.name} tại {self.store.name}'
 
     def clean(self):
         if self.store.tenant_id != self.product.tenant_id:

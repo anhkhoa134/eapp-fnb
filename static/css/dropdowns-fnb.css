@@ -1,0 +1,26 @@
+/* Bridge the shared POS dropdown styles to FnB's live theme variables. */
+:root {
+    --brand-primary: var(--primary-color, var(--od-primary, #10b981));
+    --brand-primary-dark: var(--primary-hover, var(--od-primary-hover, #059669));
+    --brand-primary-soft: color-mix(in srgb, var(--brand-primary) 10%, white);
+    --brand-focus-border: var(--brand-primary);
+    --brand-font-family: inherit;
+}
+.eapp-dropdown-control:focus,
+.eapp-dropdown-control[aria-expanded="true"],
+.form-control.eapp-dropdown-control:focus,
+.form-select.eapp-dropdown-control:focus,
+.form-control.eapp-dropdown-control[aria-expanded="true"],
+.form-select.eapp-dropdown-control[aria-expanded="true"] {
+    border-color: var(--brand-focus-border);
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--brand-primary) 14%, transparent);
+}
+.eapp-dropdown-menu .customer-result-item.active,
+.eapp-dropdown-menu .dropdown-item.active,
+.eapp-dropdown-menu .dropdown-item:active {
+    background: var(--brand-primary-soft);
+    color: var(--brand-primary-dark);
+}
+@media print {
+    .eapp-dropdown-popup { display: none !important; }
+}

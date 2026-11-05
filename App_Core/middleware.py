@@ -4,7 +4,7 @@ from django.contrib.auth import logout
 from django.http import JsonResponse
 from django.shortcuts import redirect
 
-from App_Core.views import build_not_found_response
+from App_Core.views import build_not_found_response, method_not_allowed_response
 from App_Tenant.access import (
     BLOCK_TENANT_INACTIVE,
     SUBSCRIPTION_EXPIRED_MESSAGE,
@@ -15,25 +15,34 @@ from App_Tenant.access import (
 
 
 class NotFoundRedirectMiddleware:
+    """404 / 405 trần (không có giao diện) -> trang lỗi tiếng Việt có layout; API vẫn trả JSON."""
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
         response = self.get_response(request)
-        if response.status_code != 404:
+        if response.status_code not in (404, 405):
             return response
         if request.method not in {'GET', 'HEAD'}:
             return response
         if request.path.startswith(str(settings.STATIC_URL)) or request.path.startswith(str(settings.MEDIA_URL)):
             return response
-        if request.path.startswith('/api/'):
-            if request.resolver_match is None:
-                return build_not_found_response(request)
-            return response
         if (
             response.has_header('Content-Type')
             and 'application/json' in response['Content-Type'].lower()
         ):
+            return response
+        if response.status_code == 405:
+            if request.path.startswith('/api/'):
+                return response
+            styled = method_not_allowed_response(request)
+            if response.has_header('Allow'):
+                styled['Allow'] = response['Allow']
+            return styled
+        if request.path.startswith('/api/'):
+            if request.resolver_match is None:
+                return build_not_found_response(request)
             return response
         return build_not_found_response(request)
 

@@ -49,7 +49,7 @@ eapp-fnb/
 │
 ├── App_Sales/                          # POS, giỏ bàn, checkout, QR staff, bếp, khách hàng, khuyến mãi
 │   ├── models.py                       # Order, DiningTable, QROrder, TableCartItem, KitchenTicket, Customer, Promotion, Shift, Refund…
-│   ├── views.py · urls.py              # /, /orders/today/, /kitchen/, /shifts/, trang in
+│   ├── views.py · urls.py              # /, /kitchen/, /shifts/, trang in, /print/help/
 │   ├── api_urls.py                     # /api/pos/…
 │   ├── services.py                     # Giá theo store, hạng khách hàng, khuyến mãi, tính tổng đơn
 │   ├── kitchen.py                      # Nghiệp vụ phiếu bếp
@@ -73,7 +73,7 @@ eapp-fnb/
 │   ├── offline.html                    # Trang PWA offline
 │   ├── App_Core/                       # base.html, _pwa_head.html, _pwa_register.html
 │   ├── App_Accounts/                   # login.html, password_change.html
-│   ├── App_Sales/                      # index.html (POS), orders_today.html, kitchen.html, shifts.html
+│   ├── App_Sales/                      # index.html (POS), kitchen.html, shifts.html, print_help.html
 │   │   └── print/                      # Trang in khổ 80/58mm: _base, receipt, table_bill, kitchen_ticket, shift_report
 │   ├── App_Quanly/                     # _layout, _sidebar_nav, _list_pagination, dashboard, CRUD…
 │   ├── App_Public/                     # _ordering_base.html + _ordering_app.html (giao diện gọi món dùng chung),

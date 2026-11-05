@@ -1,0 +1,93 @@
+{% comment %}
+Tab "Mẫu phiếu" (Thiết lập trên POS và màn hình bếp): nội dung phiếu in theo cửa hàng, lưu ở Store.print_settings.
+Tham số: store_select (CSS selector ô chọn cửa hàng của trang, có thể trống), default_store_id.
+Gắn bằng static/js/eapp_print_settings.js. Quản lý mới sửa được; vai trò khác chỉ xem.
+{% endcomment %}
+<form class="receipt-settings" data-receipt-settings novalidate
+      data-url-template="{% url 'App_Sales_API:store_print_settings' 0 %}"
+      data-preview-url="{% url 'App_Sales:print_test' %}"
+      data-store-select="{{ store_select|default:'' }}"
+      data-default-store="{{ default_store_id|default:'' }}">
+    {% csrf_token %}
+    <div class="small text-muted mb-2" data-rs-store>Đang tải mẫu phiếu…</div>
+    {% if not user.is_manager %}
+    <div class="alert alert-light border small py-2 mb-3">Chỉ quản lý được sửa mẫu phiếu. Đây là cấu hình đang dùng.</div>
+    {% endif %}
+    <fieldset{% if not user.is_manager %} disabled{% endif %}>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold mb-1" for="rsHeaderNote">Dòng chữ đầu phiếu</label>
+                <textarea class="form-control" id="rsHeaderNote" name="header_note" rows="2" maxlength="200" placeholder="VD: Wifi: CafeDep · Mật khẩu: 12345678"></textarea>
+                <div class="form-text">In dưới tên quán trên hoá đơn và phiếu tạm tính.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold mb-1" for="rsFooterNote">Lời chào cuối hoá đơn</label>
+                <textarea class="form-control" id="rsFooterNote" name="footer_note" rows="2" maxlength="200" placeholder="VD: Cảm ơn quý khách, hẹn gặp lại!"></textarea>
+                <div class="form-text">Để trống nếu không muốn in.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold mb-1" for="rsFontSize">Cỡ chữ</label>
+                <select class="form-select" id="rsFontSize" name="font_size">
+                    <option value="sm">Nhỏ (in được nhiều hơn)</option>
+                    <option value="md">Vừa</option>
+                    <option value="lg">Lớn (dễ đọc)</option>
+                </select>
+            </div>
+        </div>
+        <div class="fw-semibold mt-3 mb-2">Thông tin in trên phiếu</div>
+        <div class="row row-cols-1 row-cols-md-2 g-2">
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowBrand" name="show_brand">
+                <label class="form-check-label" for="rsShowBrand">Tên thương hiệu (trên tên cửa hàng)</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowAddress" name="show_address">
+                <label class="form-check-label" for="rsShowAddress">Địa chỉ cửa hàng</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowPhone" name="show_phone">
+                <label class="form-check-label" for="rsShowPhone">Số điện thoại cửa hàng</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowCashier" name="show_cashier">
+                <label class="form-check-label" for="rsShowCashier">Tên thu ngân (hoá đơn)</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowCustomer" name="show_customer">
+                <label class="form-check-label" for="rsShowCustomer">Tên, SĐT khách hàng (hoá đơn)</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowPaymentQr" name="show_payment_qr">
+                <label class="form-check-label" for="rsShowPaymentQr">QR chuyển khoản (phiếu tạm tính)</label>
+            </div></div>
+        </div>
+        <div class="fw-semibold mt-3 mb-2">Phần thanh toán trên hoá đơn</div>
+        <div class="row row-cols-1 row-cols-md-2 g-2">
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowSubtotal" name="show_subtotal">
+                <label class="form-check-label" for="rsShowSubtotal">Tạm tính</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowZeroTax" name="show_zero_tax">
+                <label class="form-check-label" for="rsShowZeroTax">Thuế khi bằng 0% <span class="text-muted small">(có thuế thì luôn in)</span></label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowPaymentMethod" name="show_payment_method">
+                <label class="form-check-label" for="rsShowPaymentMethod">Phương thức thanh toán</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowCustomerPaid" name="show_customer_paid">
+                <label class="form-check-label" for="rsShowCustomerPaid">Khách đưa / Đã thanh toán</label>
+            </div></div>
+            <div class="col"><div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="rsShowChange" name="show_change">
+                <label class="form-check-label" for="rsShowChange">Tiền thừa trả khách <span class="text-muted small">(tiền mặt)</span></label>
+            </div></div>
+        </div>
+    </fieldset>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+        {% if user.is_manager %}<button type="submit" class="btn btn-success fw-semibold">Lưu mẫu phiếu</button>{% endif %}
+        <button type="button" class="btn btn-outline-secondary" data-rs-preview>Xem trước</button>
+    </div>
+    <div class="small mt-2" data-rs-message hidden></div>
+</form>

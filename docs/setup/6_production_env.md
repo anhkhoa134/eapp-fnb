@@ -239,6 +239,15 @@ server {
 }
 ```
 
+Ẩn phiên bản Nginx khỏi header `Server` (báo cáo QA 29/10/2026, BUG-19): trong khối `http { ... }` của
+`/etc/nginx/nginx.conf` bật dòng
+
+```nginx
+server_tokens off;
+```
+
+CSP và Permissions-Policy do Django gửi (`App_Core.security_headers`), không cần thêm ở Nginx.
+
 Kích hoạt:
 ```bash
 sudo ln -s /etc/nginx/sites-available/eapp-fnb /etc/nginx/sites-enabled/
@@ -294,6 +303,7 @@ ws.onerror = (e) => console.log("WS error", e);
 |---|---|---|
 | `python manage.py reset_demo_data` | 03:00 hằng ngày | Xoá sạch doanh nghiệp `demo` (đơn, tài khoản, cửa hàng, sản phẩm, ảnh upload) rồi seed lại. Tài khoản demo hiện công khai ở trang đăng nhập nên cần reset để dữ liệu không bị phá lâu dài. |
 | `python manage.py cleanup_auth_throttle` | 03:30 hằng ngày | Xoá bộ đếm đăng nhập sai / giới hạn tần suất đã hết hạn để bảng không phình to. |
+| `python manage.py cleanup_qa_data --tenant demo [--apply]` | Chạy tay sau mỗi đợt kiểm thử | Tắt (không xoá) dữ liệu tên bắt đầu bằng `QA-TEST`: khuyến mãi, món, đơn vị bán, topping, danh mục, nguyên liệu, khách hàng; bàn QR bị tắt và đổi token. Không có `--apply` thì chỉ liệt kê. Dùng khi không muốn reset toàn bộ demo. |
 
 Tạo `/etc/systemd/system/eapp-fnb-reset-demo.service`:
 ```ini

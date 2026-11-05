@@ -48,7 +48,7 @@ Thiết bị: 1 desktop Chrome (POS), 1 cửa sổ ẩn danh / điện thoại (
 | E2E-AUTH-01 | ✅ | Staff đăng nhập | `/accounts/login/` → `STF1` | Chuyển về POS `/` | P0 |
 | E2E-AUTH-02 | ✅ | Manager đăng nhập | Login `MGR` | Vào POS `/`; mở được `/quanly/` | P0 |
 | E2E-AUTH-03 | ❌ | Sai mật khẩu | Login `STF1` với mật khẩu sai | Ở lại trang login, báo lỗi, không tạo phiên | P0 |
-| E2E-AUTH-04 | 🔒 | Truy cập khi chưa login | Mở `/`, `/quanly/`, `/orders/today/`, `/kitchen/` | Redirect `/accounts/login/?next=…` | P0 |
+| E2E-AUTH-04 | 🔒 | Truy cập khi chưa login | Mở `/`, `/quanly/`, `/kitchen/`, `/print/help/` | Redirect `/accounts/login/?next=…` | P0 |
 | E2E-AUTH-05 | 🔒 | Logout chỉ POST | Gọi `GET /accounts/logout/` | 405; phiên vẫn còn | P1 |
 | E2E-AUTH-06 | ✅ | Logout | Bấm Đăng xuất (POST) | Về trang login; `/` yêu cầu login lại | P1 |
 | E2E-AUTH-07 | ✅ | Đổi mật khẩu | `/quanly/account/` → đổi mật khẩu hợp lệ | Thông báo *Đã đổi mật khẩu.*, phiên hiện tại vẫn giữ; login lại bằng mật khẩu mới OK | P1 |
@@ -108,7 +108,7 @@ Thiết bị: 1 desktop Chrome (POS), 1 cửa sổ ẩn danh / điện thoại (
 | E2E-PAY-11 | ✅ | Tích điểm | Khách mua 125.000 | +12 điểm (1 điểm / 10.000đ); `total_spent` tăng; lên hạng nếu vượt ngưỡng | P1 |
 | E2E-PAY-12 | ✅ | Tạo khách nhanh tại POS | Nhập tên + SĐT mới khi thanh toán; thử lại với SĐT đã có | SĐT mới: tạo khách và gắn vào đơn. SĐT đã có: trả khách cũ, báo *Khách hàng đã tồn tại.* | P2 |
 | E2E-PAY-13 | ❌ | Tạo khách thiếu SĐT | Chỉ nhập tên | 400 *Vui lòng nhập số điện thoại khách hàng.* | P2 |
-| E2E-PAY-14 | ✅ | Đơn trong ngày | Sau các đơn trên → `/orders/today/` | Đơn mới hiện đủ; KPI tổng đơn / doanh thu khớp | P1 |
+| E2E-PAY-14 | ✅ | Đơn trong ngày | Sau các đơn trên → POS › menu tài khoản › *Đơn hàng trong ngày* | Đơn mới hiện đủ; KPI tổng đơn / doanh thu khớp | P1 |
 | E2E-PAY-15 | ✅ | Thuế theo cấu hình | Manager đặt thuế 8% ở *Cấu hình tính năng* → POS bán món 65.000 | Modal hiện *Thuế (8%)* 5.200, tổng 70.200; đơn lưu `tax_rate=0.08`; hoá đơn in *Thuế (8%)* | P0 |
 | E2E-PAY-16 | 🔒 | Client gửi thuế giả | Gọi `POST /api/pos/checkout/` kèm `tax_rate: 5` | Bị bỏ qua, thuế tính theo mức của doanh nghiệp | P0 |
 | E2E-PAY-17 | ❌ | Bấm đúp thanh toán | Bấm *Hoàn tất thanh toán* 2 lần liên tiếp (hoặc gửi lại cùng `client_request_id`) | Chỉ 1 đơn; request lặp trả 200 `replayed: true` | P0 |
@@ -390,7 +390,7 @@ Chạy trước mỗi release, theo thứ tự, trên dữ liệu seed sạch.
 6. Bàn 01 chuyển sang Bàn 07 → phiếu bếp đang mở đổi tên bàn.
 7. Bàn 07 thanh toán Card/QR cho khách thành viên + khuyến mãi → áp mức giảm lớn hơn, khách được cộng điểm.
 8. Bàn 04 thanh toán tiền mặt.
-9. `MGR` mở `/orders/today/` và `/quanly/` → 4 đơn, doanh thu khớp tổng tiền đã thu.
+9. `MGR` mở modal *Đơn hàng trong ngày* trên POS và `/quanly/` → 4 đơn, doanh thu khớp tổng tiền đã thu.
 
 **Đạt khi:** mọi bước đúng mong đợi, không cần reload thủ công, doanh thu khớp.
 

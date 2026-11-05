@@ -8,9 +8,20 @@ from django.utils import timezone
 
 from App_Catalog.models import ProductUnit, StoreProduct
 from App_Core.audit import Action, log_action
+from App_Core.text import fold_vietnamese
 from App_Core.templatetags.number_format import thousand_sep
 from App_Sales.models import Customer, CustomerTierSetting, Order, Promotion, Refund
 from App_Tenant.services import get_default_store_for_user, get_user_accessible_stores
+
+
+def customer_search_q(query: str) -> Q:
+    """Điều kiện tìm khách theo tên/email (không dấu) hoặc số điện thoại."""
+    query = (query or '').strip()
+    condition = Q(phone__icontains=query) | Q(name__icontains=query) | Q(email__icontains=query)
+    folded = fold_vietnamese(query)
+    if folded:
+        condition |= Q(search_text__contains=folded)
+    return condition
 
 
 def get_accessible_store_or_default(user, store_id=None):

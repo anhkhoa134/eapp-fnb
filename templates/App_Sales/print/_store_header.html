@@ -1,5 +1,8 @@
+{% with opts=store.print_options %}
 <div class="center">
     <div class="store-name">{{ store.name }}</div>
-    {% if store.address %}<div class="muted">{{ store.address }}</div>{% endif %}
-    {% if store.phone %}<div class="muted">ĐT: {{ store.phone }}</div>{% endif %}
+    {% if opts.show_address and store.address %}<div class="muted">{{ store.address }}</div>{% endif %}
+    {% if opts.show_phone and store.phone %}<div class="muted">ĐT: {{ store.phone }}</div>{% endif %}
+    {% if opts.header_note %}<div class="header-note">{{ opts.header_note|linebreaksbr }}</div>{% endif %}
 </div>
+{% endwith %}

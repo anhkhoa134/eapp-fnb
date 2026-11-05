@@ -65,6 +65,22 @@ class KitchenFeatureTests(TestCase):
         return self._post(url, {'status': status})
 
     # page + feature flag
+    def test_kitchen_page_has_direct_printer_picker(self):
+        html = self.client.get(reverse('App_Sales:kitchen')).content.decode()
+        self.assertIn('js/eapp_direct_print.js', html)
+        # Chuông, tự in, máy in, mẫu phiếu, hướng dẫn gom vào modal Thiết lập có tab.
+        self.assertIn('data-bs-target="#kitchenSettingsModal"', html)
+        for pane in ('kitchenPaneGeneral', 'kitchenPanePrint', 'kitchenPaneReceipt', 'kitchenPaneGuide'):
+            self.assertIn(f'id="{pane}"', html)
+        settings_modal = html[html.index('id="kitchenSettingsModal"'):]
+        self.assertIn('id="kitchenSound"', settings_modal)
+        self.assertIn('id="kitchenAutoPrint"', settings_modal)
+        self.assertIn('data-receipt-settings', settings_modal)
+        self.assertIn('data-direct-printer="kitchen"', html)
+        self.assertNotIn('data-direct-printer="receipt"', html)
+        self.assertIn('data-print-role="kitchen"', html)
+        self.assertIn("?first_only=1`, 'kitchen')", html)
+
     def test_kitchen_page_requires_feature(self):
         self.assertEqual(self.client.get(reverse('App_Sales:kitchen')).status_code, 200)
         self.tenant.show_kitchen_feature = False
@@ -114,6 +130,10 @@ class KitchenFeatureTests(TestCase):
         self._send(self.table_1)
 
         res = self._patch_item(self.table_1, item, {'quantity': 1})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()['code'], 'reason_required')
+
+        res = self._patch_item(self.table_1, item, {'quantity': 1, 'reason': 'Khách đổi món'})
         self.assertEqual(res.status_code, 200)
         item.refresh_from_db()
         self.assertEqual(item.kitchen_sent_quantity, 1)
@@ -128,7 +148,9 @@ class KitchenFeatureTests(TestCase):
         self._send(self.table_1)
 
         url = reverse('App_Sales_API:table_cart_item', kwargs={'table_id': self.table_1.id, 'item_id': item.id})
-        self.assertEqual(self.client.delete(url).status_code, 200)
+        self.assertEqual(self.client.delete(url).status_code, 400)
+        response = self.client.delete(url, data=json.dumps({'reason': 'Khách huỷ'}), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
         statuses = sorted(KitchenTicketItem.objects.values_list('status', flat=True))
         self.assertEqual(statuses, [KitchenTicketItem.Status.CANCELLED, KitchenTicketItem.Status.DONE])
         self.assertFalse(KitchenTicket.objects.filter(completed_at__isnull=True).exists())

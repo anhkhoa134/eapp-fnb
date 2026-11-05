@@ -63,6 +63,11 @@ class LoginThrottleMixin:
 
 
 class POSAuthenticationForm(LoginThrottleMixin, AuthenticationForm):
+    # Câu mặc định của Django ("Vui lòng nhập một tên đăng nhập và mật khẩu đúng. Chú ý…") dài và khó đọc.
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        'invalid_login': 'Sai tên đăng nhập hoặc mật khẩu.',
+    }
     username = forms.CharField(
         label='Tên đăng nhập',
         widget=forms.TextInput(attrs={'placeholder': 'Nhập tên đăng nhập', 'autocomplete': 'username', 'autofocus': True}),

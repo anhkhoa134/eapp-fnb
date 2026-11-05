@@ -1,5 +1,5 @@
 {% extends 'App_Quanly/_layout.html' %}
-{% load number_format %}
+{% load number_format billing_tags %}
 
 {% block quanly_content %}
 <div class="row g-3">
@@ -212,7 +212,7 @@
     }
 </style>
 {% if plans %}
-<div class="card border-0 shadow-sm mt-3" id="goi-cuoc">
+<div class="card border-0 shadow-sm mt-3" id="goi-cuoc" data-billing-period="month">
     <div class="card-body">
         <h2 class="admin-card-title h5 mb-2">
             <i class="bi bi-stars"></i>
@@ -220,27 +220,33 @@
         </h2>
         <p class="text-muted small mb-4">
             Chọn gói phù hợp với quy mô quán của bạn. Tài khoản đăng ký mới bắt đầu với gói Miễn phí.
-            Để nâng cấp, vui lòng liên hệ Zalo
-            <a href="https://zalo.me/{{ contact_zalo }}" target="_blank" rel="noopener noreferrer">{{ contact_zalo }}</a>.
+            Chọn gói để gửi yêu cầu đổi hoặc gia hạn.
         </p>
+        {% include 'includes/_pricing_period.html' %}
         <div class="acct-plans-grid">
             {% for plan in plans %}
             <div class="acct-plan-card{% if current_plan and current_plan.pk == plan.pk %} is-current{% endif %}">
-                {% if current_plan and current_plan.pk == plan.pk %}
-                <span class="acct-plan-current-tag"><i class="bi bi-check2 me-1"></i>Đang dùng</span>
-                {% elif plan.highlight %}
-                <span class="acct-plan-badge">{{ plan.highlight }}</span>
-                {% endif %}
-                <p class="acct-plan-name">{{ plan.name }}</p>
+                <div class="billing-plan-heading">
+                    <p class="acct-plan-name">{{ plan.name }}</p>
+                    {% if current_plan and current_plan.pk == plan.pk %}
+                    <span class="billing-plan-badge billing-plan-badge--current">Đang dùng</span>
+                    {% elif plan.highlight %}
+                    <span class="billing-plan-badge">{{ plan.highlight }}</span>
+                    {% endif %}
+                </div>
                 <div class="acct-plan-price">
                     {% if plan.is_contact_price %}
                     Liên hệ
-                    {% elif plan.is_free %}
-                    Miễn phí
                     {% else %}
-                    {{ plan.price_yearly|thousand_sep }}đ <small>/ năm</small>
+                    <div data-billing-visible="month">{% if plan.price_monthly == 0 %}Miễn phí{% else %}{{ plan.price_monthly|thousand_sep }}đ <small class="billing-price-suffix">/ tháng</small>{% endif %}</div>
+                    <div data-billing-visible="year">{% if plan.price_yearly == 0 %}Miễn phí{% else %}{{ plan.price_yearly|thousand_sep }}đ <small class="billing-price-suffix">/ năm</small>{% endif %}</div>
                     {% endif %}
                 </div>
+                {% if plan.yearly_savings_percent %}
+                <div class="billing-yearly-savings" data-billing-visible="year" data-billing-savings>
+                    <i class="bi bi-percent" aria-hidden="true"></i>Tiết kiệm ≈ {{ plan.yearly_savings_percent }}% so với trả tháng
+                </div>
+                {% endif %}
                 <div class="acct-plan-tagline">{{ plan.tagline }}</div>
                 <ul class="acct-plan-features">
                     <li>
@@ -275,20 +281,11 @@
                     <i class="bi bi-calendar-check me-1"></i>Hiệu lực: {% include 'App_Quanly/_plan_period.html' %}
                 </div>
                 {% endif %}
-                <div class="acct-plan-cta">
-                    {% if current_plan and current_plan.pk == plan.pk %}
-                    <button type="button" class="btn btn-sm btn-light border w-100" disabled>
-                        <i class="bi bi-check2 me-1"></i>Gói hiện tại
-                    </button>
-                    {% else %}
-                    <a class="btn btn-sm btn-primary w-100" href="https://zalo.me/{{ contact_zalo }}" target="_blank" rel="noopener noreferrer">
-                        <i class="bi bi-chat-dots me-1"></i>{% if current_plan and plan.sort_order < current_plan.sort_order %}Đổi gói qua Zalo{% else %}Nâng cấp qua Zalo{% endif %}
-                    </a>
-                    {% endif %}
-                </div>
+                <div class="acct-plan-cta">{% billing_cta plan.slug "btn btn-sm w-100" %}</div>
             </div>
             {% endfor %}
         </div>
+        {% billing_panel %}
     </div>
 </div>
 {% endif %}

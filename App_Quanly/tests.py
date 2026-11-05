@@ -137,7 +137,7 @@ class QuanlyPermissionTests(TestCase):
     def test_quanly_dropdown_order_history_link_by_role(self):
         self.client.login(username='staff_demo', password='123456')
         html = self.client.get(reverse('App_Quanly:account')).content.decode('utf-8')
-        self.assertIn(f'href="{reverse("App_Sales:orders_today")}"', html)
+        self.assertIn(f'href="{reverse("App_Sales:pos")}?open=orders-today"', html)
         self.assertNotIn(f'href="{reverse("App_Quanly:orders")}"', html)
         self.assertNotIn('#doi-mat-khau"', html)
 
@@ -996,7 +996,7 @@ class QuanlyToppingUnifiedFormTests(TestCase):
             },
         )
         self.assertEqual(res.status_code, 200)
-        self.assertIn('Không thể gán topping cho sản phẩm, vui lòng kiểm tra dữ liệu.', res.content.decode('utf-8'))
+        self.assertIn('Không thể gán topping cho sản phẩm:', res.content.decode('utf-8'))
 
 
 class QuanlyQrTableCrudTests(TestCase):
@@ -1442,7 +1442,7 @@ class QuanlyProductImageUploadTests(TestCase):
     def test_create_product_with_upload_converts_to_webp(self):
         res = self.client.post(
             reverse('App_Quanly:products'),
-            data={'name': 'Trà đào', 'is_active': 'on', 'image_upload': self._image_upload()},
+            data={'name': 'Trà đào', 'is_active': 'on', 'store_ids': [self.store.id], 'image_upload': self._image_upload()},
         )
         self.assertEqual(res.status_code, 302)
         product = Product.objects.get(tenant=self.tenant, name='Trà đào')
@@ -1454,7 +1454,7 @@ class QuanlyProductImageUploadTests(TestCase):
         product = Product.objects.create(tenant=self.tenant, name='Cà phê', image_url='https://example.com/a.png')
         self.client.post(
             reverse('App_Quanly:product_edit', kwargs={'pk': product.id}),
-            data={'name': 'Cà phê', 'is_active': 'on', 'image_upload': self._image_upload('JPEG', name='a.jpg')},
+            data={'name': 'Cà phê', 'is_active': 'on', 'store_ids': [self.store.id], 'image_upload': self._image_upload('JPEG', name='a.jpg')},
         )
         product.refresh_from_db()
         old_name = product.image_file.name
@@ -1464,7 +1464,7 @@ class QuanlyProductImageUploadTests(TestCase):
 
         self.client.post(
             reverse('App_Quanly:product_edit', kwargs={'pk': product.id}),
-            data={'name': 'Cà phê', 'is_active': 'on', 'image_upload': self._image_upload(mode='RGBA', name='b.png')},
+            data={'name': 'Cà phê', 'is_active': 'on', 'store_ids': [self.store.id], 'image_upload': self._image_upload(mode='RGBA', name='b.png')},
         )
         product.refresh_from_db()
         self.assertNotEqual(product.image_file.name, old_name)
@@ -1507,7 +1507,7 @@ class QuanlyFreePlanLimitTests(TestCase):
         self.tenant.max_products = 1
         self.tenant.save(update_fields=['max_products', 'updated_at'])
         Product.objects.create(tenant=self.tenant, name='Món 1')
-        res = self.client.post(reverse('App_Quanly:products'), {'name': 'Món 2', 'is_active': 'on'})
+        res = self.client.post(reverse('App_Quanly:products'), {'name': 'Món 2', 'is_active': 'on', 'store_ids': [self.store.id]})
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.context['open_create_modal'])
         self.assertEqual(Product.objects.filter(tenant=self.tenant).count(), 1)

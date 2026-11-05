@@ -1,0 +1,18 @@
+/* Shared pricing controls and badges, scoped to the pricing section. */
+[data-billing-period] .billing-period-switch { display:flex; justify-content:center; margin:0 0 1.5rem; }
+[data-billing-period] .billing-period-options { display:inline-flex; gap:.25rem; padding:.3rem; border:1px solid #d5e3f5; border-radius:999px; background:#f1f6fd; max-width:100%; }
+[data-billing-period] .billing-period-button { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; border:0; border-radius:999px; padding:.65rem 1.25rem; background:transparent; color:#475569; font:inherit; font-weight:600; white-space:nowrap; cursor:pointer; }
+[data-billing-period] .billing-period-button:hover { background:#e5eefb; }
+[data-billing-period] .billing-period-button[aria-pressed="true"] { background:var(--primary-color,var(--brand-primary,#1d4ed8)); color:#fff; box-shadow:0 3px 10px -5px #1d4ed8; }
+[data-billing-period] .billing-period-button:focus-visible { outline:2px solid #2563eb; outline-offset:3px; }
+[data-billing-period] .billing-yearly-promo { padding:.2rem .5rem; border:1px solid #f3d49a; border-radius:999px; background:#fff8e8; color:#925c16; font-size:.66rem; font-weight:600; line-height:1.35; }
+[data-billing-period] .billing-period-button[aria-pressed="true"] .billing-yearly-promo { background:#ffffff26; border-color:#ffffff4d; color:#fff; }
+[data-billing-period]:not(:has([data-billing-savings])) .billing-yearly-promo { display:none; }
+[data-billing-period] .billing-plan-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; min-height:1.75rem; }
+[data-billing-period] .billing-plan-badge { display:inline-flex; align-items:center; gap:.35rem; flex-shrink:0; padding:.3rem .65rem; border:1px solid #f3d49a; border-radius:999px; background:#fff8e8; color:#925c16; font-size:.68rem; font-weight:600; line-height:1.4; white-space:nowrap; }
+[data-billing-period] .billing-plan-badge--current { border-color:#bde3d0; background:#edf9f2; color:#21734d; }
+[data-billing-period] .billing-plan-badge--current::before { content:""; width:.35rem; height:.35rem; border-radius:50%; background:#2b9565; }
+[data-billing-period] .billing-yearly-savings { display:inline-flex; align-items:center; align-self:flex-start; gap:.35rem; max-width:100%; padding:.35rem .65rem; border:1px solid #c5e7d9; border-radius:999px; background:#f0faf5; color:#237251; font-size:.72rem; font-weight:600; line-height:1.45; }
+[data-billing-period] .billing-price-suffix { white-space:nowrap; }
+[data-billing-period="month"] [data-billing-visible="year"], [data-billing-period="year"] [data-billing-visible="month"] { display:none !important; }
+@media(max-width:575.98px) { [data-billing-period] .billing-period-button { padding:.6rem .75rem; font-size:.85rem; } }

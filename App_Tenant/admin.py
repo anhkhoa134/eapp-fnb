@@ -207,6 +207,7 @@ class TenantAdmin(admin.ModelAdmin):
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = (
         'name',
+        'price_monthly',
         'price_yearly',
         'is_contact_price',
         'max_stores',
@@ -220,7 +221,7 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
     search_fields = ('name', 'slug')
     readonly_fields = ('slug',)
     fieldsets = (
-        (None, {'fields': ('name', 'slug', 'price_yearly', 'is_contact_price', 'tagline', 'highlight', 'sort_order', 'is_default')}),
+        (None, {'fields': ('name', 'slug', 'price_monthly', 'price_yearly', 'is_contact_price', 'tagline', 'highlight', 'sort_order', 'is_default')}),
         (
             'Giới hạn',
             {

@@ -111,16 +111,16 @@ Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 
 ---
 
-## 8. Trang phụ: Đơn trong ngày
+## 8. Modal: Đơn trong ngày
 
-**URL:** `http://127.0.0.1:8002/orders/today/`  
-**Query:** `?store_id=` (lọc cửa hàng), `?page=` (phân trang **bảng** đơn — 20 đơn/trang).
+**Mở:** menu tài khoản trên POS › *Đơn hàng trong ngày* (hoặc `http://127.0.0.1:8002/?open=orders-today`).  
+**API:** `GET /api/pos/orders/today/?store_id=&page=` (20 đơn/trang).
 
 | Bước | Thao tác | Kiểm tra |
 |------|----------|----------|
-| 8.1 | Mở URL khi đã đăng nhập | Hiển thị KPI (tổng đơn, doanh thu, giá trị đơn TB) và bảng đơn trong ngày (cột loại đơn / thanh toán theo UI hiện tại) |
-| 8.2 | (Nhiều cửa hàng) Chọn cửa hàng trong dropdown trên trang | Bảng và KPI chỉ theo cửa đã chọn |
-| 8.3 | Khi có hơn 20 đơn trong ngày (sau lọc) | Cuối bảng có *Trước* / *Sau*; `?page=2` chỉ đổi các dòng bảng |
+| 8.1 | Mở modal | Hiển thị KPI (tổng đơn, doanh thu, giá trị đơn TB) và bảng đơn trong ngày (cột loại đơn / thanh toán theo UI hiện tại) |
+| 8.2 | (Nhiều cửa hàng) Mặc định là cửa hàng đang bán; đổi cửa hàng hoặc *Tất cả cửa hàng* trong modal | Bảng và KPI chỉ theo cửa đã chọn |
+| 8.3 | Khi có hơn 20 đơn trong ngày (sau lọc) | Chân modal có nút trang trước / sau và *Trang 1/N*; sang trang chỉ đổi các dòng bảng |
 | 8.4 | So sánh KPI trang 1 và trang 2 | **Tổng đơn / Doanh thu / TB đơn** phải **giống nhau** (tính trên toàn bộ đơn đã lọc, không chỉ 20 dòng hiện tại) |
 
 ---
@@ -142,4 +142,4 @@ Lấy `table_code`, `token` từ **Quản lý → QR bàn** (hoặc seed).
 | Giỏ, mobile offcanvas, chọn bàn, mang về ↔ bàn, tạo đơn mang về / quay lại bàn | | |
 | Thanh toán tiền mặt / Thẻ·QR | | |
 | Duyệt / Từ chối đơn QR | | |
-| Đơn trong ngày (`/orders/today/`, KPI + phân trang bảng) | | |
+| Đơn trong ngày (modal trên POS, KPI + phân trang bảng) | | |

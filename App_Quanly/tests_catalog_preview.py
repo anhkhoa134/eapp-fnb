@@ -84,11 +84,17 @@ class CatalogPreviewTests(TestCase):
         self.assertEqual(unit.updated_at, timestamp)
 
     def test_same_product_many_units_counts_entities_once(self):
-        result = self.preview(self.workbook([['Nước', 'Trà', 'Ly', 0], ['Nước', 'Trà', 'Chai', '25.000']])).json()
+        result = self.preview(self.workbook([['Nước', 'Trà', 'Ly', 20000], ['Nước', 'Trà', 'Chai', '25.000']])).json()
         self.assertTrue(result['ok'], result['errors'])
         self.assertEqual(result['summary']['categories_new'], 1)
         self.assertEqual(result['summary']['products_new'], 1)
         self.assertEqual(result['summary']['create'], 2)
+
+    def test_zero_and_huge_unit_price_rejected(self):
+        for price in (0, 99999999999):
+            result = self.preview(self.workbook([['Nước', 'Trà', 'Ly', price]])).json()
+            self.assertFalse(result['ok'])
+            self.assertIn('Giá phải lớn hơn 0', ' '.join(result['errors']))
 
     def test_inactive_custom_price_and_hidden_store_warnings(self):
         _, product, _ = self.existing(active=False)

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đã in ở thiết bị khác</title>
+</head>
+<body data-print-skipped>
+    <p>Phiếu này đã được in ở thiết bị khác.</p>
+    <script>
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'eapp-print-done' }, window.location.origin);
+    }
+    </script>
+</body>
+</html>
