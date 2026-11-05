@@ -18,7 +18,7 @@ concurrency:
 
 env:
   # >>> app env
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.12"
   PIP_INSTALL_ARGS: ""
   APT_PACKAGES: ""
   COLLECTSTATIC: "0"
