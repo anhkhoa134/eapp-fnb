@@ -3,7 +3,7 @@
 ## 1. Yêu cầu
 - Python 3.10+
 - Redis (macOS: `brew install redis`)
-- Virtual environment đã tạo tại `../env_10_web/`
+- Virtual environment đã tạo tại `.venv/`
 
 ## 2. Cấu hình `.env`
 File `Project/.env` đã có sẵn. Đảm bảo các dòng sau tồn tại:
@@ -17,7 +17,7 @@ REDIS_URL=redis://127.0.0.1:6379
 ## 3. Cài đặt phụ thuộc (lần đầu)
 ```bash
 cd /Users/anhkhoa/Downloads/Project_django/eapp-pm
-source ../env_10_web/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 ```
@@ -39,7 +39,7 @@ Tài khoản demo: `demo / 123456`, `demo1–demo3 / 123456`
 **Terminal 2 — Django:**
 ```bash
 cd /Users/anhkhoa/Downloads/Project_django/eapp-pm
-source ../env_10_web/bin/activate
+source .venv/bin/activate
 python manage.py runserver
 ```
 > Khi `daphne` có trong `INSTALLED_APPS`, `runserver` tự dùng ASGI — WebSocket hoạt động ngay.

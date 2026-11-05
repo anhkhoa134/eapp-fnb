@@ -46,7 +46,7 @@ He thong tach 3 khong gian:
 
 ## 5) Van hanh nhanh
 ```bash
-source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+source /Users/anhkhoa/Downloads/Project_django/eapp-fnb/.venv/bin/activate
 python manage.py migrate
 python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 python manage.py runserver 127.0.0.1:8000

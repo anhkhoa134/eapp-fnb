@@ -1,6 +1,6 @@
 # 2) Công nghệ & phiên bản
 
-Phiên bản ghi theo virtualenv đang dùng (`env_10_web`) tại thời điểm cập nhật tài liệu. Khi nâng cấp, sửa bảng này cùng lúc với `requirements.txt`.
+Phiên bản ghi theo virtualenv đang dùng (`.venv` của repo; trước 11/2026 là `env_10_web` dùng chung) tại thời điểm cập nhật tài liệu. Khi nâng cấp, sửa bảng này cùng lúc với `requirements.txt`.
 
 ## Backend
 | Thành phần | Phiên bản | Vai trò | Dùng ở đâu |
