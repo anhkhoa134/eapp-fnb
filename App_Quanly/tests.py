@@ -1531,7 +1531,7 @@ class QuanlyFreePlanLimitTests(TestCase):
         self.assertEqual(res.context['current_plan'], self.plan)
         html = res.content.decode('utf-8')
         self.assertIn('Các gói cước', html)
-        self.assertIn('Gói hiện tại', html)
+        self.assertIn('Đang dùng', html)  # badge text since a10bb5f (03/11)
         self.assertIn('990.000đ', html)
         self.assertIn('Không có tài khoản nhân viên (chỉ 1 quản lý)', html)
         self.assertIn('https://zalo.me/', html)
