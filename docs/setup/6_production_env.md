@@ -1,5 +1,7 @@
 # 6) Môi trường Production & CI/CD
 
+> ⚠️ **Tài liệu cũ (trước 10/2026).** App đã chuyển sang Coolify (Docker); các đường dẫn `/opt/Project_Django/env_10*` và service systemd trong tài liệu này không còn trên VPS 2. Chạy ở máy local: dùng `.venv` riêng của repo (Python 3.12, `uv venv --python 3.12 .venv && uv pip install -r requirements.txt`).
+
 ## 0. Tổng quan môi trường
 
 | Hạng mục | Dev (local) | Production |

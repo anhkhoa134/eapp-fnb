@@ -3,7 +3,7 @@
 ## Chạy nhanh (TL;DR)
 ```bash
 cd /Users/anhkhoa/Downloads/Project_django/eapp-fnb
-source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+source /Users/anhkhoa/Downloads/Project_django/eapp-fnb/.venv/bin/activate
 python manage.py migrate
 python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 redis-server                                   # terminal khác, cần cho WebSocket
@@ -16,13 +16,13 @@ Route và API chi tiết: `docs/setup/phase1/3_routes_permissions_api.md`.
 
 ## Điều kiện
 - Python 3.10
-- Virtualenv: `/Users/anhkhoa/Downloads/Project_django/env_10_web`
+- Virtualenv: `/Users/anhkhoa/Downloads/Project_django/eapp-fnb/.venv`
 - Source: `/Users/anhkhoa/Downloads/Project_django/eapp-fnb`
 
 ## Kích hoạt môi trường
 ```bash
 cd /Users/anhkhoa/Downloads/Project_django/eapp-fnb
-source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+source /Users/anhkhoa/Downloads/Project_django/eapp-fnb/.venv/bin/activate
 pip install -r requirements.txt
 ```
 

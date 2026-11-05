@@ -7,7 +7,7 @@
 ### 1.1 Môi trường
 ```bash
 cd /Users/anhkhoa/Downloads/Project_django/eapp-fnb
-source /Users/anhkhoa/Downloads/Project_django/env_10_web/bin/activate
+source /Users/anhkhoa/Downloads/Project_django/eapp-fnb/.venv/bin/activate
 python manage.py migrate
 python manage.py seed_initial_data --tenant-slug demo --tenant-name "Demo FNB" --seed-qr-pending
 python manage.py runserver 127.0.0.1:8002
