@@ -26,6 +26,7 @@ from App_Accounts.forms import (
     POSSetPasswordForm,
     SignupForm,
 )
+from App_Accounts.account_emails import activate_signup, send_signup_verification, user_from_signup_token
 from App_Accounts.models import User
 from App_Core.demo import SHARED_DEMO_ACCOUNT_MESSAGE, is_shared_demo_account
 from App_Core.views import render_error_page
@@ -73,11 +74,61 @@ def signup(request):
                     form.add_error(None, 'Không tạo được tài khoản, vui lòng thử lại.')
             else:
                 rate_limit.hit(rate_limit.SCOPE_SIGNUP_IP, ip_address, window=window)
+                if settings.SIGNUP_REQUIRE_EMAIL_VERIFICATION:
+                    # Giống eApp ERP: tài khoản chỉ dùng được sau khi bấm link kích hoạt trong email.
+                    user.is_active = False
+                    user.save(update_fields=['is_active'])
+                    send_signup_verification(request, user)
+                    request.session['signup_email'] = user.email
+                    return redirect('App_Accounts:signup_sent')
                 login(request, user)
                 messages.success(request, 'Tạo tài khoản thành công! Hãy thêm món đầu tiên cho thực đơn của bạn.')
                 return redirect('App_Quanly:products')
 
     return render(request, 'App_Accounts/signup.html', {'form': form, 'free_plan': get_default_subscription_plan()})
+
+
+@require_http_methods(['GET'])
+def signup_sent(request):
+    return render(request, 'App_Accounts/signup_sent.html', {'email': request.session.get('signup_email', '')})
+
+
+@require_http_methods(['GET'])
+def signup_verify(request, token):
+    """Bấm link trong email → kích hoạt tài khoản và đăng nhập."""
+    user, error = user_from_signup_token(token)
+    if user and user.is_active:
+        return render(request, 'App_Accounts/signup_verify_failed.html', {'error': 'already'})
+    if user and not error:
+        activated = activate_signup(user)
+        if activated:
+            request.session.pop('signup_email', None)
+            login(request, activated, backend='django.contrib.auth.backends.ModelBackend')
+            messages.success(request, 'Đã kích hoạt tài khoản! Hãy thêm món đầu tiên cho thực đơn của bạn.')
+            return redirect('App_Quanly:products')
+        error = 'invalid'
+    return render(request, 'App_Accounts/signup_verify_failed.html', {'error': error}, status=400)
+
+
+@require_http_methods(['GET', 'POST'])
+def signup_resend(request):
+    """Gửi lại link kích hoạt. Luôn trả cùng một câu, không cho biết email có trong hệ thống hay không."""
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip()
+        ip_address = login_throttle.get_client_ip(request)
+        window = timedelta(hours=1)
+        if rate_limit.limited_until(
+            rate_limit.SCOPE_PASSWORD_RESET_IP, ip_address, limit=settings.PASSWORD_RESET_LIMIT_PER_IP, window=window
+        ):
+            return render(request, 'App_Accounts/signup_resend.html', {
+                'email': email, 'error': 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau 1 giờ.',
+            }, status=429)
+        rate_limit.hit(rate_limit.SCOPE_PASSWORD_RESET_IP, ip_address, window=window)
+        for user in User.objects.filter(email__iexact=email, is_active=False, last_login__isnull=True)[:5]:
+            send_signup_verification(request, user)
+        request.session['signup_email'] = email
+        return redirect('App_Accounts:signup_sent')
+    return render(request, 'App_Accounts/signup_resend.html', {'email': request.session.get('signup_email', '')})
 
 
 class PasswordResetEnabledMixin:
@@ -89,8 +140,6 @@ class PasswordResetEnabledMixin:
 
 class POSPasswordResetView(PasswordResetEnabledMixin, PasswordResetView):
     template_name = 'App_Accounts/password_reset_form.html'
-    email_template_name = 'App_Accounts/emails/password_reset_email.txt'
-    subject_template_name = 'App_Accounts/emails/password_reset_subject.txt'
     form_class = POSPasswordResetForm
     success_url = reverse_lazy('App_Accounts:password_reset_done')
 

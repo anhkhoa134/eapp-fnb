@@ -1,0 +1,13 @@
+{% extends 'App_Accounts/_auth_simple_base.html' %}
+
+{% block title %}Kích hoạt tài khoản | eApp FnB{% endblock %}
+
+{% block auth_body %}
+<div class="mb-4">
+    <div class="auth-eyebrow">Kiểm tra hộp thư</div>
+    <h1 class="auth-title">Kích hoạt tài khoản</h1>
+    <p class="auth-subtitle">Chúng tôi đã gửi link kích hoạt tới {% if email %}<strong>{{ email }}</strong>{% else %}email bạn đăng ký{% endif %}. Bấm link trong email (hiệu lực 3 ngày) để bắt đầu dùng eApp FnB. Hãy kiểm tra cả thư mục Spam/Quảng cáo.</p>
+</div>
+<a class="btn btn-primary w-100 auth-submit d-flex align-items-center justify-content-center" href="{% url 'App_Accounts:login' %}">Quay lại đăng nhập</a>
+<p class="text-center small mt-3 mb-0">Không nhận được email? <a class="auth-link" href="{% url 'App_Accounts:signup_resend' %}">Gửi lại link kích hoạt</a></p>
+{% endblock %}

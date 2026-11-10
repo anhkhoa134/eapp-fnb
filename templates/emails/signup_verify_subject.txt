@@ -1,0 +1,1 @@
+{% autoescape off %}Kích hoạt tài khoản {{ brand_name }}{% endautoescape %}
