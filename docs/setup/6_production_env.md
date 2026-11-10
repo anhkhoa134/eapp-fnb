@@ -298,12 +298,17 @@ ws.onerror = (e) => console.log("WS error", e);
 ```
 
 ## 12. Tác vụ định kỳ
-> **Chưa chốt phương án** (systemd timer hay Celery) — xem `docs/backlog/1_backlog.md` BL-035.
-> Hướng dẫn dưới đây là cho phương án systemd timer. Trong lúc chưa cài, superuser reset demo tay trong admin.
+> **Trên Coolify (từ 11/2026):** đặt env `DEMO_MODE=1`, `ALLOW_DEMO_SEED=1` rồi tạo Scheduled Task `reset-demo`:
+> `python manage.py reset_demo_data --older-than-days 2.5`, lịch `0 20 * * *` (UTC = 03:00 VN). Chạy mỗi ngày nhưng chỉ
+> reset khi lần trước đã quá 2,5 ngày → thực tế khoảng 3 ngày một lần, giống eapp-erp.
+> `DEMO_MODE=1` (App_Core/demo.py): hiện tài khoản demo ở trang đăng nhập; các tài khoản `demo_quanly`, `demo_nhanvien_1..4`
+> không đổi được mật khẩu, email, vai trò, trạng thái, không bị xoá, không nhận email quên mật khẩu.
+> `reset_demo_data` và `seed_initial_data` từ chối chạy khi `ENVIRONMENT=prod` mà thiếu `ALLOW_DEMO_SEED=1`.
+> Phần systemd bên dưới là hướng dẫn cũ (trước Coolify).
 
 | Lệnh | Lịch | Việc làm |
 |---|---|---|
-| `python manage.py reset_demo_data` | 03:00 hằng ngày | Xoá sạch doanh nghiệp `demo` (đơn, tài khoản, cửa hàng, sản phẩm, ảnh upload) rồi seed lại. Tài khoản demo hiện công khai ở trang đăng nhập nên cần reset để dữ liệu không bị phá lâu dài. |
+| `python manage.py reset_demo_data --older-than-days 2.5` | 03:00 hằng ngày | Xoá sạch doanh nghiệp `demo` (đơn, tài khoản, cửa hàng, sản phẩm, ảnh upload) rồi seed lại. Tài khoản demo hiện công khai ở trang đăng nhập nên cần reset để dữ liệu không bị phá lâu dài. |
 | `python manage.py cleanup_auth_throttle` | 03:30 hằng ngày | Xoá bộ đếm đăng nhập sai / giới hạn tần suất đã hết hạn để bảng không phình to. |
 | `python manage.py cleanup_qa_data --tenant demo [--apply]` | Chạy tay sau mỗi đợt kiểm thử | Tắt (không xoá) dữ liệu tên bắt đầu bằng `QA-TEST`: khuyến mãi, món, đơn vị bán, topping, danh mục, nguyên liệu, khách hàng; bàn QR bị tắt và đổi token. Không có `--apply` thì chỉ liệt kê. Dùng khi không muốn reset toàn bộ demo. |
 

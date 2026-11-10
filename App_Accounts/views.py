@@ -27,6 +27,7 @@ from App_Accounts.forms import (
     SignupForm,
 )
 from App_Accounts.models import User
+from App_Core.demo import SHARED_DEMO_ACCOUNT_MESSAGE, is_shared_demo_account
 from App_Core.views import render_error_page
 from App_Tenant.services import get_default_subscription_plan, register_free_tenant
 
@@ -144,6 +145,10 @@ def password_change(request):
     next_url = request.POST.get('next') or request.GET.get('next') or reverse_lazy('App_Sales:pos')
     if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
         next_url = reverse_lazy('App_Sales:pos')
+
+    if is_shared_demo_account(request.user):
+        messages.error(request, SHARED_DEMO_ACCOUNT_MESSAGE)
+        return redirect(next_url)
 
     if request.method == 'POST':
         form = POSPasswordChangeForm(request.user, request.POST)

@@ -1,10 +1,11 @@
 # python manage.py seed_initial_data --reset-passwords --default-password 123456 --seed-qr-pending
 from django.core.management.base import BaseCommand
 
+from App_Core.demo import DemoOnlyCommandMixin
 from App_Core.seed_initial_data_runner import add_seed_initial_data_arguments, run_seed_initial_data
 
 
-class Command(BaseCommand):
+class Command(DemoOnlyCommandMixin, BaseCommand):
     help = 'Seed dữ liệu doanh nghiệp/cửa hàng/user/catalog/bàn/đơn QR mẫu (idempotent, compact-plus).'
 
     def add_arguments(self, parser):

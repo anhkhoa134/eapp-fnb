@@ -30,6 +30,7 @@ from reportlab.pdfgen import canvas
 
 from App_Accounts.models import User
 from App_Accounts.forms import POSPasswordChangeForm
+from App_Core.demo import SHARED_DEMO_ACCOUNT_MESSAGE, is_shared_demo_account
 from App_Accounts.permissions import kitchen_access_required, manager_required, staff_or_manager_required
 from App_Catalog.models import (
     Category,
@@ -2213,6 +2214,9 @@ def staff_edit(request, pk):
     staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role__in=User.EMPLOYEE_ROLES)
     if request.method != 'POST':
         return redirect('App_Quanly:staffs')
+    if is_shared_demo_account(staff_user):
+        messages.error(request, SHARED_DEMO_ACCOUNT_MESSAGE)
+        return redirect('App_Quanly:staffs')
 
     form = StaffEditForm(request.POST, tenant=tenant, user=staff_user)
     if form.is_valid():
@@ -2255,6 +2259,9 @@ def staff_edit(request, pk):
 def staff_delete(request, pk):
     tenant = _tenant_or_404(request.user)
     staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role__in=User.EMPLOYEE_ROLES)
+    if is_shared_demo_account(staff_user):
+        messages.error(request, SHARED_DEMO_ACCOUNT_MESSAGE)
+        return redirect('App_Quanly:staffs')
     username = staff_user.username
     try:
         staff_user.delete()
@@ -2274,6 +2281,9 @@ def staff_delete(request, pk):
 def staff_password_reset(request, pk):
     tenant = _tenant_or_404(request.user)
     staff_user = get_object_or_404(User, pk=pk, tenant=tenant, role__in=User.EMPLOYEE_ROLES)
+    if is_shared_demo_account(staff_user):
+        messages.error(request, SHARED_DEMO_ACCOUNT_MESSAGE)
+        return redirect('App_Quanly:staffs')
     if request.method == 'POST':
         form = StaffPasswordResetForm(staff_user, request.POST)
         if form.is_valid():
@@ -2422,7 +2432,14 @@ def account_settings(request):
         instance=User.objects.select_related('tenant').get(pk=user.pk),
     )
     form = POSPasswordChangeForm(user, request.POST if form_action == 'password_change' else None)
+    demo_locked = is_shared_demo_account(user)
 
+    if demo_locked and (
+        form_action == 'password_change'
+        or (form_action == 'profile' and profile_form.is_valid() and 'email' in profile_form.changed_data)
+    ):
+        messages.error(request, SHARED_DEMO_ACCOUNT_MESSAGE)
+        return redirect('App_Quanly:account')
     if form_action == 'profile':
         if profile_form.is_valid():
             profile_form.save()

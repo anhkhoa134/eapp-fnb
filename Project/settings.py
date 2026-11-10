@@ -54,6 +54,9 @@ REAL_ADMIN_PATH = f'{REAL_ADMIN_PATH}/'
 DEMO_SEED_DEFAULT_PASSWORD = env('DEMO_SEED_DEFAULT_PASSWORD', default='123456')
 # Doanh nghiệp demo (tài khoản hiện ở trang đăng nhập); `manage.py reset_demo_data` xoá sạch và seed lại.
 DEMO_TENANT_SLUG = 'demo'
+# Site công khai có tenant demo (App_Core/demo.py): hiện tài khoản demo ở trang đăng nhập, khoá đổi mật khẩu/email/
+# vai trò/trạng thái của các tài khoản dùng chung, không gửi email đặt lại mật khẩu cho chúng.
+DEMO_MODE = env('DEMO_MODE', default=False, cast=bool)
 
 # Số Zalo hiển thị ở trang Tài khoản để doanh nghiệp liên hệ nâng cấp gói.
 SUBSCRIPTION_CONTACT_ZALO = env('SUBSCRIPTION_CONTACT_ZALO', default='0707080405')

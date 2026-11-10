@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 
 from App_Accounts import login_throttle, rate_limit
 from App_Accounts.models import User
+from App_Core.demo import is_shared_demo_account
 from App_Tenant.access import (
     BLOCK_SUBSCRIPTION_EXPIRED,
     BLOCK_TENANT_INACTIVE,
@@ -123,6 +124,10 @@ class POSPasswordResetForm(PasswordResetForm):
         self.fields['email'].label = 'Email đăng ký'
         self.fields['email'].widget.attrs.update({'placeholder': 'VD: ban@gmail.com', 'autofocus': True})
         _add_form_control_class(self)
+
+    def get_users(self, email):
+        # Tài khoản demo dùng chung không nhận link đặt lại mật khẩu (trang vẫn báo "đã gửi" như mọi email khác).
+        return (user for user in super().get_users(email) if not is_shared_demo_account(user))
 
 
 class POSSetPasswordForm(SetPasswordForm):
