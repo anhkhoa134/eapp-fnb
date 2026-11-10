@@ -91,15 +91,17 @@
                     Chưa có tài khoản?
                     <a class="auth-link" href="{% url 'App_Accounts:signup' %}">Đăng ký cửa hàng miễn phí</a>
                 </p>
-                <div class="auth-demo mt-4">
+                {% if demo_mode %}
+                <div class="auth-demo mt-4" id="demo-accounts">
                     <div class="auth-demo-title">Tài khoản demo</div>
-                    <button type="button" class="demo-fill" data-username="demo_quanly" data-password="123456" title="Nhấn để điền vào form">
-                        <strong>Quản lý:</strong> demo_quanly / 123456
+                    <button type="button" class="demo-fill" data-username="demo_quanly" data-password="{{ demo_password }}" title="Nhấn để điền vào form">
+                        <strong>Quản lý:</strong> demo_quanly / {{ demo_password }}
                     </button>
-                    <button type="button" class="demo-fill" data-username="demo_nhanvien_1" data-password="123456" title="Nhấn để điền vào form">
-                        <strong>Nhân viên:</strong> demo_nhanvien_1 / 123456
+                    <button type="button" class="demo-fill" data-username="demo_nhanvien_1" data-password="{{ demo_password }}" title="Nhấn để điền vào form">
+                        <strong>Nhân viên:</strong> demo_nhanvien_1 / {{ demo_password }}
                     </button>
                 </div>
+                {% endif %}
                 {% include 'App_Accounts/_support_contact.html' with prefix='Nếu không đăng nhập được, vui lòng liên hệ Zalo' %}
             </div>
         </div>

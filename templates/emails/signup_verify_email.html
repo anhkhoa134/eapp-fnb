@@ -1,0 +1,37 @@
+{% extends "emails/_card.html" %}{% load i18n %}
+{% block title %}{% blocktranslate %}Kích hoạt tài khoản {{ brand_name }}{% endblocktranslate %}{% endblock %}
+{% block preheader %}{% blocktranslate %}Kích hoạt tài khoản {{ brand_name }} để bắt đầu sử dụng. Hết hạn sau {{ days }} ngày.{% endblocktranslate %}{% endblock %}
+{% block header_subtitle %}{% translate "Kích hoạt tài khoản" %}{% endblock %}
+{% block badge %}<span style="display:inline-block;background:#eef4ff;color:#1f56d8;border:1px solid #cbdcff;border-radius:999px;padding:5px 12px;font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;">{% blocktranslate %}Hết hạn sau {{ days }} ngày{% endblocktranslate %}</span>{% endblock %}
+{% block content %}
+              <p style="font-size:18px;line-height:28px;margin:0 0 14px 0;font-weight:700;color:#0f172a;">
+                {% blocktranslate %}Chào mừng bạn đến với {{ brand_name }}!{% endblocktranslate %}
+              </p>
+              <p style="font-size:14px;line-height:22px;margin:0 0 22px 0;color:#475569;">
+                {% translate "Cảm ơn bạn đã đăng ký tài khoản. Vui lòng bấm vào nút bên dưới để xác thực địa chỉ email và kích hoạt tài khoản của bạn." %}
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin:0 0 28px 0;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-size:13px;line-height:20px;color:#64748b;padding-bottom:6px;width:130px;">{% translate "Tên đăng nhập:" %}</td>
+                        <td style="font-size:13px;line-height:20px;font-weight:700;color:#0f172a;padding-bottom:6px;">{{ user.get_username }}</td>
+                      </tr>
+                      {% if user.email %}
+                      <tr>
+                        <td style="font-size:13px;line-height:20px;color:#64748b;padding-bottom:6px;">{% translate "Email đăng ký:" %}</td>
+                        <td style="font-size:13px;line-height:20px;font-weight:600;color:#0f172a;padding-bottom:6px;">{{ user.email }}</td>
+                      </tr>
+                      {% endif %}
+                      <tr>
+                        <td style="font-size:13px;line-height:20px;color:#64748b;">{% translate "Thời hạn kích hoạt:" %}</td>
+                        <td style="font-size:13px;line-height:20px;color:#b45309;font-weight:600;">{% blocktranslate %}Trong vòng {{ days }} ngày{% endblocktranslate %}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+{% endblock %}
+{% block action_label %}{% translate "Kích hoạt tài khoản ngay" %}{% endblock %}
+{% block security_notice %}{% translate "Nếu bạn không thực hiện đăng ký này, hãy bỏ qua email này — tài khoản sẽ không được kích hoạt mà không có sự xác nhận của bạn." %}{% endblock %}

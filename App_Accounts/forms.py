@@ -8,6 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from App_Accounts import login_throttle, rate_limit
+from App_Accounts.account_emails import BrandedPasswordResetForm
 from App_Accounts.models import User
 from App_Tenant.access import (
     BLOCK_SUBSCRIPTION_EXPIRED,
@@ -117,12 +118,13 @@ class POSPasswordChangeForm(PasswordChangeForm):
         _add_form_control_class(self)
 
 
-class POSPasswordResetForm(PasswordResetForm):
+class POSPasswordResetForm(BrandedPasswordResetForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['email'].label = 'Email đăng ký'
         self.fields['email'].widget.attrs.update({'placeholder': 'VD: ban@gmail.com', 'autofocus': True})
         _add_form_control_class(self)
+
 
 
 class POSSetPasswordForm(SetPasswordForm):

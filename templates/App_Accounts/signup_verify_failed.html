@@ -1,0 +1,24 @@
+{% extends 'App_Accounts/_auth_simple_base.html' %}
+
+{% block title %}Kích hoạt tài khoản | eApp FnB{% endblock %}
+
+{% block auth_body %}
+<div class="mb-4">
+    <div class="auth-eyebrow">Kích hoạt tài khoản</div>
+    {% if error == 'already' %}
+    <h1 class="auth-title">Tài khoản đã được kích hoạt</h1>
+    <p class="auth-subtitle">Bạn có thể đăng nhập ngay.</p>
+    {% elif error == 'expired' %}
+    <h1 class="auth-title">Link đã hết hạn</h1>
+    <p class="auth-subtitle">Link kích hoạt chỉ có hiệu lực 3 ngày. Hãy yêu cầu gửi lại link mới.</p>
+    {% else %}
+    <h1 class="auth-title">Link không hợp lệ</h1>
+    <p class="auth-subtitle">Link kích hoạt không đúng hoặc đã được dùng. Hãy yêu cầu gửi lại link mới.</p>
+    {% endif %}
+</div>
+{% if error == 'already' %}
+<a class="btn btn-primary w-100 auth-submit d-flex align-items-center justify-content-center" href="{% url 'App_Accounts:login' %}">Đăng nhập</a>
+{% else %}
+<a class="btn btn-primary w-100 auth-submit d-flex align-items-center justify-content-center" href="{% url 'App_Accounts:signup_resend' %}">Gửi lại link kích hoạt</a>
+{% endif %}
+{% endblock %}

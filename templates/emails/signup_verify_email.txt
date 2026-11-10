@@ -1,0 +1,11 @@
+{% autoescape off %}Xin chào {{ display_name }},
+
+Cảm ơn bạn đã đăng ký {{ brand_name }}. Tên đăng nhập của bạn: {{ user.get_username }}
+Bấm đường dẫn sau để kích hoạt tài khoản và bắt đầu sử dụng (hết hạn sau {{ days }} ngày):
+
+{{ action_url }}
+
+Nếu bạn không đăng ký, hãy bỏ qua email này — tài khoản sẽ không được kích hoạt.
+
+{{ brand_name }}
+{% endautoescape %}

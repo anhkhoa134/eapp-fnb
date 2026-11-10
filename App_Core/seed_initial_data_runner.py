@@ -215,7 +215,9 @@ def run_seed_initial_data(
     manager.role = User.Role.MANAGER
     manager.is_staff = False
     manager.is_active = True
-    manager.save(update_fields=['tenant', 'role', 'is_staff', 'is_active'])
+    # Form tài khoản bắt quản lý có email; .local không gửi được thư nên không ai lấy lại mật khẩu demo qua email.
+    manager.email = f'{tenant_slug}_quanly@demo.local'
+    manager.save(update_fields=['tenant', 'role', 'is_staff', 'is_active', 'email'])
     if manager_created or reset_passwords:
         manager.set_password(default_password)
         manager.save(update_fields=['password'])

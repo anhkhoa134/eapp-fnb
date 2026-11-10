@@ -54,6 +54,9 @@ REAL_ADMIN_PATH = f'{REAL_ADMIN_PATH}/'
 DEMO_SEED_DEFAULT_PASSWORD = env('DEMO_SEED_DEFAULT_PASSWORD', default='123456')
 # Doanh nghiệp demo (tài khoản hiện ở trang đăng nhập); `manage.py reset_demo_data` xoá sạch và seed lại.
 DEMO_TENANT_SLUG = 'demo'
+# Site công khai có tenant demo (App_Core/demo.py): hiện tài khoản demo ở trang đăng nhập, khoá đổi mật khẩu/email/
+# vai trò/trạng thái của các tài khoản dùng chung, không gửi email đặt lại mật khẩu cho chúng.
+DEMO_MODE = env('DEMO_MODE', default=False, cast=bool)
 
 # Số Zalo hiển thị ở trang Tài khoản để doanh nghiệp liên hệ nâng cấp gói.
 SUBSCRIPTION_CONTACT_ZALO = env('SUBSCRIPTION_CONTACT_ZALO', default='0707080405')
@@ -265,6 +268,19 @@ EMAIL_BACKEND = (
     else 'django.core.mail.backends.console.EmailBackend'
 )
 PASSWORD_RESET_ENABLED = bool(EMAIL_HOST) or ENVIRONMENT == 'dev'
+# Link đặt lại mật khẩu hết hạn sau 2 giờ (giống eApp ERP).
+PASSWORD_RESET_TIMEOUT = 2 * 60 * 60
+# Tài khoản tự đăng ký phải bấm link kích hoạt trong email (giống eApp ERP SAAS-08). Mặc định bật khi có SMTP.
+SIGNUP_REQUIRE_EMAIL_VERIFICATION = env('SIGNUP_REQUIRE_EMAIL_VERIFICATION', default=bool(EMAIL_HOST), cast=bool)
+SIGNUP_VERIFY_MAX_AGE = 3 * 24 * 60 * 60
+# Giao diện email tài khoản (App_Accounts/account_emails.py, templates/emails/).
+EMAIL_BRAND = {
+    'name': 'eApp FnB',
+    'tagline': 'Quản lý quán ăn, cà phê, nhà hàng',
+    'slogan': 'Gọi món nhanh • Quản lý bàn • Báo cáo tức thì',
+    'logo_path': '/static/images/logo/eapp.webp',
+    'site_url': 'https://fnb.eapp.vn',
+}
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 # Tên cookie riêng của FnB: cookie không phân biệt cổng, nên các project Django khác chạy dev ở

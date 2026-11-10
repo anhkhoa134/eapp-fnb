@@ -1,0 +1,21 @@
+{% extends 'App_Accounts/_auth_simple_base.html' %}
+
+{% block title %}Gửi lại link kích hoạt | eApp FnB{% endblock %}
+
+{% block auth_body %}
+<div class="mb-4">
+    <div class="auth-eyebrow">Kích hoạt tài khoản</div>
+    <h1 class="auth-title">Gửi lại link kích hoạt</h1>
+    <p class="auth-subtitle">Nhập email bạn đã dùng khi đăng ký. Nếu tài khoản chưa được kích hoạt, chúng tôi sẽ gửi lại link.</p>
+</div>
+{% if error %}<div class="alert alert-danger small">{{ error }}</div>{% endif %}
+<form method="post" novalidate>
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label" for="id_email">Email đăng ký</label>
+        <input class="form-control" type="email" name="email" id="id_email" value="{{ email }}" required autofocus placeholder="VD: ban@gmail.com">
+    </div>
+    <button class="btn btn-primary w-100 auth-submit" type="submit">Gửi lại link</button>
+</form>
+<p class="text-center small mt-3 mb-0"><a class="auth-link" href="{% url 'App_Accounts:login' %}">Quay lại đăng nhập</a></p>
+{% endblock %}
