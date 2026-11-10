@@ -74,13 +74,16 @@ class BrandedPasswordResetForm(PasswordResetForm):
     def send_mail(self, subject_template_name, email_template_name, context, from_email, to_email,
                   html_email_template_name=None):
         path = reverse(self.confirm_url_name, kwargs={'uidb64': context['uid'], 'token': context['token']})
+        request = getattr(self, '_request', None)
+        # Dựng link theo host đang truy cập (không theo bảng Site của django.contrib.sites, thường vẫn là example.com).
+        action_url = request.build_absolute_uri(path) if request is not None else f"{context['protocol']}://{context['domain']}{path}"
         try:
             send_branded_email(
                 template='password_reset',
                 user=context['user'],
                 to=[to_email],
-                request=getattr(self, '_request', None),
-                action_url=f"{context['protocol']}://{context['domain']}{path}",
+                request=request,
+                action_url=action_url,
                 reset_hours=max(1, settings.PASSWORD_RESET_TIMEOUT // 3600),
             )
         except Exception:
