@@ -71,7 +71,7 @@ eapp-fnb/
 │
 ├── templates/
 │   ├── offline.html                    # Trang PWA offline
-│   ├── App_Core/                       # base.html, _pwa_head.html, _pwa_register.html
+│   ├── App_Core/                       # base.html, _pwa_head.html
 │   ├── App_Accounts/                   # login.html, password_change.html
 │   ├── App_Sales/                      # index.html (POS), kitchen.html, shifts.html, print_help.html
 │   │   └── print/                      # Trang in khổ 80/58mm: _base, receipt, table_bill, kitchen_ticket, shift_report
@@ -87,6 +87,7 @@ eapp-fnb/
 │   ├── sounds/co-don-moi.mp3           # Âm báo đơn QR mới
 │   ├── js/eapp_print.js                # In qua iframe ẩn (window.eappPrint, data-print-url)
 │   ├── js/eapp_dialog.js               # Hộp thoại dùng chung (eappDialog, data-confirm)
+│   ├── eapp-pwa/                       # File chung các app eApp (cài app, cập nhật, Tải lại, Live) — sync từ repo hạ tầng, không sửa tay
 │   ├── css/
 │
 ├── media/tenant_<id>/                  # File upload theo tenant (ảnh sản phẩm, QR thanh toán)

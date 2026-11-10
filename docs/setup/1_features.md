@@ -68,6 +68,7 @@ Chú thích trạng thái: ✅ đã có · 🚧 đang làm · 📋 kế hoạch.
 | Quản lý bàn QR: CRUD, reset token, PNG, in PDF A3 15 bàn/trang | ✅ | `show_qr_order_feature` | `phase2/1_qr_public_and_qr_admin.md` |
 | Realtime WebSocket (POS + khách), fallback polling 15s | ✅ | — | `phase2/2_websocket_realtime.md` |
 | PWA: manifest, service worker, trang offline | ✅ | — | `phase2/3_pwa.md` |
+| Nút cài app, Có bản cập nhật mới, Tải lại + Live/Offline (file chung eapp-pwa) | ✅ | — | `phase2/3_pwa.md` mục 2.5 |
 
 ## 5. Vận hành nâng cao — Phase 3
 | Tính năng | Trạng thái | Cờ tenant | Tài liệu |

@@ -35,7 +35,7 @@ Nội dung chính:
 
 - Endpoint: `GET /sw.js`
 - View: `App_Core/views.py` → `service_worker_view`
-- Đăng ký tự động: partial `templates/App_Core/_pwa_register.html` (gắn ở `base.html` và `App_Sales/index.html`), scope `/`
+- Đăng ký tự động: file chung `eapp-pwa.js` (thuộc tính `data-sw-url`, gắn ở `base.html` và `App_Sales/index.html`), scope `/` — xem [mục 2.5](#25-nút-cài-app-cập-nhật-tải-lại-và-live-file-chung-eapp-pwa)
 
 Hành vi cache (tóm tắt):
 
@@ -68,6 +68,30 @@ Khi đổi logic cache, tăng số phiên bản trong `PWA_CACHE_NAME` (giữ ti
 - Chụp lại screenshot: đăng nhập POS với dữ liệu demo, chụp viewport 390×844 @2x (narrow) và 1280×800 (wide), lưu WebP chất lượng 85, cập nhật `sizes` trong `manifest_view`.
 - Ảnh vẫn là PNG có chủ đích: `apple-touch-icon` (iOS), file QR bàn tải về để in (`/quanly/qr-tables/<id>/png/`, cần ảnh không nén mất dữ liệu). Ảnh QR thanh toán người dùng upload giữ nguyên định dạng gốc.
 
+### 2.5 Nút cài app, cập nhật, Tải lại và Live (file chung eapp-pwa)
+
+Từ 10/11/2026 (eapp-fnb#8) hành vi các nút này nằm trong file chung `static/eapp-pwa/eapp-pwa.js` + `eapp-pwa.css`,
+dùng chung cho 7 app eApp (ERP, POS, FnB, PM, Photo, EquipTrack, Prompt). Bản gốc ở repo hạ tầng
+[`Shared-UI/pwa/`](https://github.com/anhkhoa134/Self-hosted-infrastructure/blob/main/Shared-UI/pwa/README.md). **Không sửa trực tiếp `static/eapp-pwa/*`**: sửa bản gốc, chạy `check-pwa.py`,
+rồi `sync-pwa.py <repo>` và mở PR. Giao diện nút vẫn do app quyết định; file chung chỉ lo hành vi.
+
+- Nạp: `templates/App_Core/base.html` và `templates/App_Sales/index.html` (trong `<head>`, không `defer`), `data-sw-url="{% url 'pwa_service_worker' %}"`: file chung đăng ký service worker (scope `/`), kiểm bản mới khi tải trang và mỗi giờ.
+- Vị trí nút: menu tài khoản ở cả màn hình quản lý và POS.
+
+| Nút / chỉ báo | Gắn bằng | Hành vi |
+|---|---|---|
+| **Cài ứng dụng** | `data-pwa-install` | Chrome/Edge/Android: chỉ hiện khi trình duyệt cho cài (sự kiện `beforeinstallprompt`); bấm mở hộp thoại cài của trình duyệt. iPhone, iPad, Safari trên Mac: nhãn đổi thành **Hướng dẫn cài đặt**, bấm mở hộp các bước Chia sẻ → Thêm vào Màn hình chính. Ẩn khi đã cài hoặc đang mở bằng icon app. |
+| **Có bản cập nhật mới** | `data-pwa-update` | Hiện khi service worker mới đã sẵn sàng. Không tự tải lại trang khi người dùng đang thao tác; bấm thì kích hoạt bản mới rồi tải lại. |
+| **Tải lại** | `data-account-reload` | Tải lại trang, icon xoay trong lúc chờ. |
+| **Live / Offline** | `data-account-live-indicator` | Gọi `HEAD /healthz/` khi mở menu và khi trình duyệt báo đổi mạng; máy chủ không trả lời hoặc mất mạng thì chuyển **Offline**. |
+
+API cho JS của app: `window.eAppPWA` (`install()`, `update()`, `showHelp()`, `checkLive()`, `sync()`), sự kiện trên
+`window`: `pwa:installed`, `pwa:updateavailable`, `eapp-pwa:change`. Hộp hướng dẫn cài có tiếng Việt và tiếng Anh.
+
+Đã bỏ: partial `templates/App_Core/_pwa_register.html`, CSS chấm Live/Tải lại viết inline trong 2 template, hướng dẫn cài iOS bằng `eappDialog.alert` trong `eapp_dialog.js`.
+
+Kiểm thử: `python scripts/check_pwa_install.py` (dùng `static/eapp-pwa/eapp-pwa.js` khi có).
+
 ## 3. iOS (Add to Home Screen)
 
 Safari không luôn lấy đủ thông tin từ manifest như Android. Cần thêm:
@@ -98,7 +122,7 @@ Nếu icon/tên không đổi sau khi cập nhật:
 
 ### iPhone (Safari)
 
-- Mở site → Share → **Add to Home Screen**
+- Mở site → Share → **Add to Home Screen** (hoặc menu tài khoản → **Hướng dẫn cài đặt**)
 - Kiểm tra tên app `eApp FnB` và icon có nhãn FnB.
 
 ## 5. Tránh nhầm với PWA của project khác

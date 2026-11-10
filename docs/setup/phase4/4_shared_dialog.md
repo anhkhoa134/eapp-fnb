@@ -34,6 +34,7 @@ await eappDialog.alert({ title, message, variant });
 | Xoá gán topping (`App_Quanly/product_toppings.html`) | `data-confirm`, `danger` |
 | POS: thay giỏ mang về bằng đơn mang đi của khách | `eappDialog.confirm`, `warning` |
 | Màn hình bếp: lỗi cập nhật món | `eappDialog.alert`, `danger` |
-| Hướng dẫn cài app trên Safari iOS (dự phòng khi không dựng được modal riêng) | `eappDialog.alert`, `info` |
+
+Hướng dẫn cài app trên iPhone/iPad/Safari Mac không dùng `eappDialog` nữa: file chung `eapp-pwa.js` tự mở hộp hướng dẫn riêng (từ 10/11/2026).
 
 Thông báo ngắn không cần người dùng bấm (thêm vào giỏ, đã lưu…) vẫn dùng toast của từng trang. `console.warn` giữ nguyên cho lỗi nền chỉ dành cho dev.
