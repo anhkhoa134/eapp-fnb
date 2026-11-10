@@ -261,7 +261,7 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = env('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_TIMEOUT = 10
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='eApp FnB <no-reply@eapp.vn>')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='eApp F&B <no-reply@eapp.vn>')
 EMAIL_BACKEND = (
     'django.core.mail.backends.smtp.EmailBackend'
     if EMAIL_HOST
@@ -275,7 +275,8 @@ SIGNUP_REQUIRE_EMAIL_VERIFICATION = env('SIGNUP_REQUIRE_EMAIL_VERIFICATION', def
 SIGNUP_VERIFY_MAX_AGE = 3 * 24 * 60 * 60
 # Giao diện email tài khoản (App_Accounts/account_emails.py, templates/emails/).
 EMAIL_BRAND = {
-    'name': 'eApp FnB',
+    # Email dùng "eApp F&B": Gmail lặng lẽ bỏ thư quên mật khẩu có chữ "eApp FnB" (kiểm thử 10/11/2026).
+    'name': 'eApp F&B',
     'tagline': 'Quản lý quán ăn, cà phê, nhà hàng',
     'slogan': 'Gọi món nhanh • Quản lý bàn • Báo cáo tức thì',
     'logo_path': '/static/images/logo/eapp.webp',
