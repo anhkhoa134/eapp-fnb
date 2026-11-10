@@ -1,5 +1,7 @@
 # Kiểm tra cài PWA — 2026-10-15
 
+> **10/11/2026:** code nút cài app đã chuyển sang file chung `static/eapp-pwa/eapp-pwa.js` (eapp-fnb#8). Các kiểm thử dưới đây vẫn đúng; mô tả hiện tại ở [setup/phase2/3_pwa.md](setup/phase2/3_pwa.md#25-nút-cài-app-cập-nhật-tải-lại-và-live-file-chung-eapp-pwa).
+
 Nút native chỉ hiện khi có beforeinstallprompt; hướng dẫn Safari có nhãn riêng. Bổ sung chống bấm lặp, xử lý lỗi prompt/userChoice và trạng thái đã cài.
 
 ## Kiểm thử
