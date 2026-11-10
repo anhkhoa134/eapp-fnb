@@ -170,12 +170,12 @@
     letter-spacing: 0.02em;
     transition: all 0.2s ease;
 }
-.account-live-indicator.live {
+.account-live-indicator.is-live {
     background-color: rgba(16, 185, 129, 0.12);
     color: #059669;
     border: 1px solid rgba(16, 185, 129, 0.28);
 }
-.account-live-indicator.offline {
+.account-live-indicator.is-offline {
     background-color: rgba(148, 163, 184, 0.15);
     color: #64748b;
     border: 1px solid rgba(148, 163, 184, 0.3);
@@ -187,12 +187,12 @@
     display: inline-block;
     flex-shrink: 0;
 }
-.account-live-indicator.live .account-live-dot {
+.account-live-indicator.is-live .account-live-dot {
     background-color: #10b981;
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
     animation: account-live-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }
-.account-live-indicator.offline .account-live-dot {
+.account-live-indicator.is-offline .account-live-dot {
     background-color: #94a3b8;
     box-shadow: none;
     animation: none;
@@ -215,7 +215,8 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
-.account-spin {
+.account-spin,
+[data-account-reload].is-spinning .account-reload-icon {
     animation: account-spin 0.8s linear infinite;
     display: inline-block;
 }
@@ -224,6 +225,9 @@
     {% block head_extra %}{% endblock %}
     {% block extra_css %}{% endblock %}
     {% include 'App_Core/_dropdown_assets.html' %}
+{# Cài app / bản cập nhật / Tải lại + Live dùng chung các app eApp (bản gốc: repo hạ tầng Shared-UI/pwa) #}
+<link rel="stylesheet" href="{% static 'eapp-pwa/eapp-pwa.css' %}?v=20261110">
+<script src="{% static 'eapp-pwa/eapp-pwa.js' %}?v=20261110" data-app-name="eApp FnB" data-sw-url="{% url 'pwa_service_worker' %}"></script>
 </head>
 <body class="bg-light {% block body_class %}{% endblock %}">
 <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
@@ -278,20 +282,25 @@
 
                     <li><hr class="dropdown-divider"></li>
 
-                    <li class="js-pwa-install-action d-none">
-                        <button class="dropdown-item account-action mx-2" type="button">
+                    <li hidden data-pwa-install-item>
+                        <button class="dropdown-item account-action mx-2" type="button" data-pwa-install hidden>
                             <span class="account-icon-pill"><i class="bi bi-download"></i></span><span data-pwa-install-label>Cài ứng dụng</span>
                         </button>
                     </li>
+                    <li hidden data-pwa-update-item>
+                        <button class="dropdown-item account-action mx-2" type="button" data-pwa-update hidden>
+                            <span class="account-icon-pill"><i class="bi bi-arrow-up-circle"></i></span><span>Có bản cập nhật mới</span>
+                        </button>
+                    </li>
                     <li>
-                        <button type="button" class="dropdown-item account-action mx-2 d-flex align-items-center justify-content-between gap-2" id="accountReloadBtn" onclick="handleAccountReload(this)">
+                        <button type="button" class="dropdown-item account-action mx-2 d-flex align-items-center justify-content-between gap-2" id="accountReloadBtn" data-account-reload>
                             <span class="d-inline-flex align-items-center gap-2">
                                 <span class="account-icon-pill"><i class="bi bi-arrow-clockwise account-reload-icon"></i></span>
                                 <span>Tải lại</span>
                             </span>
-                            <span class="account-live-indicator live" id="accountLiveStatus" title="Hệ thống đang kết nối trực tiếp">
+                            <span class="account-live-indicator is-live" id="accountLiveStatus" data-account-live-indicator data-live-title="Hệ thống đang kết nối trực tiếp" data-offline-title="Mất kết nối Internet hoặc máy chủ ngoại tuyến" title="Hệ thống đang kết nối trực tiếp">
                                 <span class="account-live-dot" aria-hidden="true"></span>
-                                <span class="account-live-text">Live</span>
+                                <span class="account-live-text" data-account-live-text>Live</span>
                             </span>
                         </button>
                     </li>
@@ -392,7 +401,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/vn.js" integrity="sha384-WfMJmNkW9rHcGx0bjgYsPhG+fdSYOS6y8wx5TEWGSb711dkFsZGfO7dD92dUDwux" crossorigin="anonymous"></script>
 {% endif %}
-<script src="{% static 'js/eapp_dialog.js' %}"></script>
+<script src="{% static 'js/eapp_dialog.js' %}?v=20261110"></script>
 <script>
     const globalThemes = {
         green: { primary: '#10b981', hover: '#059669' },
@@ -455,7 +464,6 @@
         }
     });
 </script>
-{% include 'App_Core/_pwa_register.html' %}
 {% block extra_js %}{% endblock %}
 </body>
 </html>

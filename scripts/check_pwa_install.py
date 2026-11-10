@@ -19,7 +19,11 @@ HTMLS={
  'lms':'<button data-pwa-install hidden><span data-pwa-install-label>Cài ứng dụng</span></button>',
 }
 SELECTORS={'reader':'#pwaInstallButton','prompt':'#pwaInstallBtn','fnb':'.js-pwa-install-action button','equiptrack':'#install','pos':'[data-pwa-install]','lms':'[data-pwa-install]'}
-if APP=='fnb':
+# POS/FnB… đã chuyển sang file chung static/eapp-pwa/eapp-pwa.js (bản gốc: repo hạ tầng Shared-UI/pwa).
+SHARED=ROOT/'static/eapp-pwa/eapp-pwa.js'
+if SHARED.exists():
+ SOURCE=SHARED.read_text();HTMLS[APP]=HTMLS['pos'];SELECTORS[APP]='[data-pwa-install]'
+elif APP=='fnb':
  SOURCE=(ROOT/'templates/App_Core/_pwa_register.html').read_text().removeprefix('<script>').strip().removesuffix('</script>')
  SOURCE=re.sub(r'\{%.*?%\}','/sw.js',SOURCE)
 elif APP=='equiptrack':

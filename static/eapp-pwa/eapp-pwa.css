@@ -1,0 +1,160 @@
+/*! eapp-pwa.css — đi cùng eapp-pwa.js. Bản gốc: repo hạ tầng Shared-UI/pwa/, KHÔNG sửa trực tiếp trong app.
+ * Chấm Live / nút Tải lại bọc :where() (độ ưu tiên 0): CSS riêng của app luôn thắng.
+ * Hộp hướng dẫn (.eapp-pwa-dialog) chỉ file này dùng nên giữ độ ưu tiên thường để không bị Bootstrap reboot đè. */
+
+/* Nút do eapp-pwa.js ẩn/hiện bằng thuộc tính hidden — thắng cả .d-flex / display của app. */
+[data-pwa-install][hidden],
+[data-pwa-install-item][hidden],
+[data-pwa-update][hidden],
+[data-pwa-update-item][hidden] {
+  display: none !important;
+}
+
+/* ---------- Chấm Live / Offline ---------- */
+:where(.account-live-indicator) {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  transition: all 0.2s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+:where(.account-live-indicator) :where(.account-live-dot) {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #94a3b8;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+:where(.account-live-indicator.is-live) {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+:where(.account-live-indicator.is-live) :where(.account-live-dot) {
+  background-color: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: eapp-live-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+@keyframes eapp-live-pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* ---------- Nút Tải lại: icon đầu tiên xoay ---------- */
+:where([data-account-reload]) > :where(svg, i):first-child {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:where([data-account-reload]:hover) > :where(svg, i):first-child {
+  transform: rotate(45deg);
+}
+
+:where([data-account-reload].is-spinning) > :where(svg, i):first-child {
+  animation: eapp-reload-spin 0.65s linear infinite;
+}
+
+@keyframes eapp-reload-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.account-live-indicator.is-live) :where(.account-live-dot),
+  :where([data-account-reload].is-spinning) > :where(svg, i):first-child {
+    animation: none;
+  }
+}
+
+/* ---------- Hộp hướng dẫn cài (iOS, Safari Mac, khi trình duyệt chưa cho cài) ---------- */
+.eapp-pwa-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+  font: inherit;
+}
+
+.eapp-pwa-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.eapp-pwa-dialog__body {
+  padding: 20px 22px 18px;
+}
+
+.eapp-pwa-dialog__title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.eapp-pwa-dialog ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.55;
+}
+
+.eapp-pwa-dialog li + li {
+  margin-top: 6px;
+}
+
+.eapp-pwa-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.eapp-pwa-dialog__actions button {
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-bs-theme="light"]) .eapp-pwa-dialog {
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+}
+
+:where([data-theme="dark"], [data-bs-theme="dark"], .dark-mode, .theme-dark) .eapp-pwa-dialog {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+:where([data-theme="dark"], [data-bs-theme="dark"], .dark-mode, .theme-dark) :where(.account-live-indicator) {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+:where([data-theme="dark"], [data-bs-theme="dark"], .dark-mode, .theme-dark) :where(.account-live-indicator.is-live) {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
