@@ -29,9 +29,9 @@ class AccountEmailTests(TestCase):
         self.client.post(reverse('App_Accounts:password_reset'), {'email': 'khach@example.com'})
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
-        self.assertEqual(message.subject, 'Đặt lại mật khẩu eApp FnB')
+        self.assertEqual(message.subject, 'Đặt lại mật khẩu eApp F&B')
         html = message.alternatives[0][0]
-        for text in ('Khôi phục mật khẩu', 'Đặt lại mật khẩu ngay', 'Hết hạn sau 2 giờ', 'eApp FnB —', 'khach'):
+        for text in ('Khôi phục mật khẩu', 'Đặt lại mật khẩu ngay', 'Hết hạn sau 2 giờ', 'eApp F&amp;B —', 'khach'):
             self.assertIn(text, html)
         response = self.client.get(_link(message), follow=True)
         response = self.client.post(response.redirect_chain[-1][0], {
@@ -47,7 +47,7 @@ class AccountEmailTests(TestCase):
         self.assertFalse(user.is_active)
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
-        self.assertEqual(message.subject, 'Kích hoạt tài khoản eApp FnB')
+        self.assertEqual(message.subject, 'Kích hoạt tài khoản eApp F&B')
         self.assertIn('Kích hoạt tài khoản ngay', message.alternatives[0][0])
 
         response = self.client.get(_link(message))
