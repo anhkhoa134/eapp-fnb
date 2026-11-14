@@ -364,3 +364,18 @@ LOGGING = {
 BILLING_APPLICATION = 'fnb'
 BILLING_ACCOUNT_MODEL = 'App_Tenant.Tenant'
 BILLING_REFERENCE_PREFIX = 'FNB'
+
+# Sentry: gửi lỗi 500 và lỗi task Celery lên Sentry để biết trước khi khách báo.
+# Không có SENTRY_DSN thì tắt hẳn (dev/test/CI). Không gửi dữ liệu cá nhân (send_default_pii=False).
+# Tracing mặc định tắt (SENTRY_TRACES_SAMPLE_RATE=0) để không tốn hạn mức gói Free.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=os.environ.get("SENTRY_ENVIRONMENT", ENVIRONMENT),
+        release=os.environ.get("SOURCE_COMMIT") or None,  # Coolify truyền khi bật "Include Source Commit in Build"
+        send_default_pii=False,
+        traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0")),
+    )
