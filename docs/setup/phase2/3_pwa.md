@@ -147,3 +147,22 @@ Gợi ý cho các project khác (chưa sửa, nằm ngoài repo này): mỗi pro
 ## 6. Liên quan
 
 - Ghi chú thiết kế ban đầu: `backup/7_pwa.md`
+
+## Ảnh chia sẻ link (Open Graph) — dùng chung các app eApp
+
+Khi dán link app vào Zalo, Facebook, Messenger…, ảnh xem trước lấy từ thẻ `og:image`. Từ 17/11/2026 các app eApp dùng
+chung **một ảnh** (ảnh của eapp.vn, bản JPG 1200×900 để Zalo đọc được), trừ eApp Photo dùng ảnh banner trang chủ của
+chính nó.
+
+- File ảnh: `static/images/seo/eapp-og.jpg` (thay cho `E-App.webp` cũ).
+- Thẻ nằm ở: `templates/App_Core/base.html` và `templates/App_Sales/index.html`.
+
+Quy tắc khi sửa:
+
+- Luôn khai đủ `og:image` + `og:image:type` / `og:image:width` / `og:image:height` / `og:image:alt` và `twitter:image`,
+  URL tuyệt đối (`{{ request.scheme }}://{{ request.get_host }}{% static … %}`, prod ra `https` nhờ
+  `SECURE_PROXY_SSL_HEADER`).
+- Trang mà người dùng hay chia sẻ (trang chủ / đăng nhập — vì `/` chuyển hướng về đăng nhập) phải có đủ thẻ.
+- Đổi ảnh thì đổi **tên file** (Zalo lưu cache ảnh theo URL), rồi vào công cụ debug của Zalo
+  `https://developers.zalo.me/tools/debug-sharing` → nhập link → **Thu thập lại**.
+- Kiểm nhanh: `curl -sL -A "Mozilla/5.0" https://<app>.eapp.vn/ | grep -E 'og:image'`.
