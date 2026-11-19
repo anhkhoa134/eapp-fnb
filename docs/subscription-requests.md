@@ -9,7 +9,7 @@
 - POS/FnB: chỉ quản lý doanh nghiệp đang hoạt động được gửi và xem lịch sử. PM/Photo: theo tài khoản đăng nhập. Người chưa đăng nhập Photo được chuyển đến đăng nhập.
 - Django Admin → **Yêu cầu gói dịch vụ** → **Xem và xử lý**. Chỉ superuser được duyệt, từ chối hoặc hủy; duyệt phải xác nhận đã thanh toán/thỏa thuận. Gói liên hệ cần nhập số tiền báo giá; gói niêm yết phải khớp giá đã lưu.
 - Cùng gói còn hạn: nối tiếp thời hạn còn lại theo tháng lịch. Đổi gói hoặc gói hết hạn: bắt đầu từ lúc duyệt. Đổi gói không tự tính hoàn tiền/bù trừ; quản trị viên xác nhận thỏa thuận trước khi duyệt.
-- Gói miễn phí không có hạn sử dụng. Gửi yêu cầu không tự kích hoạt hoặc tự thu tiền.
+- Gói miễn phí không có hạn sử dụng. Gói có giá niêm yết: nếu đã bật SePay, khách chuyển khoản qua mã QR và gói tự kích hoạt khi nhận đủ tiền; chưa bật thì quản trị viên duyệt tay. Gói liên hệ luôn duyệt tay.
 
 ## Dữ liệu và ranh giới tích hợp
 
@@ -19,24 +19,50 @@
 
 Giá nhận từ trình duyệt không được sử dụng. `client_token` chống gửi lại khi mất kết nối; gửi lại yêu cầu đã duyệt không gia hạn lần nữa. Lịch sử chỉ truy vấn tài khoản hiện tại, có phân trang 20 dòng và không cache.
 
-## Bổ sung SePay sau này
+## Thanh toán tự động qua SePay (19/11/2026)
 
-Tham khảo mô hình mã đơn, lưu tổng tiền và nhận webhook của `ecom_final`, nhưng không thêm endpoint thanh toán hoặc cấu hình SePay trong đợt này. Các kênh tự động mặc định bị tắt.
+Dùng chung tài khoản SePay và tài khoản ngân hàng nhận tiền với `ecom_final` (xem `ecom_final/docs/features/7_sepay_payment_integration.md`). Code giống hệt nhau ở POS, FnB, PM, Photo: `App_Billing/sepay.py`, `views.sepay_webhook`, `services.record_provider_payment`, `tests_sepay.py`. Sửa ở một app thì đồng bộ sang ba app còn lại.
 
-1. Thêm adapter nhà cung cấp và cấu hình secrets ngoài mã nguồn. Thêm tên nhà cung cấp vào `BILLING_PAYMENT_PROVIDERS` chỉ khi tích hợp đã hoàn chỉnh.
-2. Gọi `create_payment_attempt(request_id, provider=...)` từ luồng checkout được phân quyền. Service lấy giá đã lưu, chỉ cho yêu cầu còn chờ với giá dương; trả lại lần đang chờ nếu có. Gói liên hệ vẫn xử lý thủ công cho đến khi có quy trình báo giá riêng.
-3. Tạo nội dung chuyển khoản/QR gắn với `SubscriptionRequest.reference`. Không lấy số tiền, tài khoản ngân hàng hoặc mã đối soát từ dữ liệu khách tự gửi.
-4. Endpoint webhook phải xác thực theo giao thức chính thức của nhà cung cấp tại thời điểm tích hợp, kiểm tra tài khoản nhận, chiều tiền vào, đơn vị tiền và mã yêu cầu. Sau đó mới gọi `record_verified_payment(payment_id, transaction_id=..., amount_vnd=...)`.
-5. Service kiểm tra giá đã chốt, số tiền đủ, mã giao dịch chưa dùng và trạng thái; kích hoạt trong cùng transaction. Gọi lại cùng giao dịch thành công trả lại kết quả, không cộng thêm hạn. Thiếu tiền, yêu cầu hủy hoặc đã xử lý không kích hoạt; chuyển các trường hợp cần đối soát vào quy trình hỗ trợ.
-6. Bổ sung log webhook, retry/reconciliation, kiểm thử xác thực, sai tài khoản nhận, sai chiều tiền, replay và cạnh tranh duyệt thủ công/webhook trước khi bật thực tế.
+### Luồng
 
-Không gọi `record_verified_payment` trực tiếp từ dữ liệu chưa xác thực. Không bật thanh toán tự động bằng cách chỉ tạo bản ghi `PaymentAttempt` trong DB.
+1. Khách gửi yêu cầu gói có giá niêm yết (> 0đ). Lịch sử yêu cầu hiện mã QR `qr.sepay.vn` có sẵn số tiền đã chốt và nội dung `SEVQR <mã yêu cầu>`, ví dụ `SEVQR POS9650D778E31E4917`. `SEVQR` bắt buộc khi tài khoản nhận là VietinBank cá nhân; giữ cho mọi ngân hàng.
+2. Khách quét QR và chuyển khoản. SePay gọi `POST /accounts/billing/sepay/webhook/`.
+3. Webhook kiểm chữ ký HMAC-SHA256 (`X-SePay-Signature`, `X-SePay-Timestamp`, lệch tối đa 5 phút), rồi kiểm: chiều tiền `in`, số tài khoản nhận (`accountNumber` hoặc `subAccount`) khớp `SEPAY_BANK_ACCOUNT`, có mã giao dịch, số tiền là số nguyên dương, nội dung có mã yêu cầu đúng tiền tố của app (`BILLING_REFERENCE_PREFIX`: `POS`, `FNB`, `PM`, `PHOTO` + 16 ký tự hex; bỏ qua khoảng trắng/dấu chấm ngân hàng chèn vào).
+4. `record_provider_payment` tạo `PaymentAttempt(provider='sepay')`, gọi `record_verified_payment` và kích hoạt gói trong cùng transaction. Lịch sử tự làm mới mỗi 8 giây khi còn QR chờ thanh toán.
+
+Gói miễn phí và gói giá liên hệ không có QR, vẫn duyệt tay. Admin vẫn duyệt tay được như cũ; khi đó lần SePay chờ bị hủy.
+
+### Trường hợp đặc biệt
+
+| Tình huống | Kết quả |
+|---|---|
+| Giao dịch của app khác, của ecom_final (`DH…`), hoặc không có mã | Bỏ qua, trả 200, log INFO |
+| Sai chữ ký / thiếu header / timestamp quá hạn / thiếu secret | 401, log WARNING. SePay sẽ gửi lại |
+| Tiền ra, sai tài khoản nhận, số tiền không hợp lệ | Bỏ qua, trả 200, log WARNING |
+| Đúng mã nhưng chuyển thiếu, yêu cầu đã hủy/đã duyệt, mã không tồn tại | Không kích hoạt, trả 200, **log ERROR (Sentry báo)**: đối soát tay rồi duyệt hoặc hoàn tiền |
+| Chuyển dư | Kích hoạt, lưu số tiền thực nhận trong `PaymentAttempt.received_amount_vnd` |
+| SePay gửi lại cùng giao dịch | Không cộng thêm hạn (khóa duy nhất `provider` + `provider_reference`) |
+
+### Bật trên production
+
+Thiếu một trong ba biến đầu thì tính năng tắt hẳn: không hiện QR, webhook trả 404, mọi thứ như trước.
+
+| Biến môi trường | Giá trị |
+|---|---|
+| `SEPAY_WEBHOOK_HMAC_SECRET` | HMAC Secret Key của webhook **Live** tạo riêng cho app này (không dùng secret Test mode, không dùng chung secret với ecom_final) |
+| `SEPAY_BANK_ACCOUNT` | Số tài khoản nhận tiền, giống ecom_final |
+| `SEPAY_BANK_CODE` | Mã ngân hàng cho `qr.sepay.vn`, giống ecom_final (vd `vietinbank`) |
+| `SEPAY_ACCOUNT_HOLDER` | Tên chủ tài khoản hiển thị dưới QR (tùy chọn) |
+
+Trên `my.sepay.vn/webhooks` (tắt Test mode): tạo webhook mới, sự kiện **Money in**, URL `https://<domain app>/accounts/billing/sepay/webhook/`, bảo mật **HMAC-SHA256**, **không** bật "chỉ gửi khi có mã thanh toán" (mẫu mã thanh toán của công ty đang là `DH` + số cho ecom_final). Thêm 4 biến vào Coolify, redeploy, rồi dùng **Gửi thử** trên SePay: kỳ vọng HTTP 200 `{"success": true}` (payload mẫu không có mã của app nên chỉ bị bỏ qua). Thử thật bằng một yêu cầu gói giá thấp nhất.
+
+Gói FREE của SePay có 50 giao dịch tiền vào mỗi tháng, tính chung cho cả tài khoản (ecom_final + các app).
 
 ## Triển khai và kiểm tra
 
 Sau khi cập nhật mã từng app, chạy `python manage.py migrate --noinput`, `python manage.py collectstatic --noinput` rồi khởi động lại dịch vụ theo quy trình hiện có. Migration chỉ thêm bảng yêu cầu/thanh toán, không sửa gói hay thời hạn của khách hiện tại.
 
-Chạy `python manage.py test App_Billing --noinput`. Bộ test kiểm tra quyền/CSRF, tách tài khoản, giá server, trùng yêu cầu, duyệt/từ chối/hủy, giá liên hệ, tháng lịch, gia hạn giữ phần còn lại, chống kích hoạt lặp, và render trang tài khoản.
+Chạy `python manage.py test App_Billing --noinput` (gồm `tests_sepay.py`: chữ ký, replay, sai tài khoản/chiều tiền, thiếu tiền, gửi lại, giao dịch của app khác). Bộ test kiểm tra quyền/CSRF, tách tài khoản, giá server, trùng yêu cầu, duyệt/từ chối/hủy, giá liên hệ, tháng lịch, gia hạn giữ phần còn lại, chống kích hoạt lặp, và render trang tài khoản.
 
 ## CTA và kỳ hạn hiện tại
 

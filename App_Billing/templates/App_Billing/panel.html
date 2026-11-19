@@ -1,5 +1,5 @@
 {% load static billing_tags %}
-<link rel="stylesheet" href="{% static 'billing/requests.css' %}?v=20261103-3">
+<link rel="stylesheet" href="{% static 'billing/requests.css' %}?v=20261119-1">
 <section class="billing-support-panel">
   <div class="billing-support-heading"><span class="billing-support-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-3a9 9 0 0 1 18 0v3M21 17v1a3 3 0 0 1-3 3h-4"/><rect x="3" y="11" width="4" height="7" rx="2"/><rect x="17" y="11" width="4" height="7" rx="2"/></svg></span><div>
     <h3>Hỗ trợ kỹ thuật &amp; Tư vấn triển khai</h3>
@@ -15,6 +15,7 @@
   <div class="billing-history-heading"><h3>Lịch sử yêu cầu</h3>{% if billing_can_manage %}<button type="button" class="btn btn-sm btn-outline-secondary" data-billing-refresh>Làm mới</button>{% endif %}</div>
   <div data-billing-feedback role="status" aria-live="polite"></div>
   {% if billing_can_manage %}
+  <div data-billing-payment hidden></div>
   <div class="table-responsive"><table class="table billing-history-table">
     <thead><tr><th>Ngày / Mã yêu cầu</th><th>Gói</th><th>Kỳ hạn</th><th>Số tiền</th><th>Trạng thái</th><th>Phản hồi</th><th></th></tr></thead>
     <tbody data-billing-history>
@@ -34,7 +35,7 @@
       {% csrf_token %}<input type="hidden" name="client_token" value="{{ billing_token }}">
       <div class="modal-header"><h2 class="modal-title" id="billingRequestTitle">Yêu cầu đổi / gia hạn gói</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button></div>
       <div class="modal-body">
-        <p class="billing-modal-intro">Quản trị viên sẽ xác nhận giá, thanh toán và thời hạn trước khi kích hoạt. Gửi yêu cầu không tự thu tiền.</p>
+        {% if billing_sepay %}<p class="billing-modal-intro">Gói có giá niêm yết: sau khi gửi, quét mã QR trong lịch sử để chuyển khoản, gói tự kích hoạt khi nhận đủ tiền. Gói liên hệ: quản trị viên báo giá rồi kích hoạt.</p>{% else %}<p class="billing-modal-intro">Quản trị viên sẽ xác nhận giá, thanh toán và thời hạn trước khi kích hoạt. Gửi yêu cầu không tự thu tiền.</p>{% endif %}
         <div class="alert alert-info" data-billing-pending{% if not billing_pending %} hidden{% endif %}>Bạn đang có yêu cầu chờ xử lý. Có thể xem hoặc hủy yêu cầu trong lịch sử.</div>
         <div class="billing-request-error" data-billing-form-message role="alert" hidden></div>
         <div class="billing-form-grid">
@@ -49,4 +50,4 @@
   </div>
 </div>
 {% endif %}
-<script src="{% static 'billing/requests.js' %}?v=20261103-3" defer></script>
+<script src="{% static 'billing/requests.js' %}?v=20261119-1" defer></script>

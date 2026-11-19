@@ -365,6 +365,15 @@ BILLING_APPLICATION = 'fnb'
 BILLING_ACCOUNT_MODEL = 'App_Tenant.Tenant'
 BILLING_REFERENCE_PREFIX = 'FNB'
 
+# SePay — tự xác nhận chuyển khoản gói dịch vụ (App_Billing/sepay.py, webhook /accounts/billing/sepay/webhook/).
+# Dùng chung tài khoản SePay/ngân hàng nhận tiền với ecom_final; mỗi app một webhook + HMAC secret riêng (Live).
+# Thiếu SECRET/ACCOUNT/BANK_CODE -> tắt hẳn: không hiện QR, webhook trả 404, vẫn duyệt tay như cũ.
+SEPAY_WEBHOOK_HMAC_SECRET = os.environ.get('SEPAY_WEBHOOK_HMAC_SECRET', '').strip()
+SEPAY_BANK_ACCOUNT = os.environ.get('SEPAY_BANK_ACCOUNT', '').strip()
+SEPAY_BANK_CODE = os.environ.get('SEPAY_BANK_CODE', '').strip()  # mã ngân hàng của qr.sepay.vn, vd: vietinbank, mbbank
+SEPAY_ACCOUNT_HOLDER = os.environ.get('SEPAY_ACCOUNT_HOLDER', '').strip()
+BILLING_PAYMENT_PROVIDERS = ('sepay',) if (SEPAY_WEBHOOK_HMAC_SECRET and SEPAY_BANK_ACCOUNT and SEPAY_BANK_CODE) else ()
+
 # Sentry: gửi lỗi 500 và lỗi task Celery lên Sentry để biết trước khi khách báo.
 # Không có SENTRY_DSN thì tắt hẳn (dev/test/CI). Không gửi dữ liệu cá nhân (send_default_pii=False).
 # Tracing mặc định tắt (SENTRY_TRACES_SAMPLE_RATE=0) để không tốn hạn mức gói Free.
