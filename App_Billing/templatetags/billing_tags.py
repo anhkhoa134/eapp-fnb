@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 from django import template
 from django.conf import settings
 from django.shortcuts import resolve_url
-from App_Billing import adapter
+from App_Billing import adapter, sepay
 from App_Billing.models import SubscriptionRequest
 from App_Billing.services import money
 
@@ -32,6 +32,7 @@ def billing_panel(context):
         'billing_login_url': resolve_url(settings.LOGIN_URL) + '?' + urlencode({'next': next_url}),
         'billing_plans': plans, 'billing_history': history, 'billing_pending': pending,
         'billing_token': uuid.uuid4(), 'billing_state': presentation['state'],
+        'billing_sepay': sepay.enabled(),
     }
 
 

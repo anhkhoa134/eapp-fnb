@@ -20,6 +20,9 @@
     }
     let page = 1;
     let loading = false;
+    let pollTimer = null;
+    let awaitingPayment = new Set();
+    const POLL_MS = 8000;
     let sending = false;
     const panel = () => document.querySelector('[data-billing-requests]');
     const form = () => document.querySelector('[data-billing-request-form]');
@@ -88,6 +91,30 @@
         row.append(cell);
         return cell;
     }
+    function paymentBox(item) {
+        // QR SePay cho yêu cầu đang chờ có giá niêm yết (mỗi tài khoản tối đa một); webhook kích hoạt gói khi nhận đủ tiền.
+        const box = document.createElement('div'); box.className = 'billing-payment';
+        const image = document.createElement('img'); image.src = item.payment.qr_url; image.alt = `Mã QR chuyển khoản ${item.reference}`;
+        image.width = 180; image.height = 180; image.loading = 'lazy'; box.append(image);
+        const info = document.createElement('div'); info.className = 'billing-payment-info'; box.append(info);
+        const title = document.createElement('strong'); title.textContent = 'Quét mã QR bằng app ngân hàng để thanh toán'; info.append(title);
+        const lines = [['Số tiền', money(item.payment.amount_vnd)], ['Nội dung chuyển khoản', item.payment.content],
+            ['Ngân hàng', item.payment.bank], ['Số tài khoản', item.payment.account]];
+        if (item.payment.holder) lines.push(['Chủ tài khoản', item.payment.holder]);
+        const list = document.createElement('dl'); info.append(list);
+        for (const [label, value] of lines) {
+            const term = document.createElement('dt'); term.textContent = label;
+            const detail = document.createElement('dd'); detail.textContent = value; list.append(term, detail);
+        }
+        const note = document.createElement('p'); note.className = 'billing-payment-note';
+        note.textContent = 'Giữ nguyên nội dung chuyển khoản. Gói tự kích hoạt trong khoảng 1 phút sau khi nhận đủ tiền, trang này tự cập nhật.';
+        info.append(note);
+        return box;
+    }
+    function schedulePoll(waiting) {
+        clearTimeout(pollTimer); pollTimer = null;
+        if (waiting) pollTimer = setTimeout(() => { if (document.visibilityState === 'visible') refresh(); else schedulePoll(true); }, POLL_MS);
+    }
     async function refresh() {
         cleanupModal();
         updateActions();
@@ -103,6 +130,9 @@
             if (pending) pending.hidden = !data.pending;
             const body = root.querySelector('[data-billing-history]');
             body.replaceChildren();
+            const slot = root.querySelector('[data-billing-payment]');
+            slot?.replaceChildren();
+            let waiting = false;
             for (const item of data.items) {
                 const row = document.createElement('tr');
                 td(row, new Date(item.created_at).toLocaleString('vi-VN'), item.reference);
@@ -116,12 +146,18 @@
                     button.dataset.billingCancel = item.id; button.textContent = 'Hủy'; action.append(button);
                 }
                 body.append(row);
+                if (item.payment && slot && !waiting) { slot.append(paymentBox(item)); waiting = true; }
             }
+            const paid = data.items.some((item) => awaitingPayment.has(item.id) && item.status === 'approved');
+            awaitingPayment = new Set(data.items.filter((item) => item.payment).map((item) => item.id));
+            if (paid) message('[data-billing-feedback]', 'Đã nhận thanh toán, gói đã được kích hoạt. Tải lại trang để cập nhật thông tin gói.');
+            if (slot) slot.hidden = !waiting;
+            schedulePoll(waiting);
             if (!data.items.length) { const row = document.createElement('tr'); const cell = td(row, 'Chưa có yêu cầu nâng cấp hoặc gia hạn.'); cell.colSpan = 7; cell.className = 'text-center text-muted py-4'; body.append(row); }
             root.querySelector('[data-billing-page]').textContent = `Trang ${data.page} / ${data.pages}`;
             root.querySelector('[data-billing-prev]').disabled = data.page <= 1;
             root.querySelector('[data-billing-next]').disabled = data.page >= data.pages;
-        } catch (error) { message('[data-billing-feedback]', error.message); }
+        } catch (error) { message('[data-billing-feedback]', error.message); schedulePoll(awaitingPayment.size > 0); }
         finally { loading = false; }
     }
     document.addEventListener('click', async (event) => {

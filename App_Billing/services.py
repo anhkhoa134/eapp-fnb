@@ -1,4 +1,4 @@
-"""Request lifecycle and trusted payment boundary; no public payment webhook is enabled."""
+"""Request lifecycle and trusted payment boundary. SePay webhook: App_Billing/sepay.py + views.sepay_webhook."""
 import calendar
 import uuid
 from django.conf import settings
@@ -188,3 +188,19 @@ def record_verified_payment(payment_id, *, transaction_id, amount_vnd, currency=
     _activate(item, account, reviewer=None, note='Đã xác nhận thanh toán.', amount=payment.expected_amount_vnd)
     item.payments.filter(status='pending').exclude(pk=payment.pk).update(status='cancelled')
     return item
+
+
+@transaction.atomic
+def record_provider_payment(reference, *, provider, transaction_id, amount_vnd):
+    """Webhook đã xác thực (chữ ký, chiều tiền, tài khoản nhận) gọi vào đây theo mã yêu cầu.
+
+    Nhà cung cấp gửi lại cùng giao dịch đã ghi nhận -> trả lại yêu cầu, không cộng thêm hạn.
+    """
+    done = PaymentAttempt.objects.filter(provider=provider, provider_reference=transaction_id, status='succeeded').first()
+    if done is not None:
+        return done.request
+    item = SubscriptionRequest.objects.filter(reference=reference).first()
+    if item is None:
+        raise ValidationError('Không tìm thấy yêu cầu có mã này.')
+    payment = create_payment_attempt(item.pk, provider=provider)
+    return record_verified_payment(payment.pk, transaction_id=transaction_id, amount_vnd=amount_vnd)

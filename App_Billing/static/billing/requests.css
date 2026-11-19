@@ -59,3 +59,16 @@
 .billing-cta[data-billing-variant="downgrade"] [data-cta-icon="downgrade"],
 .billing-cta[data-billing-variant="pending"] [data-cta-icon="pending"]{display:inline}
 @media(prefers-reduced-motion:reduce){.billing-plan-action .billing-cta[data-billing-variant]{transition:none}.billing-plan-action .billing-cta[data-billing-variant]:hover:not(:disabled){transform:none}}
+
+/* QR SePay cho yêu cầu đang chờ thanh toán (phía trên bảng lịch sử) */
+.billing-payment { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; margin: 0 0 1rem; padding: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+.billing-payment img { width: 180px; height: 180px; object-fit: contain; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; }
+.billing-payment-info { flex: 1 1 240px; min-width: 0; }
+.billing-payment-info dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem .75rem; margin: .5rem 0; }
+.billing-payment-info dt { font-weight: 500; color: #64748b; }
+.billing-payment-info dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.billing-payment-note { margin: 0; font-size: .875rem; color: #64748b; }
+@media (max-width: 480px) {
+  .billing-payment-info dl { grid-template-columns: 1fr; gap: 0; }
+  .billing-payment-info dd { margin-bottom: .4rem; }
+}
