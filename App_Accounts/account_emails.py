@@ -10,8 +10,10 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordResetForm
 from django.core import signing
+from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
+from django.db.models import Q
 from django.template.loader import render_to_string
 from django.urls import reverse
 
@@ -136,3 +138,54 @@ def activate_signup(user):
     user.is_active = True
     user.save(update_fields=['is_active'])
     return user
+
+
+# Đăng nhập khi chưa bấm link kích hoạt: ModelBackend bỏ qua user is_active=False nên form chỉ thấy
+# «sai mật khẩu». Chỉ báo «chưa kích hoạt» khi mật khẩu đúng để trang đăng nhập không lộ tài khoản nào
+# đang chờ kích hoạt. Tài khoản bị quản trị khóa (đã từng đăng nhập) vẫn nhận lỗi cũ.
+SIGNUP_PENDING_MESSAGE = (
+    'Tài khoản chưa được kích hoạt. Vui lòng bấm link kích hoạt trong email chúng tôi đã gửi '
+    '(xem cả mục Spam/Quảng cáo), hoặc gửi lại link kích hoạt.'
+)
+
+
+def pending_signup_user(identifier, password, fields=None):
+    """User tự đăng ký chưa kích hoạt, khớp tên đăng nhập (hoặc các trường `fields`) và đúng mật khẩu."""
+    identifier = (identifier or '').strip()
+    if not identifier or not password:
+        return None
+    User = get_user_model()
+    query = Q()
+    for field in fields or (User.USERNAME_FIELD,):
+        query |= Q(**{f'{field}__iexact': identifier})
+    for user in User._default_manager.filter(query, is_active=False, last_login__isnull=True)[:5]:
+        if user.check_password(password):
+            return user
+    return None
+
+
+class PendingSignupLoginMixin:
+    """Đặt trước AuthenticationForm: đổi lỗi «sai mật khẩu» thành «chưa kích hoạt» khi đúng trường hợp.
+
+    form.pending_activation = True để template hiện nút «Gửi lại link kích hoạt»; email được nhớ vào
+    session để trang gửi lại điền sẵn.
+    """
+    pending_activation = False
+    pending_signup_fields = None
+    pending_signup_message = SIGNUP_PENDING_MESSAGE
+
+    def clean(self):
+        try:
+            return super().clean()
+        except ValidationError as exc:
+            if getattr(exc, 'code', None) != 'invalid_login' or getattr(self.request, 'axes_locked_out', False):
+                raise
+            user = pending_signup_user(
+                self.cleaned_data.get('username'), self.cleaned_data.get('password'), self.pending_signup_fields,
+            )
+            if user is None:
+                raise
+            self.pending_activation = True
+            if self.request is not None and user.email:
+                self.request.session['signup_email'] = user.email
+            raise ValidationError(self.pending_signup_message, code='inactive_signup') from None

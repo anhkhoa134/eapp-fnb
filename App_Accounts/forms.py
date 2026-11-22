@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from App_Accounts import login_throttle, rate_limit
-from App_Accounts.account_emails import BrandedPasswordResetForm
+from App_Accounts.account_emails import BrandedPasswordResetForm, PendingSignupLoginMixin
 from App_Accounts.models import User
 from App_Tenant.access import (
     BLOCK_SUBSCRIPTION_EXPIRED,
@@ -63,7 +63,8 @@ class LoginThrottleMixin:
         )
 
 
-class POSAuthenticationForm(LoginThrottleMixin, AuthenticationForm):
+# PendingSignupLoginMixin bọc ngoài: khóa tạm vẫn kiểm tra trước, lần sai vẫn được đếm.
+class POSAuthenticationForm(PendingSignupLoginMixin, LoginThrottleMixin, AuthenticationForm):
     # Câu mặc định của Django ("Vui lòng nhập một tên đăng nhập và mật khẩu đúng. Chú ý…") dài và khó đọc.
     error_messages = {
         **AuthenticationForm.error_messages,
