@@ -63,7 +63,7 @@
                     <h2 class="auth-title">Đăng nhập quản lý cửa hàng</h2>
                 </div>
                 {% if form.non_field_errors %}
-                <div class="alert alert-danger auth-alert py-2 px-3">{{ form.non_field_errors|join:' ' }}</div>
+                <div class="alert alert-danger auth-alert py-2 px-3">{{ form.non_field_errors|join:' ' }}{% if form.pending_activation %}<div class="mt-2"><a class="btn btn-sm btn-outline-danger" href="{% url 'App_Accounts:signup_resend' %}">Gửi lại link kích hoạt</a></div>{% endif %}</div>
                 {% endif %}
                 <form method="post" class="auth-form">
                     {% csrf_token %}
