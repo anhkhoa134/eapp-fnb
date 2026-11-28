@@ -19,6 +19,7 @@ from App_Accounts import rate_limit
 from App_Accounts.login_throttle import get_client_ip
 from App_Catalog.models import PLACEHOLDER_PRODUCT_IMAGE, Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, resolve_product_topping_links
+from App_Sales import qr_expiry
 from App_Sales.models import DiningTable, QROrder, QROrderItem, QROrderItemTopping
 from App_Sales.realtime import notify_qr_order_changed
 from App_Sales.services import get_effective_unit_price, parse_item_quantity, validate_order_lines
@@ -540,6 +541,11 @@ def api_public_qr_orders(request):
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
+    # FNB-11: dọn đơn quá hạn của bàn rồi giới hạn số đơn đang chờ duyệt để chặn gửi đơn liên tục.
+    qr_expiry.expire_stale_qr_orders(table=table)
+    if qr_expiry.table_pending_limit_reached(table):
+        return _json_error(qr_expiry.QR_ORDER_TABLE_LIMIT_MESSAGE, 429)
+
     return _save_public_order(
         fields={
             'tenant': table.tenant, 'store': table.store, 'table': table,
@@ -634,6 +640,7 @@ def api_public_qr_order_detail(request, order_id):
     if error:
         return error
 
+    qr_expiry.expire_stale_qr_orders(id=order_id, **order_filters)
     if request.method == 'GET':
         qr_order = get_object_or_404(
             QROrder.objects.select_related('table', 'store').prefetch_related('items', 'items__toppings'),
@@ -692,6 +699,7 @@ def api_public_qr_order_cancel(request, order_id):
     if error:
         return error
 
+    qr_expiry.expire_stale_qr_orders(id=order_id, **order_filters)
     with transaction.atomic():
         qr_order = get_object_or_404(
             QROrder.objects.select_for_update(of=('self',)).select_related('table', 'store'),

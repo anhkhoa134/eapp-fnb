@@ -23,7 +23,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from App_Accounts.permissions import kitchen_access_required, manager_required, staff_or_manager_required
 from App_Core.audit import Action, log_action
 from App_Core.templatetags.number_format import thousand_sep
-from App_Sales import kitchen, pricing, shifts
+from App_Sales import kitchen, pricing, qr_expiry, shifts
 from App_Catalog.models import PLACEHOLDER_PRODUCT_IMAGE, Product, ProductTopping, ProductUnit
 from App_Catalog.services import calc_toppings_total, parse_topping_ids, resolve_product_topping_links
 from App_Sales.models import (
@@ -1216,6 +1216,7 @@ def api_tables(request):
 
     pending_aggs = {}
     if user.tenant.show_qr_order_feature:
+        qr_expiry.expire_stale_qr_orders(table__in=tables_qs)
         pending_aggs = {
             row['table_id']: int(row['pending_count'])
             for row in QROrder.objects.filter(table__in=tables_qs, status=QROrder.Status.PENDING)
@@ -1922,6 +1923,7 @@ def api_qr_orders(request):
     if not store:
         return _json_error('Store không hợp lệ hoặc không có quyền truy cập.', 403)
 
+    qr_expiry.expire_stale_qr_orders(tenant=user.tenant, store=store)
     status = (request.GET.get('status') or 'pending').strip().upper()
     status_map = {
         'PENDING': QROrder.Status.PENDING,
@@ -2019,6 +2021,10 @@ def api_qr_order_approve(request, order_id):
             return _json_error('Đơn đã bị từ chối nên không thể duyệt.', 400)
         if order.status == QROrder.Status.CANCELLED:
             return _json_error('Đơn đã bị khách hủy nên không thể duyệt.', 400)
+        if qr_expiry.is_expired(order):
+            # FNB-11: ghi nhận huỷ (không rollback) rồi báo cho thu ngân.
+            qr_expiry.expire_stale_qr_orders(id=order.id)
+            return _json_error(qr_expiry.QR_ORDER_EXPIRED_REASON + ' Khách cần đặt lại đơn.', 400)
 
         use_kitchen = kitchen.kitchen_enabled(user.tenant)
         if order.is_takeaway:

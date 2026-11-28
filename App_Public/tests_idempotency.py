@@ -134,8 +134,9 @@ class PublicOrderIdempotencyTests(CreationPayloadMixin, OpsTestBase):
         body = self.payload()
         del body['client_request_id']
         self.assertEqual(self.create(body).status_code, 201)
-        self.assertEqual(self.create(body).status_code, 201)
-        self.assertEqual(QROrder.objects.count(), 4)
+        # FNB-11: mỗi bàn tối đa 3 đơn chờ duyệt, đơn thứ 4 bị chặn (dù khác mã yêu cầu).
+        self.assertEqual(self.create(body).status_code, 429)
+        self.assertEqual(QROrder.objects.count(), 3)
 
 
 @override_settings(CHANNEL_LAYERS={'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}})

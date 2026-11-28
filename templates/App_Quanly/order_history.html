@@ -250,21 +250,6 @@
                                     <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Hoàn tiền
                                 </button>
                                 {% endif %}
-                                {% if user.is_manager %}
-                                {# Xoá đơn làm mất số liệu doanh thu: để trong menu "Khác", không đặt cạnh nút Hoàn tiền. #}
-                                <div class="dropdown d-inline-block">
-                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Thao tác khác">
-                                        <i class="bi bi-three-dots" aria-hidden="true"></i><span class="visually-hidden">Thao tác khác</span>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li>
-                                            <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#orderDeleteModal-sale-{{ order.id }}">
-                                                <i class="bi bi-trash me-2" aria-hidden="true"></i>Xóa đơn{% if order.status != 'cancelled' %} (mất số liệu doanh thu){% endif %}
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </div>
-                                {% endif %}
                             </div>
                         </td>
                         {% endwith %}
@@ -503,32 +488,6 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
                     <button type="submit" class="btn btn-warning fw-semibold"><i class="bi bi-arrow-counterclockwise me-1"></i>Xác nhận hoàn tiền</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-{% endif %}
-{% if user.is_manager %}
-<div class="modal fade crud-modal" id="orderDeleteModal-sale-{{ order.id }}" tabindex="-1" aria-labelledby="orderDeleteLabel-sale-{{ order.id }}" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form method="post" action="{% url 'App_Quanly:order_delete' order.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <div class="modal-header">
-                    <h2 class="modal-title h5 mb-0" id="orderDeleteLabel-sale-{{ order.id }}">
-                        <i class="bi bi-exclamation-triangle text-danger me-2"></i>Xác nhận xóa đơn
-                    </h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-2">Bạn có chắc muốn xóa đơn <strong>{{ order.order_code }}</strong>? Thao tác không thể hoàn tác.</p>
-                    <p class="small text-muted mb-0">Chỉ tài khoản quản lý mới thực hiện được hành động này.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Hủy</button>
-                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Xóa đơn hàng</button>
                 </div>
             </form>
         </div>

@@ -2360,7 +2360,8 @@
                     <input type="hidden" id="qr-modal-order-id">
                     <button type="button" class="btn btn-outline-danger py-2 px-4 fw-bold" onclick="rejectQrOrder()">Từ chối</button>
                     <button type="button" class="btn btn-success py-2 px-4 fw-bold flex-grow-1" onclick="approveQrOrder()">
-                        <i class="fa-solid fa-check me-2"></i>Duyệt đơn & Báo bếp
+                        {# FNB-03: chỉ ghi "báo bếp" khi cửa hàng bật màn hình bếp; tắt bếp thì duyệt chỉ đưa món vào bàn / đơn mang đi. #}
+                        <i class="fa-solid fa-check me-2"></i>{% if user.tenant.show_kitchen_feature %}Duyệt đơn & Báo bếp{% else %}Duyệt đơn{% endif %}
                     </button>
                 </div>
             </div>
