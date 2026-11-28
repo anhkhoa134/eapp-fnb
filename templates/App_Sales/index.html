@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eApp FnB - Bán Hàng</title>
+    <title>Bán hàng | eApp FnB</title>
+    <meta name="robots" content="noindex, nofollow">
     <meta name="description" content="eApp FnB — Màn hình thu ngân, quản lý sơ đồ bàn và order món nhanh chóng.">
     <meta property="og:type" content="website">
     <meta property="og:title" content="eApp FnB - Bán hàng & Sơ đồ bàn">
@@ -518,6 +519,25 @@
         .product-card .card-img-top {
             height: 160px;
             object-fit: cover;
+            /* Nền xám trong lúc ảnh đang tải thay vì ô trắng (FNB-07). */
+            background: var(--bs-secondary-bg, #e9ecef);
+        }
+
+        .product-card.product-skeleton {
+            pointer-events: none;
+        }
+        .product-skeleton .skeleton-block {
+            background: linear-gradient(90deg, var(--bs-secondary-bg, #e9ecef) 25%, var(--bs-tertiary-bg, #f4f5f7) 50%, var(--bs-secondary-bg, #e9ecef) 75%);
+            background-size: 200% 100%;
+            animation: product-skeleton-shimmer 1.2s ease-in-out infinite;
+            border-radius: 0.375rem;
+        }
+        @keyframes product-skeleton-shimmer {
+            from { background-position: 200% 0; }
+            to { background-position: -200% 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .product-skeleton .skeleton-block { animation: none; }
         }
 
         .product-card .price-tag {
@@ -2510,8 +2530,8 @@
         </div>
     </div>
 
-    <!-- Toast sau thanh toán: in hoá đơn -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <!-- Toast sau thanh toán: in hoá đơn. Đặt ở trên giữa để không che nút Tạo đơn mang về / Thanh toán (FNB-06). -->
+    <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1090;">
         <div id="receiptToast" class="toast align-items-center border-0 shadow" role="status" aria-live="polite" aria-atomic="true">
             <div class="d-flex align-items-center gap-2 p-2 ps-3">
                 <div class="flex-grow-1 small fw-semibold" id="receiptToastMessage">Thanh toán thành công.</div>
@@ -2781,8 +2801,9 @@
             const receiptToastEl = document.getElementById('receiptToast');
             document.getElementById('receiptToastMessage').textContent = successText;
             bootstrap.Toast.getInstance(receiptToastEl)?.dispose();
-            new bootstrap.Toast(receiptToastEl, { delay: 15000 }).show();
+            new bootstrap.Toast(receiptToastEl, { delay: 8000 }).show();
         };
+        const hideReceiptToast = () => bootstrap.Toast.getInstance(document.getElementById('receiptToast'))?.hide();
         document.getElementById('receiptToastPrint')?.addEventListener('click', () => {
             printReceipt(lastPaidOrderId);
             bootstrap.Toast.getInstance(document.getElementById('receiptToast'))?.hide();
@@ -3111,7 +3132,7 @@
                             <div class="card product-card position-relative" onclick="handleProductClick(${prod.id}, this)">
                                 ${badgeCombo}
                                 ${badgeOptions}
-                                <img src="${escapeHtml(prod.img)}" class="card-img-top" alt="${escapeHtml(prod.name)}">
+                                <img src="${escapeHtml(prod.img)}" class="card-img-top" alt="${escapeHtml(prod.name)}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src=PLACEHOLDER_PRODUCT_IMG;">
                                 <div class="card-body">
                                     <h6 class="card-title text-truncate mb-1" title="${escapeHtml(prod.name)}">${escapeHtml(prod.name)}</h6>
                                     ${descHtml}
@@ -3509,10 +3530,44 @@
             }
         };
 
+        // Khung chờ khi đang tải thực đơn (mở trang / đổi chi nhánh), tránh màn hình trống 1–2 giây (FNB-07).
+        const showProductSkeleton = () => {
+            const container = document.getElementById('product-container');
+            if (!container) return;
+            const card = `
+                <div class="col-6 col-md-4 col-xl-3 product-col">
+                    <div class="card product-card product-skeleton" aria-hidden="true">
+                        <div class="card-img-top skeleton-block"></div>
+                        <div class="card-body">
+                            <div class="skeleton-block mb-2" style="height: 1rem; width: 75%;"></div>
+                            <div class="skeleton-block" style="height: 1rem; width: 40%;"></div>
+                        </div>
+                    </div>
+                </div>`;
+            container.innerHTML = `<div class="visually-hidden" role="status">Đang tải thực đơn…</div>${card.repeat(8)}`;
+        };
+
         const loadProductsFromApi = async () => {
             if (!currentStoreId) return;
+            showProductSkeleton();
             const params = new URLSearchParams({ store_id: currentStoreId });
-            const payload = await fetchJson(`${API_PRODUCTS_URL}?${params.toString()}`);
+            let payload;
+            try {
+                payload = await fetchJson(`${API_PRODUCTS_URL}?${params.toString()}`);
+            } catch (error) {
+                const container = document.getElementById('product-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="col-12">
+                            <div class="text-center text-muted py-5" role="alert">
+                                <i class="fa-solid fa-triangle-exclamation fs-2 mb-2 d-block opacity-50" aria-hidden="true"></i>
+                                <div class="fw-semibold">Không tải được thực đơn</div>
+                                <div class="small">Kiểm tra kết nối mạng rồi tải lại trang.</div>
+                            </div>
+                        </div>`;
+                }
+                throw error;
+            }
             hasPriceOverrideFeature = !!payload.price_override_enabled;
             priceOverrideReasonRequired = !!payload.price_override_reason_required;
 
@@ -3980,6 +4035,7 @@
 
             const wasTakeaway = currentSelectedTableId === null;
 
+            hideReceiptToast(); // sang bàn khác thì ẩn thông báo của đơn vừa thanh toán
             currentSelectedTableId = tableId;
             lastTableContextId = null;
             const table = getCurrentTable();
@@ -4019,6 +4075,7 @@
 
         const selectTakeaway = async () => {
             pendingSaveToTable = false;
+            hideReceiptToast();
             const tableId = currentSelectedTableId;
 
             if (tableId !== null) {
@@ -4468,6 +4525,21 @@
             required: true,
         });
 
+        // Huỷ món đã lưu trên bàn (chưa báo bếp): luôn hỏi xác nhận và bắt buộc lý do để đối soát (FNB-01).
+        const askRemoveReason = (label) => window.eappDialog.prompt({
+            title: 'Huỷ món khỏi bàn',
+            message: `Huỷ ${label} khỏi bàn? Chọn hoặc nhập lý do để ghi vào nhật ký.`,
+            placeholder: 'VD: nhập nhầm',
+            choices: VOID_REASON_CHOICES,
+            okText: 'Huỷ món',
+            cancelText: 'Không huỷ',
+            variant: 'danger',
+            required: true,
+        });
+        const askTableVoidReason = (item, label) => ((item.kitchenSentQty || 0) > 0
+            ? askVoidReason(label || `${item.name} x${item.kitchenSentQty}`)
+            : askRemoveReason(label || `${item.name} x${item.qty}`));
+
         const updateQty = async (cartId, delta) => {
             const item = cart.find((x) => x.cartId === cartId);
             if (!item) return;
@@ -4476,6 +4548,10 @@
                 let reason = '';
                 if (delta < 0 && (item.kitchenSentQty || 0) > Math.max(nextQty, 0)) {
                     reason = await askVoidReason(`${item.name} x${item.kitchenSentQty}`);
+                    if (reason === null) return;
+                } else if (nextQty <= 0) {
+                    // Bấm "−" về 0 là huỷ cả món: hỏi như nút X.
+                    reason = await askRemoveReason(`${item.name} x${item.qty}`);
                     if (reason === null) return;
                 }
                 try {
@@ -4500,11 +4576,8 @@
             const item = cart.find((x) => x.cartId === cartId);
             if (!item) return;
             if (currentSelectedTableId !== null && item.tableItemId) {
-                let reason = '';
-                if ((item.kitchenSentQty || 0) > 0) {
-                    reason = await askVoidReason(`${item.name} x${item.kitchenSentQty}`);
-                    if (reason === null) return;
-                }
+                const reason = await askTableVoidReason(item);
+                if (reason === null) return;
                 try {
                     await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/items/${item.tableItemId}/`, {
                         method: 'DELETE',
@@ -4527,11 +4600,15 @@
 
         const executeClearCart = async () => {
             if (currentSelectedTableId !== null) {
-                const sentItems = cart.filter((item) => item.tableItemId && (item.kitchenSentQty || 0) > 0);
+                const savedItems = cart.filter((item) => item.tableItemId);
+                const sentItems = savedItems.filter((item) => (item.kitchenSentQty || 0) > 0);
                 let reason = '';
-                if (sentItems.length) {
+                if (savedItems.length) {
+                    // Xoá hết món của bàn cũng phải có lý do, kể cả món chưa báo bếp (FNB-01).
                     bootstrap.Modal.getInstance(document.getElementById('confirmClearCartModal'))?.hide();
-                    reason = await askVoidReason(`${sentItems.length} món`);
+                    reason = sentItems.length
+                        ? await askVoidReason(`${sentItems.length} món`)
+                        : await askRemoveReason(`${savedItems.length} món`);
                     if (reason === null) return;
                 }
                 try {
@@ -4983,6 +5060,11 @@
                 `);
             });
             paymentRequestId = newPaymentRequestId();
+            // Mỗi lần mở thanh toán đều về Tiền mặt, không nhớ phương thức của đơn trước (FNB-04).
+            const cashRadio = document.getElementById('payment-cash');
+            if (cashRadio) cashRadio.checked = true;
+            const cardRadio = document.getElementById('payment-card');
+            if (cardRadio) cardRadio.checked = false;
             const referenceInput = document.getElementById('payment-reference-input');
             if (referenceInput) referenceInput.value = '';
             totalAmountDue = cartSubtotalAmount + renderTaxRow(cartSubtotalAmount);
