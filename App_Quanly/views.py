@@ -91,7 +91,6 @@ from App_Sales.services import (
     customer_search_q,
     ensure_customer_tier_settings,
     recompute_all_customer_stats,
-    recompute_customer_stats,
     sum_net_revenue,
 )
 from App_Tenant.models import Store, SubscriptionPlan, Tenant, UserStoreAccess
@@ -775,28 +774,16 @@ def _redirect_next_or(request, fallback):
 @manager_required
 @require_POST
 def order_delete(request, pk):
+    """FNB-02 (quyết định 28/11/2026): không xoá hẳn đơn đã bán vì làm mất số liệu doanh thu.
+
+    Giữ URL để link/bookmark cũ không lỗi, nhưng chỉ báo cho quản lý dùng Hoàn tiền (kèm lý do) thay thế.
+    """
     tenant = _tenant_or_404(request.user)
     order = get_object_or_404(Order, pk=pk, tenant=tenant)
-    customer = order.customer
-    code = order.order_code
-    log_action(
-        Action.ORDER_DELETE,
-        request=request,
-        store_id=order.store_id,
-        object_type='Đơn bán',
-        message=f'Xoá đơn {code} ({thousand_sep(order.total_amount)} đ)',
-        extra={
-            'order_id': order.id,
-            'order_code': code,
-            'total_amount': str(order.total_amount),
-            'payment_method': order.payment_method,
-            'created_at': timezone.localtime(order.created_at).isoformat(),
-        },
+    messages.error(
+        request,
+        f'Không thể xoá đơn {order.order_code}. Muốn huỷ đơn, hãy dùng "Hoàn tiền" toàn bộ và ghi lý do.',
     )
-    order.delete()
-    if customer:
-        recompute_customer_stats(customer)
-    messages.success(request, f'Đã xóa đơn hàng {code}.')
     return _redirect_next_or(request, 'App_Quanly:orders')
 
 

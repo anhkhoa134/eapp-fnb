@@ -793,17 +793,15 @@ class QuanlyOrderHistoryTests(TestCase):
         self.assertIn('Giảm lịch sử', html)
         self.assertIn('-10.000 đ', html)
 
-    def test_order_delete_recomputes_customer_loyalty(self):
-        self.customer.total_spent = Decimal('100000')
-        self.customer.points_balance = 10
-        self.customer.save(update_fields=['total_spent', 'points_balance', 'updated_at'])
-
+    def test_order_delete_is_disabled(self):
+        """FNB-02: đơn đã bán không xoá hẳn được, chỉ hoàn tiền kèm lý do."""
         self.client.login(username='manager_orders', password='123456')
         res = self.client.post(reverse('App_Quanly:order_delete', kwargs={'pk': self.order_1.id}))
         self.assertEqual(res.status_code, 302)
-        self.customer.refresh_from_db()
-        self.assertEqual(self.customer.total_spent, Decimal('0'))
-        self.assertEqual(self.customer.points_balance, 0)
+        self.assertTrue(Order.objects.filter(pk=self.order_1.id).exists())
+        page = self.client.get(reverse('App_Quanly:orders'))
+        self.assertNotContains(page, 'orderDeleteModal-sale-')
+        self.assertNotContains(page, 'mất số liệu doanh thu')
 
     def test_order_history_pagination_keeps_query_params(self):
         self.client.login(username='manager_orders', password='123456')
