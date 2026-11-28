@@ -5024,13 +5024,19 @@
             }
         };
 
-        // Chia hoá đơn: danh sách tableItemId được thanh toán ở lần này (null = cả bàn).
+        // Chia hoá đơn: các món thanh toán ở lần này, dạng [{id: tableItemId, quantity}] (null = cả bàn).
         let splitBillItemIds = null;
-        const openPaymentModal = async (itemIds = null) => {
+        const pickSelectedCartItems = (selection) => selection
+            .map((sel) => {
+                const item = cart.find((row) => row.tableItemId === sel.id);
+                return item ? { ...item, qty: sel.quantity } : null;
+            })
+            .filter(Boolean);
+        const openPaymentModal = async (selection = null) => {
             if (!cart.length) return;
             if (!paymentModalInstance) paymentModalInstance = new bootstrap.Modal(document.getElementById('paymentModal'));
-            splitBillItemIds = Array.isArray(itemIds) && itemIds.length ? itemIds : null;
-            const payItems = splitBillItemIds ? cart.filter((item) => splitBillItemIds.includes(item.tableItemId)) : cart;
+            splitBillItemIds = Array.isArray(selection) && selection.length ? selection : null;
+            const payItems = splitBillItemIds ? pickSelectedCartItems(splitBillItemIds) : cart;
             cartSubtotalAmount = payItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
             selectedPromotion = null;
             currentDiscountAmount = 0;
@@ -5039,7 +5045,7 @@
             currentTierDiscountPercent = 0;
             const modalItemsContainer = document.getElementById('modal-cart-items');
             modalItemsContainer.innerHTML = splitBillItemIds
-                ? `<div class="alert alert-info py-2 small mb-3"><i class="fa-solid fa-receipt me-1"></i>Chia hoá đơn: thanh toán ${payItems.length}/${cart.length} dòng món.</div>`
+                ? `<div class="alert alert-info py-2 small mb-3"><i class="fa-solid fa-receipt me-1"></i>Chia hoá đơn: thanh toán ${payItems.reduce((n, item) => n + item.qty, 0)}/${cart.reduce((n, item) => n + item.qty, 0)} món.</div>`
                 : '';
             payItems.forEach((item) => {
                 const tops = toppingText(item.toppings || []);
@@ -5116,27 +5122,57 @@
             }
         };
 
-        const splitBillSelected = () => Array.from(document.querySelectorAll('.js-split-item:checked')).map((input) => Number(input.value));
+        // FNB-05: mỗi món có ô số lượng (khi số lượng > 1) để tách / thanh toán một phần.
+        const renderSplitPickRows = (box, checkboxClass, onChange) => {
+            box.innerHTML = cart
+                .filter((item) => item.tableItemId)
+                .map((item) => `
+                    <div class="form-check py-1 d-flex align-items-center gap-2 js-split-row">
+                        <input class="form-check-input ${checkboxClass} flex-shrink-0" type="checkbox" value="${item.tableItemId}" id="${checkboxClass}-${item.tableItemId}">
+                        <label class="form-check-label d-flex justify-content-between gap-2 flex-grow-1" for="${checkboxClass}-${item.tableItemId}">
+                            <span>${item.qty}× ${escapeHtml(item.name)}${item.size ? ` (${escapeHtml(item.size)})` : ''}</span>
+                            <span class="text-muted">${formatCurrency(item.price * item.qty)}</span>
+                        </label>
+                        ${item.qty > 1 ? `<input type="number" class="form-control form-control-sm js-split-qty flex-shrink-0" style="width: 72px;" min="1" max="${item.qty}" step="1" value="${item.qty}" inputmode="numeric" aria-label="Số lượng chọn của ${escapeHtml(item.name)}" disabled>` : ''}
+                    </div>`)
+                .join('');
+            box.querySelectorAll('.js-split-row').forEach((row) => {
+                const checkbox = row.querySelector(`.${checkboxClass}`);
+                const qtyInput = row.querySelector('.js-split-qty');
+                checkbox.addEventListener('change', () => {
+                    if (qtyInput) qtyInput.disabled = !checkbox.checked;
+                    onChange?.();
+                });
+                qtyInput?.addEventListener('input', () => onChange?.());
+            });
+        };
+        const readSplitSelection = (checkboxClass) => Array.from(document.querySelectorAll(`.${checkboxClass}:checked`))
+            .map((input) => {
+                const id = Number(input.value);
+                const item = cart.find((row) => row.tableItemId === id);
+                if (!item) return null;
+                const qtyInput = input.closest('.js-split-row')?.querySelector('.js-split-qty');
+                let quantity = qtyInput ? parseInt(qtyInput.value, 10) : item.qty;
+                if (!Number.isFinite(quantity) || quantity < 1) quantity = 1;
+                if (quantity > item.qty) quantity = item.qty;
+                return { id, quantity };
+            })
+            .filter(Boolean);
+        const isWholeCartSelection = (selection) => {
+            const lines = cart.filter((item) => item.tableItemId);
+            return selection.length === lines.length
+                && selection.every((sel) => sel.quantity === lines.find((item) => item.tableItemId === sel.id)?.qty);
+        };
+
+        const splitBillSelected = () => readSplitSelection('js-split-item');
         const updateSplitBillTotal = () => {
-            const ids = splitBillSelected();
-            const total = cart.filter((item) => ids.includes(item.tableItemId)).reduce((sum, item) => sum + item.price * item.qty, 0);
+            const total = pickSelectedCartItems(splitBillSelected()).reduce((sum, item) => sum + item.price * item.qty, 0);
             document.getElementById('splitBillTotal').textContent = formatCurrency(total);
         };
         const openSplitBillModal = () => {
             if (currentSelectedTableId === null) return;
             const box = document.getElementById('splitBillItems');
-            box.innerHTML = cart
-                .filter((item) => item.tableItemId)
-                .map((item) => `
-                    <div class="form-check py-1">
-                        <input class="form-check-input js-split-item" type="checkbox" value="${item.tableItemId}" id="splitItem${item.tableItemId}">
-                        <label class="form-check-label d-flex justify-content-between gap-2 w-100" for="splitItem${item.tableItemId}">
-                            <span>${item.qty}× ${escapeHtml(item.name)}${item.size ? ` (${escapeHtml(item.size)})` : ''}</span>
-                            <span class="text-muted">${formatCurrency(item.price * item.qty)}</span>
-                        </label>
-                    </div>`)
-                .join('');
-            box.querySelectorAll('.js-split-item').forEach((input) => input.addEventListener('change', updateSplitBillTotal));
+            renderSplitPickRows(box, 'js-split-item', updateSplitBillTotal);
             document.getElementById('splitBillError').classList.add('d-none');
             updateSplitBillTotal();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('splitBillModal')).show();
@@ -5144,15 +5180,14 @@
         const confirmSplitBill = () => {
             const ids = splitBillSelected();
             const err = document.getElementById('splitBillError');
-            const allIds = cart.filter((item) => item.tableItemId).map((item) => item.tableItemId);
             if (!ids.length) {
                 err.textContent = 'Chọn ít nhất 1 món.';
                 err.classList.remove('d-none');
                 return;
             }
             bootstrap.Modal.getInstance(document.getElementById('splitBillModal'))?.hide();
-            // Chọn hết = thanh toán cả bàn như bình thường.
-            openPaymentModal(ids.length === allIds.length ? null : ids);
+            // Chọn hết (đủ số lượng) = thanh toán cả bàn như bình thường.
+            openPaymentModal(isWholeCartSelection(ids) ? null : ids);
         };
         window.openSplitBillModal = openSplitBillModal;
         window.confirmSplitBill = confirmSplitBill;
@@ -5182,18 +5217,7 @@
                 select.appendChild(opt);
             });
 
-            const itemsBox = document.getElementById('moveTableItems');
-            itemsBox.innerHTML = cart
-                .filter((item) => item.tableItemId)
-                .map((item) => `
-                    <div class="form-check">
-                        <input class="form-check-input js-move-item" type="checkbox" value="${item.tableItemId}" id="moveItem${item.tableItemId}">
-                        <label class="form-check-label" for="moveItem${item.tableItemId}">
-                            ${item.qty}× ${escapeHtml(item.name)}${item.size ? ` (${escapeHtml(item.size)})` : ''}
-                            <span class="text-muted">· ${formatCurrency(item.price * item.qty)}</span>
-                        </label>
-                    </div>`)
-                .join('');
+            renderSplitPickRows(document.getElementById('moveTableItems'), 'js-move-item');
             document.getElementById('moveModeAll').checked = true;
             syncMoveTableMode();
 
@@ -5210,7 +5234,7 @@
             const target = tables.find((t) => Number(t.id) === Number(document.getElementById('moveTableSelect').value));
             const busy = target?.status === 'occupied';
             document.getElementById('moveTableHint').textContent = split
-                ? 'Chọn các món cần tách; món còn lại ở bàn hiện tại.'
+                ? 'Chọn các món cần tách, sửa số lượng nếu chỉ tách một phần; phần còn lại ở bàn hiện tại.'
                 : busy
                     ? `Toàn bộ món sẽ gộp vào ${target.name} (món trùng được cộng số lượng). Bàn hiện tại sẽ trống.`
                     : 'Toàn bộ món chuyển sang bàn mới, bàn hiện tại sẽ trống.';
@@ -5227,7 +5251,7 @@
             const toTableId = parseInt(select.value || '0', 10) || null;
             if (!toTableId) return;
             const split = getMoveTableMode() === 'split';
-            const itemIds = Array.from(document.querySelectorAll('.js-move-item:checked')).map((input) => Number(input.value));
+            const itemIds = readSplitSelection('js-move-item');
             if (split && !itemIds.length) {
                 err.textContent = 'Chọn ít nhất 1 món để tách.';
                 err.classList.remove('d-none');
@@ -5243,7 +5267,7 @@
             try {
                 const result = await fetchJson(`${API_TABLES_BASE}${currentSelectedTableId}/cart/move-to/`, {
                     method: 'POST',
-                    body: JSON.stringify(split ? { to_table_id: toTableId, item_ids: itemIds } : { to_table_id: toTableId }),
+                    body: JSON.stringify(split ? { to_table_id: toTableId, items: itemIds } : { to_table_id: toTableId }),
                 });
                 if (result.partial) {
                     // Tách bàn: ở lại bàn hiện tại với các món còn lại.
@@ -5301,7 +5325,7 @@
                             payment_reference: paymentMethod === 'card' ? (document.getElementById('payment-reference-input')?.value || '').trim() : '',
                             customer_id: hasCustomerFeature && selectedCustomer ? selectedCustomer.id : null,
                             promotion_id: hasPromotionFeature && selectedPromotion ? selectedPromotion.id : null,
-                            ...(splitBillItemIds ? { item_ids: splitBillItemIds } : {}),
+                            ...(splitBillItemIds ? { items: splitBillItemIds } : {}),
                         }),
                     });
                     splitBillItemIds = null;

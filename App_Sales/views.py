@@ -1441,6 +1441,88 @@ def api_table_import_takeaway(request, table_id):
     )
 
 
+def _parse_selected_cart_items(payload, empty_message):
+    """Món được chọn để tách bàn / chia hoá đơn: dict {id dòng: số lượng} (None = cả dòng), hoặc None nếu không chọn.
+
+    Nhận `items=[{"id": .., "quantity": ..}]` (FNB-05: tách một phần số lượng) hoặc `item_ids=[..]` (cả dòng, kiểu cũ).
+    """
+    if payload.get('items') is not None:
+        raw_items = payload.get('items')
+        if not isinstance(raw_items, list) or not raw_items:
+            raise ValueError(empty_message)
+        selected = {}
+        for row in raw_items:
+            if not isinstance(row, dict):
+                raise ValueError('Danh sách món không hợp lệ.')
+            try:
+                item_id = int(row.get('id'))
+                quantity = row.get('quantity')
+                quantity = None if quantity in (None, '') else int(quantity)
+            except (TypeError, ValueError):
+                raise ValueError('Danh sách món không hợp lệ.')
+            if quantity is not None and quantity <= 0:
+                raise ValueError('Số lượng tách phải lớn hơn 0.')
+            if item_id in selected:
+                raise ValueError('Danh sách món không hợp lệ.')
+            selected[item_id] = quantity
+        return selected
+    if payload.get('item_ids') is not None:
+        raw_ids = payload.get('item_ids')
+        if not isinstance(raw_ids, list) or not raw_ids:
+            raise ValueError(empty_message)
+        try:
+            return {int(raw_id): None for raw_id in raw_ids}
+        except (TypeError, ValueError):
+            raise ValueError('Danh sách món không hợp lệ.')
+    return None
+
+
+def _split_selected_cart_lines(table, selected):
+    """Tách phần số lượng được chọn thành dòng riêng ở cùng bàn, trả về id các dòng cần xử lý.
+
+    Gọi khi đã khoá bàn và đang trong transaction. Phần đã báo bếp đi theo phần tách trước
+    (tối đa bằng số lượng tách) để phần chưa báo bếp vẫn được báo khi thanh toán.
+    Liên kết phiếu bếp ở lại dòng gốc.
+    """
+    lines = {
+        line.id: line
+        for line in TableCartItem.objects.filter(table=table, id__in=list(selected)).prefetch_related('toppings')
+    }
+    if len(lines) != len(selected):
+        raise ValueError('Có món đã chọn không còn trong giỏ bàn, vui lòng tải lại.')
+    ids = []
+    for line_id, quantity in selected.items():
+        line = lines[line_id]
+        if quantity is None or quantity == line.quantity:
+            ids.append(line_id)
+            continue
+        if quantity > line.quantity:
+            raise ValueError(f'Số lượng chọn vượt quá số lượng của món {line.snapshot_product_name}.')
+        moved_sent = min(quantity, line.kitchen_sent_quantity)
+        toppings = list(line.toppings.all().order_by('id'))
+        part = TableCartItem.objects.get(pk=line.pk)
+        line.quantity -= quantity
+        line.kitchen_sent_quantity -= moved_sent
+        line.save(update_fields=['quantity', 'kitchen_sent_quantity', 'updated_at'])
+        part.pk = None
+        part.id = None
+        part._state.adding = True
+        part.quantity = quantity
+        part.kitchen_sent_quantity = moved_sent
+        part.save()
+        TableCartItemTopping.objects.bulk_create([
+            TableCartItemTopping(
+                table_cart_item=part,
+                topping_id=row.topping_id,
+                snapshot_topping_name=row.snapshot_topping_name,
+                snapshot_price=row.snapshot_price,
+            )
+            for row in toppings
+        ])
+        ids.append(part.id)
+    return ids
+
+
 @login_required
 @staff_or_manager_required
 @require_POST
@@ -1469,22 +1551,25 @@ def api_table_cart_move_to(request, table_id):
     if to_table.store_id != from_table.store_id:
         return _json_error('Không thể chuyển giỏ giữa hai cửa hàng khác nhau.', 400)
 
-    # Tách bàn: chỉ chuyển các dòng món được chọn (cả dòng). Không gửi item_ids = chuyển cả bàn.
-    selected_ids = None
-    if payload.get('item_ids') is not None:
-        raw_ids = payload.get('item_ids')
-        if not isinstance(raw_ids, list) or not raw_ids:
-            return _json_error('Chọn ít nhất 1 món để tách sang bàn khác.', 400)
-        try:
-            selected_ids = {int(raw_id) for raw_id in raw_ids}
-        except (TypeError, ValueError):
-            return _json_error('Danh sách món không hợp lệ.', 400)
+    # Tách bàn: chỉ chuyển các món được chọn (cả dòng hoặc một phần số lượng). Không chọn = chuyển cả bàn.
+    try:
+        selected = _parse_selected_cart_items(payload, 'Chọn ít nhất 1 món để tách sang bàn khác.')
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
 
     # Lock both tables in a stable order before reading their carts, including
     # empty carts, so moving and checkout cannot lose or duplicate items.
     list(DiningTable.objects.select_for_update().filter(
         pk__in=[from_table.pk, to_table.pk],
     ).order_by('pk'))
+    selected_ids = None
+    if selected is not None:
+        if TableCartItem.objects.filter(table=from_table, id__in=list(selected), unit__isnull=True).exists():
+            return _json_error('Item không hợp lệ (thiếu unit).', 400)
+        try:
+            selected_ids = set(_split_selected_cart_lines(from_table, selected))
+        except ValueError as exc:
+            return _rollback_error(str(exc), 400)
     items_qs = TableCartItem.objects.filter(table=from_table)
     if selected_ids is not None:
         items_qs = items_qs.filter(id__in=selected_ids)
@@ -1568,6 +1653,12 @@ def api_table_cart_move_to(request, table_id):
             'summary': _table_cart_summary(to_table),
         }
     )
+
+
+def _rollback_error(message, status=400):
+    """Trả lỗi và huỷ mọi thay đổi trong transaction.atomic() hiện tại (VD dòng món vừa tách)."""
+    transaction.set_rollback(True)
+    return _json_error(message, status)
 
 
 VOID_REASON_REQUIRED_MESSAGE = 'Món đã báo bếp: vui lòng nhập lý do huỷ.'
@@ -1774,29 +1865,30 @@ def api_table_checkout(request, table_id):
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
-    # Chia hoá đơn: chỉ thanh toán các dòng món được chọn, phần còn lại ở lại bàn.
+    # Chia hoá đơn: chỉ thanh toán các món được chọn (cả dòng hoặc một phần số lượng), phần còn lại ở lại bàn.
+    try:
+        selected = _parse_selected_cart_items(payload, 'Chọn ít nhất 1 món để thanh toán.')
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
     selected_ids = None
-    if payload.get('item_ids') is not None:
-        raw_ids = payload.get('item_ids')
-        if not isinstance(raw_ids, list) or not raw_ids:
-            return _json_error('Chọn ít nhất 1 món để thanh toán.', 400)
-        try:
-            selected_ids = {int(raw_id) for raw_id in raw_ids}
-        except (TypeError, ValueError):
-            return _json_error('Danh sách món không hợp lệ.', 400)
 
     try:
         with transaction.atomic():
             # Khoá bàn: hai máy (hoặc bấm đúp) thanh toán cùng bàn thì request sau chờ, rồi thấy giỏ đã trống.
             DiningTable.objects.select_for_update().filter(pk=table.pk).first()
+            if selected is not None:
+                try:
+                    selected_ids = set(_split_selected_cart_lines(table, selected))
+                except ValueError as exc:
+                    return _rollback_error(str(exc), 400)
             cart_qs = TableCartItem.objects.filter(table=table)
             if selected_ids is not None:
                 cart_qs = cart_qs.filter(id__in=selected_ids)
             cart_items = list(cart_qs.select_related('product', 'unit').prefetch_related('toppings'))
             if not cart_items:
-                return _json_error('Bàn này chưa có món để thanh toán.', 400)
+                return _rollback_error('Bàn này chưa có món để thanh toán.', 400)
             if selected_ids is not None and len(cart_items) != len(selected_ids):
-                return _json_error('Có món đã chọn không còn trong giỏ bàn, vui lòng tải lại.', 400)
+                return _rollback_error('Có món đã chọn không còn trong giỏ bàn, vui lòng tải lại.', 400)
             paid_ids = [item.id for item in cart_items]
             partial = TableCartItem.objects.filter(table=table).exclude(id__in=paid_ids).exists()
             if partial:
@@ -1809,27 +1901,27 @@ def api_table_checkout(request, table_id):
             subtotal = Decimal('0')
             for item in cart_items:
                 if item.original_unit_price is not None and not user.tenant.feature_price_override_enabled:
-                    return _json_error('Tính năng chỉnh giá đang tắt. Vui lòng khôi phục giá gốc trước khi thanh toán.', 403)
+                    return _rollback_error('Tính năng chỉnh giá đang tắt. Vui lòng khôi phục giá gốc trước khi thanh toán.', 403)
                 subtotal += item.unit_price_snapshot * item.quantity
                 if subtotal > MAX_MONEY_AMOUNT:
-                    return _json_error('Tổng tiền vượt giới hạn cho phép.')
+                    return _rollback_error('Tổng tiền vượt giới hạn cho phép.')
 
             try:
                 customer, promotion = _resolve_checkout_discounts(
                     tenant=user.tenant, store=table.store, payload=payload, subtotal=subtotal
                 )
             except ValueError as exc:
-                return _json_error(str(exc), 400)
+                return _rollback_error(str(exc), 400)
 
             totals = calculate_order_totals(
                 subtotal=subtotal, tax_rate=user.tenant.tax_rate, promotion=promotion, customer=customer
             )
             total_amount = totals['total_amount']
             if total_amount > MAX_MONEY_AMOUNT:
-                return _json_error('Tổng tiền sau thuế vượt giới hạn cho phép.')
+                return _rollback_error('Tổng tiền sau thuế vượt giới hạn cho phép.')
 
             if payment_method == Order.PaymentMethod.CASH and customer_paid < total_amount:
-                return _json_error('Khách đưa chưa đủ tiền.', 400)
+                return _rollback_error('Khách đưa chưa đủ tiền.', 400)
 
             if payment_method == Order.PaymentMethod.CARD and customer_paid <= 0:
                 customer_paid = total_amount
