@@ -788,6 +788,50 @@ class QaReportSalesTests(OpsTestBase):
         self.assertEqual(rest.json()['table_status'], 'empty')
         self.assertFalse(TableCartItem.objects.filter(table=self.table).exists())
 
+    def test_split_table_partial_quantity(self):
+        """FNB-05: tách một phần số lượng của một dòng món sang bàn khác."""
+        self.login(self.staff)
+        self.add_to_table(quantity=3)
+        line = TableCartItem.objects.get(table=self.table)
+        TableCartItem.objects.filter(pk=line.pk).update(kitchen_sent_quantity=2)
+        table_2 = DiningTable.objects.create(tenant=self.tenant, store=self.store, code='B02', name='Bàn 02')
+        move_url = reverse('App_Sales_API:table_cart_move_to', args=[self.table.id])
+
+        too_many = self.post_json(move_url, {'to_table_id': table_2.id, 'items': [{'id': line.id, 'quantity': 4}]})
+        self.assertEqual(too_many.status_code, 400)
+        line.refresh_from_db()
+        self.assertEqual((line.quantity, line.kitchen_sent_quantity), (3, 2))
+        self.assertEqual(TableCartItem.objects.filter(table=self.table).count(), 1)
+
+        split = self.post_json(move_url, {'to_table_id': table_2.id, 'items': [{'id': line.id, 'quantity': 1}]})
+        self.assertEqual(split.status_code, 200, split.content)
+        self.assertTrue(split.json()['partial'])
+        line.refresh_from_db()
+        self.assertEqual((line.quantity, line.kitchen_sent_quantity), (2, 1))
+        moved = TableCartItem.objects.get(table=table_2)
+        self.assertEqual((moved.product_id, moved.quantity, moved.kitchen_sent_quantity), (self.product.id, 1, 1))
+        self.assertEqual(moved.unit_price_snapshot, line.unit_price_snapshot)
+
+    def test_split_bill_partial_quantity(self):
+        """FNB-05: chia hoá đơn theo số lượng — thanh toán 1 trong 2 ly, ly còn lại ở bàn."""
+        self.login(self.staff)
+        self.add_to_table(quantity=2)
+        line = TableCartItem.objects.get(table=self.table)
+        url = reverse('App_Sales_API:table_checkout', args=[self.table.id])
+
+        # Thanh toán lỗi (thiếu tiền) thì không để lại dòng món bị tách.
+        short = self.post_json(url, {'payment_method': 'cash', 'customer_paid': '1000', 'items': [{'id': line.id, 'quantity': 1}]})
+        self.assertEqual(short.status_code, 400)
+        self.assertEqual(list(TableCartItem.objects.filter(table=self.table).values_list('id', 'quantity')), [(line.id, 2)])
+
+        response = self.post_json(url, {'payment_method': 'cash', 'customer_paid': '100000', 'items': [{'id': line.id, 'quantity': 1}]})
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(response.json()['partial'])
+        order = Order.objects.get(pk=response.json()['order_id'])
+        self.assertEqual(order.subtotal, Decimal('30000'))
+        self.assertEqual(list(order.items.values_list('quantity', flat=True)), [1])
+        self.assertEqual(list(TableCartItem.objects.filter(table=self.table).values_list('id', 'quantity')), [(line.id, 1)])
+
 class KitchenRoleTests(OpsTestBase):
     """UX-5: vai trò Bếp chỉ dùng màn hình bếp."""
 
