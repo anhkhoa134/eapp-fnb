@@ -92,7 +92,9 @@
             close();
             select(item);
         }
-        async function refresh(query = '') {
+        // explicit: người dùng bấm nút mở danh sách. Khi chỉ focus/click vào ô mà danh sách rỗng thì đóng lại,
+        // không để dòng "Không có kết quả phù hợp" che mất số Tổng cộng bên dưới (FNB-08).
+        async function refresh(query = '', explicit = false) {
             clearTimeout(timer);
             const current = ++revision;
             if (!show()) return;
@@ -101,7 +103,7 @@
                 const rows = await load(query);
                 if (current !== revision || menu.hidden) return;
                 items = rows;
-                if (!rows.length) return status(emptyText);
+                if (!rows.length) return (query || explicit) ? status(emptyText) : close();
                 menu.replaceChildren(); active = -1;
                 const heading = document.createElement('div');
                 heading.className = 'checkout-combobox-status';
@@ -166,7 +168,7 @@
                 else refresh(input.value.trim());
             }
         });
-        toggle?.addEventListener('click', () => menu.hidden ? refresh('') : close());
+        toggle?.addEventListener('click', () => menu.hidden ? refresh('', true) : close());
         clear?.addEventListener('click', () => {
             input.value = '';
             close();

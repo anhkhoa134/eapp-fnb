@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    {# Trang sau đăng nhập là trang nội bộ: không cho máy tìm kiếm index (FNB-09). Trang đăng nhập vẫn index được. #}
+    {% if user.is_authenticated %}<meta name="robots" content="noindex, nofollow">{% endif %}
     <meta name="description" content="eApp FnB — Phần mềm quản lý nhà hàng, quán cafe, order tại bàn qua QR code chuyên nghiệp.">
     <meta property="og:type" content="website">
     <meta property="og:title" content="eApp FnB — Giải pháp quản lý nhà hàng & quán cafe">
